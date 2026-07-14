@@ -944,7 +944,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v37'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v38'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -1132,7 +1132,7 @@ let nameRes=null;
 const mName=document.getElementById('modal-name'),mNameIn=document.getElementById('modal-name-input'),mNameTitle=document.getElementById('modal-name-title');
 document.getElementById('modal-name-cancel').onclick=()=>{mName.classList.add('hidden');nameRes&&nameRes(null)};
 document.getElementById('modal-name-ok').onclick=()=>{const v=mNameIn.value.trim();if(!v)return;mName.classList.add('hidden');nameRes&&nameRes(v)};
-mNameIn.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('modal-name-ok').click()});
+/* Enter/Escape los gestiona el manejador global de modales (ver ATAJOS MODALES). */
 function askName(title,def=''){return new Promise(r=>{nameRes=r;mNameTitle.textContent=title;mNameIn.value=def;mName.classList.remove('hidden');setTimeout(()=>mNameIn.focus(),100)})}
 
 /* editor de título + texto (para nodos, definiciones y conclusiones plasmados) */
@@ -1173,7 +1173,13 @@ function askTheme(kindLabel){
       const t=createTheme(num,name);done(t.id);
     };
     document.getElementById('theme-skip').onclick=()=>done(null);
+    /* Enter en cualquiera de los dos campos = Crear */
+    ['theme-new-num','theme-new-name'].forEach(id=>{
+      const el=document.getElementById(id);
+      el.onkeydown=ev=>{if(ev.key==='Enter'){ev.preventDefault();ev.stopPropagation();addBtn.click()}};
+    });
     mTheme.classList.remove('hidden');
+    setTimeout(()=>document.getElementById('theme-new-name').focus(),100);
     function done(v){mTheme.classList.add('hidden');addBtn.onclick=null;themeRes&&themeRes(v);themeRes=null}
   });
 }
@@ -3333,6 +3339,10 @@ document.getElementById('tl-date').addEventListener('keydown',e=>{
   if(e.key==='Enter'){e.preventDefault();document.getElementById('tl-add').click()}
 });
 const tlAuthorEl=document.getElementById('tl-author');
+/* Enter = salto de linea (es una textarea); Ctrl/Cmd+Enter = anadir. */
+tlAuthorEl.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();document.getElementById('tl-add').click()}
+});
 tlAuthorEl.addEventListener('input',()=>{
   tlAuthorEl.style.height='auto';
   tlAuthorEl.style.height=Math.min(tlAuthorEl.scrollHeight,110)+'px';
@@ -3757,6 +3767,68 @@ window.addEventListener('keydown',e=>{
   if(anyModalOpen())return;
   e.preventDefault();e.stopPropagation();
   if(k==='y'||(k==='z'&&e.shiftKey))doRedo();else doUndo();
+},true);
+
+/* ══ ATAJOS DE TECLADO EN MODALES (PC) ══
+   Enter  → pulsa el boton principal (Guardar / Crear / Listo / Eliminar…)
+   Escape → pulsa el boton de cancelar / cerrar
+   En un <textarea> Enter sigue siendo salto de linea: alli hay que usar
+   Ctrl+Enter (o Cmd+Enter) para confirmar. */
+const MODAL_OK={
+  'modal-embed-edit':'emb-edit-ok',
+  'modal-node':'modal-node-ok',
+  'modal-subnode':'modal-subnode-ok',
+  'modal-bookmark':'modal-bookmark-ok',
+  'modal-name':'modal-name-ok',
+  'modal-confirm':'modal-confirm-ok',
+  'modal-settings':'set-close',
+  'modal-margin':'mg-close',
+  'modal-gest':'gest-close',
+  'modal-palette':'pal-close'
+};
+const MODAL_CANCEL={
+  'modal-embed-edit':'emb-edit-cancel',
+  'modal-node':'modal-node-cancel',
+  'modal-subnode':'modal-subnode-cancel',
+  'modal-bookmark':'modal-bookmark-cancel',
+  'modal-name':'modal-name-cancel',
+  'modal-confirm':'modal-confirm-cancel',
+  'modal-settings':'set-close',
+  'modal-margin':'mg-close',
+  'modal-gest':'gest-close',
+  'modal-palette':'pal-close',
+  'modal-insert':'ins-cancel',
+  'modal-theme':'theme-skip'
+};
+function topModal(){
+  const open=[...document.querySelectorAll('.modal-bg:not(.hidden)')];
+  return open.length?open[open.length-1]:null;   // el ultimo en el DOM = el de encima
+}
+function clickIfEnabled(id){
+  const b=id&&document.getElementById(id);
+  if(b&&!b.disabled){b.click();return true}
+  return false;
+}
+window.addEventListener('keydown',e=>{
+  const m=topModal();
+  if(!m)return;
+
+  if(e.key==='Escape'){
+    e.preventDefault();e.stopPropagation();
+    clickIfEnabled(MODAL_CANCEL[m.id]);
+    return;
+  }
+  if(e.key!=='Enter')return;
+
+  const t=e.target;
+  const inTextarea=t&&(t.tagName||'').toLowerCase()==='textarea';
+  /* En textarea: Enter = salto de linea; solo Ctrl/Cmd+Enter confirma. */
+  if(inTextarea&&!(e.ctrlKey||e.metaKey))return;
+  /* Si el foco esta en un boton, deja que el Enter lo pulse el navegador. */
+  if(t&&(t.tagName||'').toLowerCase()==='button')return;
+
+  e.preventDefault();e.stopPropagation();
+  clickIfEnabled(MODAL_OK[m.id]);
 },true);
 
 /* ══ MULTI-TOUCH GESTURES (2-finger) ══ */
