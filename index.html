@@ -815,10 +815,6 @@ body.fullscreen #gid-bar{bottom:20px}
     <button class="sp-themes" title="Gestionar temas"></button>
     <button class="sp-close" data-panel="glossary-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
-  <div class="sp-tabs">
-    <button class="sp-tab on" data-gtab="auto">Automático</button>
-    <button class="sp-tab" data-gtab="manual">Manual</button>
-  </div>
   <div id="glossary-body" class="sp-body"></div>
   <div style="padding:0 12px 12px;flex-shrink:0">
     <button id="glossary-export" class="sp-action-btn">Exportar glosario</button>
@@ -831,10 +827,6 @@ body.fullscreen #gid-bar{bottom:20px}
     <span class="sp-title">💡 Conclusiones</span>
     <button class="sp-themes" title="Gestionar temas"></button>
     <button class="sp-close" data-panel="conclusions-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-  </div>
-  <div class="sp-tabs">
-    <button class="sp-tab on" data-ctab="auto">Automático</button>
-    <button class="sp-tab" data-ctab="manual">Manual</button>
   </div>
   <div id="conclusions-body" class="sp-body"></div>
   <div style="padding:0 12px 12px;flex-shrink:0">
@@ -916,6 +908,10 @@ body.fullscreen #gid-bar{bottom:20px}
   <div class="modal">
     <h3>Editar contenido</h3>
     <input id="emb-edit-title" type="text" placeholder="Título" maxlength="120">
+    <div id="emb-edit-theme-row" style="margin:0 0 12px">
+      <label style="display:block;font-size:12.5px;color:var(--ink2);margin-bottom:5px">Tema</label>
+      <select id="emb-edit-theme" style="width:100%;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);font-size:15px;padding:11px;outline:none;font-family:inherit"></select>
+    </div>
     <textarea id="emb-edit-text" placeholder="Texto / definición / conclusión…" rows="6" style="width:100%;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);font-size:15px;padding:11px;outline:none;font-family:inherit;line-height:1.5;resize:vertical;margin-bottom:12px"></textarea>
     <div class="modal-btns">
       <button class="mbtn cancel" id="emb-edit-cancel">Cancelar</button>
@@ -1116,7 +1112,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v65'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v66'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -1455,9 +1451,29 @@ const embEditTitle=document.getElementById('emb-edit-title'),embEditText=documen
 document.getElementById('emb-edit-cancel').onclick=()=>{mEmbEdit.classList.add('hidden');embEditRes&&embEditRes(null)};
 document.getElementById('emb-edit-ok').onclick=()=>{
   const t=embEditTitle.value.trim();if(!t){showTip('Escribe un título');return}
-  mEmbEdit.classList.add('hidden');embEditRes&&embEditRes({title:t,text:embEditText.value.trim()});
+  const row=document.getElementById('emb-edit-theme-row');
+  const sel=document.getElementById('emb-edit-theme');
+  /* themeId solo se devuelve si el selector está visible (definiciones y
+     conclusiones). Para nodos y otros usos el selector se oculta y no se toca. */
+  const themeId = row.style.display!=='none' ? (sel.value||null) : undefined;
+  mEmbEdit.classList.add('hidden');embEditRes&&embEditRes({title:t,text:embEditText.value.trim(),themeId});
 };
-function askEmbedEdit(title,text){return new Promise(r=>{embEditRes=r;embEditTitle.value=title||'';embEditText.value=text||'';mEmbEdit.classList.remove('hidden');setTimeout(()=>embEditTitle.focus(),100)})}
+/* opts.showTheme muestra el selector de tema (mismo que al insertar manual) y
+   opts.themeId marca el tema actual. Sin opts, el modal funciona como antes. */
+function askEmbedEdit(title,text,opts){return new Promise(r=>{
+  embEditRes=r;embEditTitle.value=title||'';embEditText.value=text||'';
+  const row=document.getElementById('emb-edit-theme-row');
+  const sel=document.getElementById('emb-edit-theme');
+  if(opts&&opts.showTheme){
+    row.style.display='';
+    sel.innerHTML='';
+    const optNone=document.createElement('option');optNone.value='';optNone.textContent='Sin tema';sel.appendChild(optNone);
+    loadThemes().sort((a,b)=>(a.num||0)-(b.num||0)).forEach(t=>{
+      const o=document.createElement('option');o.value=t.id;
+      o.textContent=(t.num?t.num+' · ':'')+(t.name||'Tema');sel.appendChild(o)});
+    sel.value=opts.themeId||'';
+  }else{row.style.display='none'}
+  mEmbEdit.classList.remove('hidden');setTimeout(()=>embEditTitle.focus(),100)})}
 
 /* selector de tema → devuelve id de tema, o null si "sin tema" */
 let themeRes=null,themeKeyNav=null;
@@ -3905,8 +3921,8 @@ function renderPageAnchors(){
   }
 
   const DEF={
-    glos:{ic:'📖', bg:'#F9D5E5', label:'Definiciones', open:async()=>{openPanel('glossary-panel');await autoUpdateEnts('glos');renderEnts('glos','auto')}},
-    conc:{ic:'💡',bg:'#BFE8DC', label:'Conclusiones', open:async()=>{openPanel('conclusions-panel');await autoUpdateEnts('conc');renderEnts('conc','auto')}},
+    glos:{ic:'📖', bg:'#F9D5E5', label:'Definiciones', open:async()=>{openPanel('glossary-panel');await autoUpdateEnts('glos');renderEnts('glos')}},
+    conc:{ic:'💡',bg:'#BFE8DC', label:'Conclusiones', open:async()=>{openPanel('conclusions-panel');await autoUpdateEnts('conc');renderEnts('conc')}},
     node:{ic:'🔗',bg:'#E3D0F5', label:'Nodos',        open:()=>openNodesTab()},
     note:{ic:'🗒️', bg:'#FFF0C9', label:'Notas',        open:()=>{summaryTab='notes';renderSummary('notes');openPanel('summary-panel')}}
   };
@@ -4569,11 +4585,7 @@ function refreshEntPanels(){
   ['glos','conc'].forEach(k=>{
     const pid = k==='glos' ? 'glossary-panel' : 'conclusions-panel';
     const p=document.getElementById(pid);
-    if(p&&p.classList.contains('open')){
-      const tabBtn=p.querySelector('.sp-tab.on');
-      const tab=tabBtn?(tabBtn.dataset.gtab||tabBtn.dataset.ctab||'auto'):'auto';
-      renderEnts(k,tab);
-    }
+    if(p&&p.classList.contains('open'))renderEnts(k);
   });
   renderPageAnchors();
 }
@@ -4687,16 +4699,19 @@ async function autoUpdateEnts(kind){
 }
 
 /* pinta un panel de entradas (glosario o conclusiones) */
-function renderEnts(kind,tab){
+/* LISTADO UNIFICADO: las manuales y las automáticas se muestran juntas en el
+   mismo panel, sin distinción de origen. El formulario de inserción manual va
+   siempre arriba; el orden dentro de cada tema no cambia (glosario alfabético,
+   conclusiones por página). */
+function renderEnts(kind){
   const K=ENT_KINDS[kind];
   const body=document.getElementById(kind==='glos'?'glossary-body':'conclusions-body');
   body.innerHTML='';
-  const all=loadEnts(kind);
-  const items=all.filter(g=>tab==='manual'?g.manual:g.auto);
+  const items=loadEnts(kind);
 
-  if(tab==='manual'){
-    /* Selector de Tema: reutiliza los Temas que ya existen (mismo sistema que
-       agrupa las fichas). "Sin tema" = value vacío. Va ANTES del contenido. */
+  /* Selector de Tema: reutiliza los Temas que ya existen (mismo sistema que
+     agrupa las fichas). "Sin tema" = value vacío. Va ANTES del contenido. */
+  {
     const themesM=loadThemes().sort((a,b)=>(a.num||0)-(b.num||0));
     const sel=document.createElement('select');sel.className='glos-manual-add-theme';
     const optNone=document.createElement('option');optNone.value='';optNone.textContent='Sin tema';
@@ -4710,14 +4725,14 @@ function renderEnts(kind,tab){
     const btn=document.createElement('button');btn.textContent='＋';
     const add=()=>{const t=inp.value.trim();if(!t)return;const a=loadEnts(kind);
       a.push({id:uid(),title:firstWords(t,K.words),body:t,page:curPid(),color:K.dot,manual:true,themeId:sel.value||null});
-      saveEnts(kind,a);inp.value='';renderEnts(kind,'manual');renderPageAnchors()};
+      saveEnts(kind,a);inp.value='';renderEnts(kind);renderPageAnchors()};
     btn.onclick=add;inp.addEventListener('keydown',e=>{if(e.key==='Enter')add()});
     addRow.append(inp,btn);body.appendChild(addRow);
   }
 
   if(!items.length){
     const em=document.createElement('div');em.className='np-empty';
-    em.textContent=tab==='manual'?'Añade entradas manualmente.':K.empty;
+    em.textContent=K.empty;
     body.appendChild(em);return;
   }
 
@@ -4755,7 +4770,7 @@ function renderEnts(kind,tab){
         const L=(g.title[0]||'').toUpperCase();
         if(L!==curLetter){curLetter=L;const lh=document.createElement('div');lh.className='glos-letter';lh.textContent=L;body.appendChild(lh)}
       }
-      body.appendChild(buildEntCard(kind,g,tab));
+      body.appendChild(buildEntCard(kind,g));
     });
   };
 
@@ -4764,7 +4779,7 @@ function renderEnts(kind,tab){
 }
 
 /* tarjeta desplegable: título + (v) despliega el contenido + botón Ir */
-function buildEntCard(kind,g,tab){
+function buildEntCard(kind,g){
   const K=ENT_KINDS[kind];
   const card=document.createElement('div');card.className='ent-card';
 
@@ -4828,11 +4843,22 @@ function buildEntCard(kind,g,tab){
   const ed=document.createElement('button');ed.className='ent-btn';ed.textContent='✎ Editar';
   ed.onclick=async e=>{
     e.stopPropagation();
-    const d=await askEmbedEdit(g.title,g.body||g.text||'');
+    /* El tema de una ficha AUTOMÁTICA vive en el mapa gid→tema; el de una
+       MANUAL vive dentro de la ficha (g.themeId). Pasamos el tema actual al
+       modal para que salga preseleccionado. */
+    const curThemeId = g.auto ? (loadThemeMap()[g.gid]||null) : (g.themeId||null);
+    const d=await askEmbedEdit(g.title,g.body||g.text||'',{showTheme:true,themeId:curThemeId});
     if(!d)return;
     const a=loadEnts(kind);const it=a.find(x=>x.gid===g.gid||x.id===g.id);
-    if(it){it.title=d.title;it.body=d.text;it.edited=true;saveEnts(kind,a)}
-    renderEnts(kind,tab);renderPageAnchors(); // actualiza también las tarjetas plasmadas
+    if(it){it.title=d.title;it.body=d.text;it.edited=true;
+      if(!g.auto)it.themeId=d.themeId||null;   // manual: el tema se guarda en la ficha
+      saveEnts(kind,a);}
+    if(g.auto&&g.gid){                          // automática: el tema se guarda en el mapa
+      const tmap=loadThemeMap();
+      if(d.themeId)tmap[g.gid]=d.themeId; else delete tmap[g.gid];
+      saveThemeMap(tmap);
+    }
+    renderEnts(kind);renderPageAnchors(); // actualiza también las tarjetas plasmadas
   };
   acts.appendChild(ed);
 
@@ -4855,7 +4881,7 @@ function buildEntCard(kind,g,tab){
        la regenera desde el subrayado en cuanto se reabra el panel. */
     if(g.auto&&g.gid)markEntDeleted(kind,g.gid);
     const a=loadEnts(kind).filter(x=>x.id!==g.id);saveEnts(kind,a);
-    renderEnts(kind,tab);renderPageAnchors();
+    renderEnts(kind);renderPageAnchors();
     showTip(K.label+': entrada eliminada (el subrayado sigue ahí)',1800);
   };
   acts.appendChild(del);
@@ -4897,30 +4923,20 @@ function exportEnts(kind){
 }
 
 /* ── wiring: GLOSARIO ── */
-let glossaryTab2='auto';
 document.getElementById('tb-glossary').onclick=async()=>{
   openPanel('glossary-panel');
-  await autoUpdateEnts('glos');renderEnts('glos',glossaryTab2);
+  await autoUpdateEnts('glos');renderEnts('glos');
 };
 document.querySelector('#glossary-panel .sp-close').onclick=()=>document.getElementById('glossary-panel').classList.remove('open');
-document.querySelectorAll('#glossary-panel .sp-tab').forEach(t=>t.addEventListener('click',()=>{
-  document.querySelectorAll('#glossary-panel .sp-tab').forEach(x=>x.classList.remove('on'));t.classList.add('on');
-  glossaryTab2=t.dataset.gtab;renderEnts('glos',glossaryTab2);
-}));
 document.getElementById('glossary-export').onclick=()=>exportEnts('glos');
 addPanelSwipe('glossary-panel');
 
 /* ── wiring: CONCLUSIONES ── */
-let concTab='auto';
 document.getElementById('tb-conclusions').onclick=async()=>{
   openPanel('conclusions-panel');
-  await autoUpdateEnts('conc');renderEnts('conc',concTab);
+  await autoUpdateEnts('conc');renderEnts('conc');
 };
 document.querySelector('#conclusions-panel .sp-close').onclick=()=>document.getElementById('conclusions-panel').classList.remove('open');
-document.querySelectorAll('#conclusions-panel .sp-tab').forEach(t=>t.addEventListener('click',()=>{
-  document.querySelectorAll('#conclusions-panel .sp-tab').forEach(x=>x.classList.remove('on'));t.classList.add('on');
-  concTab=t.dataset.ctab;renderEnts('conc',concTab);
-}));
 document.getElementById('conclusions-export').onclick=()=>exportEnts('conc');
 addPanelSwipe('conclusions-panel');
 /* ══ FULLSCREEN ══ */
