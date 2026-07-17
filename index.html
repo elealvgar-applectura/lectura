@@ -1112,7 +1112,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v67'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v68'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2227,6 +2227,16 @@ let nextInsertPid=10000;
 function orderKey(){return 'lp_order_'+currentFileId}
 function loadOrder(){try{const s=localStorage.getItem(orderKey());return s?JSON.parse(s):null}catch(e){return null}}
 function saveOrder(){try{localStorage.setItem(orderKey(),JSON.stringify({order:pageOrder,next:nextInsertPid}))}catch(e){}}
+/* ÚLTIMA PÁGINA VISITADA (por documento, SOLO en este dispositivo).
+   Es estado de navegación regenerable: no se sincroniza por Firebase ni entra en
+   la copia de seguridad. Se guarda con retardo para no escribir en cada scroll. */
+function lastPageKey(){return 'lp_lastpage_'+currentFileId}
+let lastPageSaveTimer=null;
+function saveLastPage(){
+  if(!currentFileId)return;
+  clearTimeout(lastPageSaveTimer);
+  lastPageSaveTimer=setTimeout(()=>{try{localStorage.setItem(lastPageKey(),String(curPage))}catch(e){}},400);
+}
 /* posición visual (1-based) de un pid, y pid de una posición */
 function posOfPid(pid){return pageOrder.findIndex(s=>s.pid===pid)+1}
 function pidAtPos(pos){const s=pageOrder[pos-1];return s?s.pid:null}
@@ -2411,6 +2421,13 @@ async function openReader(fileId,fileName){
     showScreen('reader');pagesInner.innerHTML='';
     pageOrder.forEach(s=>createPageShell(s.pid));
     updateNav();renderVisiblePages();
+    /* Volver a la última página visitada en este dispositivo (si la hay y sigue
+       existiendo). Esperamos un poco a que las páginas tengan tamaño para que el
+       salto funcione, y usamos 'auto' (salto instantáneo, sin animar). */
+    let restorePos=1;
+    try{const s=localStorage.getItem(lastPageKey());if(s){const n=parseInt(s);if(n>=1)restorePos=n}}catch(e){}
+    if(restorePos>totalPages)restorePos=totalPages;
+    if(restorePos>1){curPage=restorePos;updateNav();setTimeout(()=>goPage(restorePos,'auto'),80)}
     setTimeout(()=>{renderNodeAnchors();renderBmAnchors()},400);
   }catch(err){console.error(err);showScreen('browser');showTip('Error al abrir el PDF')}
 }
@@ -4616,6 +4633,7 @@ function purgeDocData(fileId){
     DOC_KEY_PREFIXES.forEach(pre=>raw(pre+fileId));
     raw('lp_synced_'+fileId);
     raw('lp_dirty_'+fileId);
+    raw('lp_lastpage_'+fileId);
   }catch(e){}
 }
 
@@ -5495,7 +5513,7 @@ Object.entries(gestInputs).forEach(([k,id])=>{document.getElementById(id).addEve
 document.getElementById('gest-close').onclick=()=>modalGest.classList.add('hidden');
 
 /* ══ NAV ══ */
-const pageObs=new IntersectionObserver(entries=>{entries.forEach(en=>{if(en.isIntersecting){const pid=parseInt(en.target.dataset.page);const pos=posOfPid(pid);if(pos&&pos!==curPage){curPage=pos;updateNav()}}})},{root:canvasWrap,threshold:.5});
+const pageObs=new IntersectionObserver(entries=>{entries.forEach(en=>{if(en.isIntersecting){const pid=parseInt(en.target.dataset.page);const pos=posOfPid(pid);if(pos&&pos!==curPage){curPage=pos;updateNav();saveLastPage()}}})},{root:canvasWrap,threshold:.5});
 /* Observamos SOLO la aparición de nuevas .page-wrap, y observamos únicamente
    las que aún no lo estaban. Antes esto re-observaba TODAS las páginas ante
    cualquier cambio del DOM… y renderPageAnchors() cambia el DOM (añade y quita
@@ -5524,7 +5542,7 @@ function updateNav(){rdPageInfo.textContent=curPage+' / '+totalPages;document.ge
   show.onclick=()=>{min=false;apply()};
   apply();
 })();
-function goPage(pos){stopFling();const pid=pidAtPos(pos);if(pid==null)return;const w=pagesInner.querySelector(`[data-page="${pid}"]`);if(w)w.scrollIntoView({behavior:'smooth',block:'start'})}
+function goPage(pos,behavior){stopFling();const pid=pidAtPos(pos);if(pid==null)return;const w=pagesInner.querySelector(`[data-page="${pid}"]`);if(w)w.scrollIntoView({behavior:behavior||'smooth',block:'start'})}
 document.getElementById('rd-prev').onclick=()=>{if(curPage>1){curPage--;goPage(curPage);updateNav()}};
 document.getElementById('rd-next').onclick=()=>{if(curPage<totalPages){curPage++;goPage(curPage);updateNav()}};
 pgJump.addEventListener('change',()=>{const v=Math.max(1,Math.min(totalPages,+pgJump.value));curPage=v;goPage(v);updateNav()});
@@ -5549,8 +5567,11 @@ let zoomBusy=false;
 async function setZoom(v){
   const nv=Math.max(.5,Math.min(3,+v.toFixed(2)));
   if(nv===scale||zoomBusy)return;
+  const keepPos=curPage;            // conserva la página visible al reescalar
   scale=nv;zoomBusy=true;
-  try{await rerenderAll()}finally{zoomBusy=false}
+  /* rerenderAll() reescala las páginas pero NO reajusta el scroll: en píxeles la
+     posición deja de apuntar a la misma página, así que volvemos a anclarla. */
+  try{await rerenderAll();goPage(keepPos,'auto')}finally{zoomBusy=false}
   showTip(Math.round(scale*100)+'%',900);
 }
 const zoomIn =()=>setZoom(scale+.2);
@@ -5567,6 +5588,22 @@ canvasWrap.addEventListener('wheel',e=>{
   if(zoomBusy)return;
   setZoom(scale+(e.deltaY<0?.1:-.1));
 },{passive:false});
+
+/* ══ MANTENER LA PÁGINA AL CAMBIAR EL ZOOM DEL NAVEGADOR O DEL SISTEMA ══
+   Cuando el usuario amplía con el zoom NATIVO (Ctrl+/- del navegador, zoom del
+   SO, cambio de escala de pantalla, giro o redimensión de la ventana) todo el
+   layout se reflúe: el scroll en píxeles ya no apunta a la misma página y la
+   vista "salta". El navegador dispara 'resize' en estos casos. Capturamos la
+   página ANTES de que el reflujo mueva el observador y, al asentarse, volvemos
+   a anclarla ahí. */
+let resizeAnchorTimer=null,resizeAnchorPage=null;
+window.addEventListener('resize',()=>{
+  if(screens.reader.classList.contains('hidden'))return;
+  if(zoomBusy)return;                                  // el zoom de la app ya se ancla solo
+  if(resizeAnchorPage==null)resizeAnchorPage=curPage;  // página real antes del reflujo
+  clearTimeout(resizeAnchorTimer);
+  resizeAnchorTimer=setTimeout(()=>{const p=resizeAnchorPage;resizeAnchorPage=null;goPage(p,'auto')},150);
+});
 
 /* Ctrl +  /  Ctrl -  /  Ctrl 0 */
 window.addEventListener('keydown',e=>{
