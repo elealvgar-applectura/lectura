@@ -386,6 +386,20 @@ body.fullscreen #rd-bottom-show{display:none}
 .sum-item{display:flex;gap:8px;padding:7px 4px;border-bottom:1px solid var(--border);align-items:flex-start;font-size:13px;color:var(--ink);line-height:1.45}
 .sum-swatch{width:10px;height:10px;border-radius:3px;margin-top:3px;flex-shrink:0}
 
+/* resumen (subrayados) */
+.res-empty{text-align:center;color:var(--ink3);font-size:14px;padding:30px 10px;line-height:1.6;white-space:pre-line}
+.res-count{font-size:12px;color:var(--ink3);padding:2px 2px 8px;font-weight:500}
+.res-heading{font-weight:700;color:var(--ink);line-height:1.35;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.res-h1{font-size:16px}
+.res-h2{font-size:14.5px}
+.res-h3{font-size:13.5px;color:var(--ink2);font-weight:600;border-bottom:none;margin:12px 0 6px}
+.res-break{height:0;border-top:1px dashed var(--border);margin:12px 8px;opacity:.7}
+.res-hl{display:flex;gap:9px;padding:9px 4px;align-items:flex-start;cursor:pointer;border-radius:8px}
+.res-hl:active{background:var(--bg2)}
+.res-hl-sw{width:11px;height:11px;border-radius:3px;margin-top:4px;flex-shrink:0}
+.res-hl-tx{flex:1;font-size:13.5px;color:var(--ink);line-height:1.5}
+.res-hl-pg{font-size:11px;color:var(--ink3);flex-shrink:0;margin-top:3px}
+
 /* bookmarks */
 .bm-item{background:var(--bg);border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer;border:1px solid var(--border);display:flex;align-items:center;gap:10px}
 .bm-item:active{background:var(--bg2)}
@@ -671,6 +685,9 @@ body.fullscreen #gid-bar{bottom:20px}
     <button class="tool-btn" id="tb-summary" title="Resumen de anotaciones">
       <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
     </button>
+    <button class="tool-btn" id="tb-resumen" title="Resumen de subrayados">
+      <svg viewBox="0 0 24 24"><rect x="3" y="10" width="14" height="4" rx="1" fill="currentColor" stroke="none" opacity="0.35"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="17" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
     <button class="tool-btn" id="tb-bookmarks" title="Marcadores de página">
       <svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
     </button>
@@ -822,6 +839,19 @@ body.fullscreen #gid-bar{bottom:20px}
   <div id="conclusions-body" class="sp-body"></div>
   <div style="padding:0 12px 12px;flex-shrink:0">
     <button id="conclusions-export" class="sp-action-btn">Exportar conclusiones</button>
+  </div>
+</div>
+
+<!-- resumen (subrayados) panel -->
+<div id="resumen-panel" class="side-panel">
+  <div class="sp-top">
+    <span class="sp-title">📄 Resumen</span>
+    <button class="sp-close" data-panel="resumen-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div id="resumen-body" class="sp-body"></div>
+  <div style="padding:0 12px 12px;flex-shrink:0;display:flex;gap:8px">
+    <button id="resumen-refresh" class="sp-action-btn" style="background:var(--bg2);flex:1">↻ Actualizar</button>
+    <button id="resumen-export" class="sp-action-btn" style="flex:1">Exportar</button>
   </div>
 </div>
 
@@ -1086,7 +1116,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v64'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v65'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -3524,7 +3554,7 @@ const notesPanel=document.getElementById('notes-panel');
    abrir un panel.
    ══════════════════════════════════════════════════════════════════ */
 const ALL_PANELS=['notes-panel','summary-panel','bookmarks-panel','thumbs-panel',
-                  'timeline-panel','glossary-panel','conclusions-panel'];
+                  'timeline-panel','glossary-panel','conclusions-panel','resumen-panel'];
 function closeAllPanels(except){
   ALL_PANELS.forEach(id=>{
     if(id===except)return;
@@ -4030,6 +4060,227 @@ function exportSummaryText(tab){
   downloadBlob(new Blob([out],{type:'text/plain;charset=utf-8'}),currentFileName+'_notas.txt');
   showTip('Notas exportadas',1600);
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   RESUMEN DE SUBRAYADOS
+   Reúne TODOS los subrayados del documento en orden de lectura
+   (página → posición) y, entre dos subrayados consecutivos, intercala
+   los títulos/subtítulos (texto en cuerpo de letra más grande) y los
+   saltos de párrafo que detecta en el texto real del PDF.
+   Es de SOLO LECTURA: no guarda ni modifica nada. Se regenera al abrir
+   el panel o al pulsar "Actualizar".
+
+   Detección de títulos: solo mira el texto de las páginas que YA tienen
+   subrayados (ese texto se extrae de todas formas para leer qué se ha
+   subrayado). Así no ralentiza la app extrayendo el PDF entero. Un título
+   en una página intermedia SIN subrayados no se detecta: es un compromiso
+   consciente entre utilidad y velocidad.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* agrupa el texto de una página en renglones, conservando el texto y el
+   tamaño de letra de cada uno (para poder distinguir un título del cuerpo) */
+function resTextLines(pg){
+  const items=textCache[pg];
+  if(!items||!items.length)return[];
+  const lines=[];
+  items.forEach(it=>{
+    const fh=Math.max(1,it.base-it.top);          // altura de letra del fragmento
+    const ln=lines.find(l=>Math.abs(l.base-it.base)<Math.max(fh,l.fh)*.5);
+    if(ln){
+      ln.parts.push(it);
+      ln.x0=Math.min(ln.x0,it.x0);ln.x1=Math.max(ln.x1,it.x1);
+      ln.top=Math.min(ln.top,it.top);ln.bottom=Math.max(ln.bottom,it.bottom);
+      ln.fh=Math.max(ln.fh,fh);
+    }else lines.push({base:it.base,fh,top:it.top,bottom:it.bottom,x0:it.x0,x1:it.x1,parts:[it]});
+  });
+  lines.forEach(l=>{
+    l.parts.sort((a,b)=>a.x0-b.x0);
+    l.text=l.parts.map(p=>p.str).join(' ').replace(/\s+/g,' ').trim();
+  });
+  lines.sort((a,b)=>a.top-b.top);
+  return lines;
+}
+
+/* mediana del tamaño de letra = "cuerpo" del texto de la página */
+function resMedianFh(lines){
+  if(!lines.length)return 0;
+  const a=lines.map(l=>l.fh).sort((x,y)=>x-y);
+  return a[Math.floor(a.length/2)];
+}
+
+let resumenBlocks=[];   // último resumen generado (lo comparte render y export)
+
+/* construye la lista ordenada de bloques: {type:'heading'|'break'|'hl'} */
+async function buildResumenBlocks(){
+  if(!currentFileId)return[];
+
+  /* 1) páginas con subrayados + asegurar su texto extraído */
+  const pages=[];
+  for(const slot of pageOrder){
+    const ann=annotations[slot.pid];if(!ann)continue;
+    if((ann.highlights||[]).length)pages.push(slot.pid);
+  }
+  await Promise.all(pages.map(pid=>ensurePageText(pid)));
+
+  /* clave de orden global: posición-de-página · coordenada-y */
+  const ord=(pg,y)=>posOfPid(pg)*1e5+y;
+
+  /* 2) renglones y tamaño de cuerpo por página (una sola vez) */
+  const linesByPage={}, medByPage={};
+  for(const pg of pages){
+    const lines=resTextLines(pg);
+    linesByPage[pg]=lines;
+    medByPage[pg]=resMedianFh(lines);
+  }
+
+  /* 3) grupos de subrayado: las bandas con el mismo gid son una frase.
+     (mismo criterio que usan el glosario y las conclusiones) */
+  const groups=new Map();
+  for(const pg of pages){
+    (annotations[pg].highlights||[]).forEach(h=>{
+      const gid=h.gid||('solo-'+pg+'-'+Math.round(h.x)+'-'+Math.round(h.y));
+      if(!groups.has(gid))groups.set(gid,{color:h.color,parts:[]});
+      groups.get(gid).parts.push({pg,x:Math.min(h.x,h.x+h.w),
+        yTop:Math.min(h.y,h.y+h.h),yBot:Math.max(h.y,h.y+h.h),h});
+    });
+  }
+
+  const hls=[];
+  for(const g of groups.values()){
+    g.parts.sort((a,b)=>posOfPid(a.pg)-posOfPid(b.pg)||a.yTop-b.yTop||a.x-b.x);
+    const txt=g.parts.map(p=>getHlText(p.pg,p.h)).filter(Boolean).join(' ')
+                     .replace(/\s+/g,' ').trim();
+    if(!txt||txt.length<2)continue;               // escaneado / sin texto → se omite
+    const first=g.parts[0], last=g.parts[g.parts.length-1];
+    hls.push({text:txt,color:g.color,pg:first.pg,
+      startOrd:ord(first.pg,first.yTop),endOrd:ord(last.pg,last.yBot)});
+  }
+  hls.sort((a,b)=>a.startOrd-b.startOrd);
+  if(!hls.length)return[];
+
+  /* 4) títulos candidatos: línea con letra bastante más grande que el
+     cuerpo, corta, y que NO esté ella misma subrayada */
+  const headings=[];
+  for(const pg of pages){
+    const med=medByPage[pg];if(!med)continue;
+    const boxes=(annotations[pg].highlights||[]).map(h=>({
+      x0:Math.min(h.x,h.x+h.w),x1:Math.max(h.x,h.x+h.w),
+      y0:Math.min(h.y,h.y+h.h),y1:Math.max(h.y,h.y+h.h)}));
+    linesByPage[pg].forEach(l=>{
+      if(l.fh<med*1.25)return;                     // no es más grande que el cuerpo
+      if(l.text.length<2||l.text.length>90)return; // los títulos son cortos
+      const subrayada=boxes.some(b=>
+        Math.min(b.x1,l.x1)-Math.max(b.x0,l.x0)>0 &&
+        Math.min(b.y1,l.bottom)-Math.max(b.y0,l.top)>0);
+      if(subrayada)return;                         // es un subrayado, no un título
+      const r=l.fh/med;
+      headings.push({text:l.text,ord:ord(pg,l.base),level:r>=1.7?1:r>=1.4?2:3});
+    });
+  }
+  headings.sort((a,b)=>a.ord-b.ord);
+
+  /* 5) ensamblar en orden de lectura */
+  const blocks=[];
+  /* para el primero: permite un título situado por encima de él en su
+     misma página (desde el inicio de esa página) */
+  let prevEnd=posOfPid(hls[0].pg)*1e5-1;
+
+  hls.forEach((hl,i)=>{
+    const between=headings.filter(h=>h.ord>prevEnd&&h.ord<hl.startOrd);
+    between.forEach(h=>blocks.push({type:'heading',text:h.text,level:h.level}));
+
+    if(i>0&&!between.length){
+      const prev=hls[i-1];
+      const samePage=Math.floor(prev.endOrd/1e5)===Math.floor(hl.startOrd/1e5);
+      if(!samePage){
+        blocks.push({type:'break'});               // cambio de página = separación
+      }else{
+        const lh=medByPage[hl.pg]||14;
+        if(hl.startOrd-prev.endOrd>lh*2)            // hueco > ~2 renglones
+          blocks.push({type:'break'});
+      }
+    }
+
+    blocks.push({type:'hl',text:hl.text,color:hl.color,pg:hl.pg});
+    prevEnd=hl.endOrd;
+  });
+
+  return blocks;
+}
+
+/* pinta el panel (SOLO LECTURA) */
+async function renderResumen(){
+  const body=document.getElementById('resumen-body');
+  body.innerHTML='<div class="res-empty">Generando resumen…</div>';
+  resumenBlocks=await buildResumenBlocks();
+  body.innerHTML='';
+
+  const nHl=resumenBlocks.filter(b=>b.type==='hl').length;
+  if(!nHl){
+    const em=document.createElement('div');em.className='res-empty';
+    em.textContent='Aún no hay subrayados.\nSubraya texto con la herramienta de subrayado y aquí aparecerá el resumen en orden de lectura.';
+    body.appendChild(em);return;
+  }
+
+  const cnt=document.createElement('div');cnt.className='res-count';
+  cnt.textContent=nHl+(nHl===1?' subrayado':' subrayados');
+  body.appendChild(cnt);
+
+  resumenBlocks.forEach(b=>{
+    if(b.type==='heading'){
+      const d=document.createElement('div');
+      d.className='res-heading res-h'+b.level;
+      d.textContent=b.text;body.appendChild(d);
+    }else if(b.type==='break'){
+      const d=document.createElement('div');d.className='res-break';body.appendChild(d);
+    }else{
+      const d=document.createElement('div');d.className='res-hl';
+      const sw=document.createElement('div');sw.className='res-hl-sw';sw.style.background=b.color;
+      const tx=document.createElement('div');tx.className='res-hl-tx';tx.textContent=b.text;
+      const pg=document.createElement('div');pg.className='res-hl-pg';pg.textContent='p.'+pageLabel(b.pg);
+      d.append(sw,tx,pg);
+      d.onclick=()=>{goPage(posOfPid(b.pg));document.getElementById('resumen-panel').classList.remove('open')};
+      body.appendChild(d);
+    }
+  });
+}
+
+/* descarga el resumen como .txt respetando títulos y saltos */
+function exportResumenText(){
+  if(!resumenBlocks.length||!resumenBlocks.some(b=>b.type==='hl')){
+    showTip('No hay subrayados que exportar');return;
+  }
+  const sep='═'.repeat(52);
+  let out=`RESUMEN\n${currentFileName}\n${new Date().toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric'})}\n${sep}\n\n`;
+  resumenBlocks.forEach(b=>{
+    if(b.type==='heading'){
+      out+='\n';
+      if(b.level===1)      out+=b.text.toUpperCase()+'\n'+'═'.repeat(Math.min(44,Math.max(8,b.text.length)))+'\n';
+      else if(b.level===2) out+=b.text+'\n'+'─'.repeat(Math.min(44,Math.max(6,b.text.length)))+'\n';
+      else                 out+='· '+b.text+'\n';
+      out+='\n';
+    }else if(b.type==='break'){
+      out+='\n';
+    }else{
+      /* envolver a ~72 columnas para que se lea bien en cualquier editor */
+      const words=b.text.split(/\s+/);let line='•';
+      words.forEach(w=>{
+        if((line+' '+w).length>72){out+=line+'\n';line='  '+w}
+        else line+=(line==='•'?' ':' ')+w;
+      });
+      out+=line+`   (p.${pageLabel(b.pg)})\n`;
+    }
+  });
+  out+='\n'+sep+'\n';
+  downloadBlob(new Blob([out],{type:'text/plain;charset=utf-8'}),currentFileName+'_resumen.txt');
+  showTip('Resumen exportado',1600);
+}
+
+document.getElementById('tb-resumen').onclick=()=>{openPanel('resumen-panel');renderResumen()};
+document.querySelector('#resumen-panel .sp-close').onclick=()=>document.getElementById('resumen-panel').classList.remove('open');
+document.getElementById('resumen-refresh').onclick=()=>renderResumen();
+document.getElementById('resumen-export').onclick=()=>exportResumenText();
+addPanelSwipe('resumen-panel');
 
 /* ══ BOOKMARKS ══ */
 function bmKey(){return 'lp_bm_'+currentFileId}
