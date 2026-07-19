@@ -1242,6 +1242,7 @@ const PALETTES={
     {c:'#BFE8DC',n:'Menta',   t:'Conclusiones'},
     {c:'#FFE4D6',n:'Melocotón',t:'Críticas'},
     {c:'#D6D9F5',n:'Lavanda', t:'Conceptos a repasar'},
+    {c:'#57CFC4',n:'Cian',    t:'Aclaraciones'},
   ]},
   vivos:{label:'Vivos',colors:[
     {c:'#FF9F0A',n:'Naranja',  t:'Títulos generales'},
@@ -1254,6 +1255,7 @@ const PALETTES={
     {c:'#40C8E0',n:'Turquesa', t:'Conclusiones'},
     {c:'#FF6482',n:'Coral',    t:'Críticas'},
     {c:'#5E5CE6',n:'Índigo',   t:'Muy importante'},
+    {c:'#00D1B2',n:'Cian',     t:'Aclaraciones'},
   ]},
   tierra:{label:'Tierra',colors:[
     {c:'#D4A373',n:'Ocre',      t:'Títulos generales'},
@@ -1266,6 +1268,7 @@ const PALETTES={
     {c:'#84A98C',n:'Oliva',     t:'Conclusiones'},
     {c:'#9D5C63',n:'Granate',   t:'Críticas'},
     {c:'#C9ADA7',n:'Topo',      t:'Conceptos a repasar'},
+    {c:'#4E9E93',n:'Verde azul',t:'Aclaraciones'},
   ]},
 };
 
@@ -4517,6 +4520,8 @@ function renderTimeline(){
 function isDefColor(c){const defs=['#F9D5E5','#FF2D75','#DDA0A8','#F5C7D8','#FFC4BC'];return defs.some(d=>d.toLowerCase()===(c||'').toLowerCase())}
 /* colores marcados como "Conclusiones" en las tres paletas */
 function isConcColor(c){const cs=['#BFE8DC','#40C8E0','#84A98C'];return cs.some(d=>d.toLowerCase()===(c||'').toLowerCase())}
+/* colores marcados como "Aclaraciones" en las tres paletas (cian/turquesa) */
+function isAclarColor(c){const cs=['#57CFC4','#00D1B2','#4E9E93'];return cs.some(d=>d.toLowerCase()===(c||'').toLowerCase())}
 
 /* primeras N palabras de un texto → título de la entrada */
 function firstWords(txt,n){
@@ -4691,8 +4696,8 @@ function openThemesMgr(kind){
    Al borrar un PDF hay que barrerlas: si no, quedan huerfanas para siempre y
    ademas un documento nuevo con el mismo id heredaria datos ajenos. */
 const DOC_KEY_PREFIXES=['lp_order_','lp_margin_','lp_nodes_','lp_embeds_','lp_bm_',
-  'lp_tl_','lp_themes_','lp_thememap_','lp_glos_','lp_conc_',
-  'lp_delents_glos_','lp_delents_conc_'];
+  'lp_tl_','lp_themes_','lp_thememap_','lp_glos_','lp_conc_','lp_aclar_',
+  'lp_delents_glos_','lp_delents_conc_','lp_delents_aclar_'];
 function purgeDocData(fileId){
   if(!fileId)return;
   try{
