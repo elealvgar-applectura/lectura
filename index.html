@@ -558,6 +558,31 @@ body.fullscreen #fs-hint{display:block!important}
 .stnote-draw-tools .sd-col{width:18px;height:18px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.15);cursor:pointer;flex-shrink:0}
 .stnote-draw-tools .sd-clear{margin-left:auto;font-size:11px;color:var(--danger);cursor:pointer;background:none;border:none;font-weight:600;touch-action:manipulation}
 
+/* ═══ ACLARACIONES: marca "?" anclada + viñeta plegable ═══ */
+.aclar-marker{position:absolute;width:23px;height:23px;margin-left:-4px;margin-top:-25px;
+  border-radius:50%;background:#00C2AE;color:#fff;font-size:15px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:11;
+  box-shadow:0 2px 6px rgba(0,90,80,.4);border:2px solid #fff;pointer-events:all;
+  touch-action:manipulation;user-select:none}
+.aclar-marker:active{transform:scale(.9)}
+.aclar-bubble{position:absolute;width:230px;background:#E8FBF6;border:1px solid #55c9ba;
+  border-radius:12px;box-shadow:2px 3px 16px rgba(0,120,110,.28);z-index:12;
+  display:flex;flex-direction:column;overflow:hidden;pointer-events:all}
+.aclar-bubble.mini{display:none}
+.aclar-head{display:flex;align-items:center;gap:4px;padding:6px 6px 4px 9px;cursor:move;touch-action:none}
+.aclar-head .ac-t{flex:1;min-width:0;font-size:11px;font-weight:700;color:#0b6b60;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aclar-head .ac-close,.aclar-head .ac-del{cursor:pointer;font-size:15px;line-height:1;
+  padding:2px 5px;flex-shrink:0;touch-action:manipulation;color:#0b6b60}
+.aclar-head .ac-del{color:var(--danger)}
+.aclar-body{display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:0 9px 9px}
+.aclar-body textarea{width:100%;flex:1;background:rgba(255,255,255,.7);border:none;border-radius:8px;
+  outline:none;resize:none;font-family:inherit;font-size:13px;line-height:1.5;color:#123;
+  padding:7px;min-height:64px;touch-action:auto;pointer-events:all}
+.aclar-resize{position:absolute;right:0;bottom:0;width:20px;height:20px;cursor:nwse-resize;
+  touch-action:none;z-index:3;background:linear-gradient(135deg,transparent 50%,rgba(0,120,110,.4) 50%);
+  border-bottom-right-radius:12px}
+
 /* ═══ MARCADOR DE VERSIÓN ═══ */
 #ver-badge{position:fixed;bottom:6px;left:8px;z-index:1000;
   font-size:10px;font-weight:700;letter-spacing:.04em;
@@ -988,6 +1013,19 @@ body.fullscreen #gid-bar{bottom:20px}
     <div class="modal-btns">
       <button class="mbtn cancel" id="modal-subnode-cancel">Cancelar</button>
       <button class="mbtn ok" id="modal-subnode-ok">Añadir</button>
+    </div>
+  </div>
+</div>
+
+<!-- modal de aclaración: texto libre anclado a un subrayado -->
+<div class="modal-bg hidden" id="modal-aclar">
+  <div class="modal">
+    <h3>Aclaración</h3>
+    <div id="aclar-ref" style="font-size:12.5px;color:var(--ink3);margin-bottom:8px;font-style:italic"></div>
+    <textarea id="aclar-text-in" placeholder="Escribe aquí la aclaración o información más profunda (sin límite)" rows="6"></textarea>
+    <div class="modal-btns">
+      <button class="mbtn cancel" id="modal-aclar-cancel">Cancelar</button>
+      <button class="mbtn ok" id="modal-aclar-ok">Guardar</button>
     </div>
   </div>
 </div>
@@ -2589,6 +2627,7 @@ let curGid=null, curGidKind=null, curGidCount=0;
 function entKindForColor(c){
   if(isDefColor(c))return'glos';
   if(isConcColor(c))return'conc';
+  if(isAclarColor(c))return'aclar';
   return null;
 }
 /* devuelve el gid al que debe pertenecer un subrayado nuevo (y abre grupo si toca) */
@@ -2607,6 +2646,16 @@ async function closeGid(){
   const count=curGidCount;
   curGid=null;curGidKind=null;curGidCount=0;
   updateGidBar();
+
+  /* ACLARACIONES: no son fichas automáticas del texto subrayado, sino un texto
+     LIBRE que escribes tú, anclado a la última palabra del grupo. Sigue su
+     propio flujo (tema + cuadro de aclaración) y no toca el motor de entradas. */
+  if(kind==='aclar'){
+    const themeId=await askTheme('aclaración');
+    if(themeId===null){curGid=gid;curGidKind=kind;curGidCount=count;updateGidBar();return}
+    try{await createAclarFromGid(gid,themeId||null)}catch(e){console.error('[aclar]',e)}
+    return;
+  }
 
   /* Preguntar el tema antes de volcar la ficha.
      askTheme devuelve:
@@ -2633,11 +2682,12 @@ function updateGidBar(){
   const bar=document.getElementById('gid-bar');
   if(!bar)return;
   if(!curGid){bar.classList.add('hidden');return}
-  const K=ENT_KINDS[curGidKind];
+  const dot=curGidKind==='aclar'?'#00C7B4':(ENT_KINDS[curGidKind]?ENT_KINDS[curGidKind].dot:'#888');
   bar.classList.remove('hidden');
-  bar.style.borderColor=K.dot;
+  bar.style.borderColor=dot;
+  const nm=curGidKind==='glos'?'✦ Definición':curGidKind==='conc'?'💡 Conclusión':'❔ Aclaración';
   document.getElementById('gid-label').textContent=
-    (curGidKind==='glos'?'✦ Definición':'💡 Conclusión')+' · '+curGidCount+(curGidCount===1?' trazo':' trazos');
+    nm+' · '+curGidCount+(curGidCount===1?' trazo':' trazos');
 }
 
 /* ══ GROSOR DEL SUBRAYADOR ══
@@ -2825,7 +2875,9 @@ function redrawPage(aCv,nl,num){
   if(nl){
     const ann=annotations[num];
     const notes=ann?.notes||[];
-    const sig=notes.map(n=>n.id+':'+(n.mini?1:0)+':'+Math.round(n.x)+','+Math.round(n.y)).join('|');
+    const aclars=loadAclars().filter(a=>a.page===num);
+    const sig=notes.map(n=>n.id+':'+(n.mini?1:0)+':'+Math.round(n.x)+','+Math.round(n.y)).join('|')
+      +'#'+aclars.map(a=>a.id+':'+(a.mini?1:0)+':'+Math.round(a.ax)+','+Math.round(a.ay)+':'+(a.bx!=null?Math.round(a.bx):'')+','+(a.by!=null?Math.round(a.by):'')).join('|');
     if(nl.dataset.sig!==sig){
       nl.dataset.sig=sig;
       /* conserva las anclas de esquina, que no dependen de las notas */
@@ -2833,6 +2885,7 @@ function redrawPage(aCv,nl,num){
       nl.innerHTML='';
       if(anchors)nl.appendChild(anchors);
       notes.forEach(n=>renderNote(nl,n,num,false));
+      aclars.forEach(a=>renderAclar(nl,a,num));
     }
   }
 }
@@ -4522,6 +4575,162 @@ function isDefColor(c){const defs=['#F9D5E5','#FF2D75','#DDA0A8','#F5C7D8','#FFC
 function isConcColor(c){const cs=['#BFE8DC','#40C8E0','#84A98C'];return cs.some(d=>d.toLowerCase()===(c||'').toLowerCase())}
 /* colores marcados como "Aclaraciones" en las tres paletas (cian/turquesa) */
 function isAclarColor(c){const cs=['#57CFC4','#00D1B2','#4E9E93'];return cs.some(d=>d.toLowerCase()===(c||'').toLowerCase())}
+
+/* ══════════════════════════════════════════════════════════════════
+   ACLARACIONES
+   Texto libre (sin límite) que ESCRIBES tú, anclado a la última palabra de un
+   subrayado con el color "Aclaraciones". No es una ficha automática del texto
+   subrayado (a diferencia de glosario/conclusiones): es más parecido a una
+   nota, pero pegada al subrayado. Se guarda por documento en lp_aclar_<id> y
+   se sincroniza como los demás. Aparece como una "?" en la página (abre una
+   viñeta plegable, arrastrable y ampliable) y en el panel de Aclaraciones.
+   a = {id,gid,themeId,page(pid),ref,text,ax,ay,color,created,mini,w,h,bx,by}
+   ══════════════════════════════════════════════════════════════════ */
+function aclarKey(){return 'lp_aclar_'+currentFileId}
+function loadAclars(){try{return JSON.parse(localStorage.getItem(aclarKey())||'[]')}catch(e){return[]}}
+function saveAclars(arr){try{localStorage.setItem(aclarKey(),JSON.stringify(arr))}catch(e){}}
+/* rellena/borra un campo de UNA aclaración por id (persistente) */
+function patchAclar(id,fields){const arr=loadAclars();const x=arr.find(z=>z.id===id);if(x){Object.assign(x,fields);saveAclars(arr)}}
+function refreshAclarPanelIfOpen(){}   // lo completa el panel (pieza posterior)
+
+/* ancla = encima de la última palabra subrayada del grupo; ref = texto subrayado */
+function aclarAnchorForGid(gid){
+  const bands=[];
+  for(const slot of pageOrder){
+    const ann=annotations[slot.pid];if(!ann)continue;
+    (ann.highlights||[]).forEach(h=>{if(h.gid===gid)bands.push({pid:slot.pid,h})});
+  }
+  if(!bands.length)return null;
+  bands.sort((a,b)=>posOfPid(a.pid)-posOfPid(b.pid)||a.h.y-b.h.y||a.h.x-b.h.x);
+  const last=bands[bands.length-1];
+  const ref=bands.map(b=>getHlText(b.pid,b.h)).filter(Boolean).join(' ').replace(/\s+/g,' ').trim();
+  return {pid:last.pid, x:last.h.x+last.h.w, y:last.h.y, color:last.h.color, ref};
+}
+
+async function createAclarFromGid(gid,themeId){
+  /* asegura el texto de las páginas del grupo para leer la referencia */
+  const pids=new Set();
+  for(const slot of pageOrder){const ann=annotations[slot.pid];if(ann&&(ann.highlights||[]).some(h=>h.gid===gid))pids.add(slot.pid)}
+  await Promise.all([...pids].map(pid=>ensurePageText(pid).catch(()=>{})));
+  const anc=aclarAnchorForGid(gid);
+  if(!anc){showTip('No se pudo anclar la aclaración');return}
+  const text=await askAclarText(anc.ref);
+  if(text===null)return;                 // cancelado: no se crea (el subrayado se mantiene)
+  const arr=loadAclars();
+  arr.push({id:uid(),gid,themeId:themeId||null,page:anc.pid,ref:anc.ref||'',
+            text:text,ax:anc.x,ay:anc.y,color:anc.color||curColor,created:Date.now(),mini:true});
+  saveAclars(arr);
+  if(themeId){const m=loadThemeMap();m[gid]=themeId;saveThemeMap(m)}
+  showTip('Aclaración guardada',1500);
+  forceNoteLayerRefresh(anc.pid);
+  scheduleAnchors();
+  refreshAclarPanelIfOpen();
+}
+
+/* modal de texto de la aclaración → devuelve string, o null si se cancela */
+let aclarTextRes=null;
+function askAclarText(ref,current){
+  return new Promise(res=>{
+    aclarTextRes=res;
+    const words=(ref||'').split(/\s+/).filter(Boolean);
+    document.getElementById('aclar-ref').textContent=words.length?('“'+words.slice(0,14).join(' ')+(words.length>14?'…':'')+'”'):'';
+    const ta=document.getElementById('aclar-text-in');
+    ta.value=current||'';
+    document.getElementById('modal-aclar').classList.remove('hidden');
+    setTimeout(()=>ta.focus(),80);
+  });
+}
+document.getElementById('modal-aclar-cancel').onclick=()=>{document.getElementById('modal-aclar').classList.add('hidden');const r=aclarTextRes;aclarTextRes=null;r&&r(null)};
+document.getElementById('modal-aclar-ok').onclick=()=>{
+  const v=document.getElementById('aclar-text-in').value.trim();
+  if(!v){showTip('Escribe la aclaración');return}
+  document.getElementById('modal-aclar').classList.add('hidden');const r=aclarTextRes;aclarTextRes=null;r&&r(v);
+};
+
+/* fuerza reconstruir la capa de notas/aclaraciones de una página */
+function forceNoteLayerRefresh(pid){
+  const wrap=pagesInner.querySelector(`[data-page="${pid}"]`);if(!wrap)return;
+  const nl=wrap.querySelector('.note-layer'),aCv=wrap.querySelector('.annot-cv');
+  if(nl&&aCv){nl.dataset.sig='';redrawPage(aCv,nl,Number(pid))}
+}
+
+/* pinta la "?" y su viñeta de UNA aclaración dentro de la capa de notas */
+function renderAclar(nl,a,num){
+  /* la "?" está SIEMPRE visible; la viñeta se pliega/despliega al tocarla */
+  const mk=document.createElement('div');mk.className='aclar-marker';mk.textContent='?';mk.dataset.aid=a.id;
+  mk.style.left=(a.ax*scale)+'px';mk.style.top=(a.ay*scale)+'px';
+  if(a.color)mk.style.background=a.color;
+
+  const bub=document.createElement('div');bub.className='aclar-bubble'+(a.mini?' mini':'');bub.dataset.aid=a.id;
+  const bx=(a.bx!=null?a.bx:a.ax)*scale, by=(a.by!=null?a.by:a.ay)*scale;
+  bub.style.left=bx+'px';bub.style.top=by+'px';
+  if(a.w)bub.style.width=(a.w*scale)+'px';
+  if(a.h&&!a.mini)bub.style.height=(a.h*scale)+'px';
+
+  const head=document.createElement('div');head.className='aclar-head';
+  const t=document.createElement('span');t.className='ac-t';t.textContent=a.ref||'Aclaración';t.title=a.ref||'';
+  const close=document.createElement('span');close.className='ac-close';close.textContent='▾';close.title='Plegar';
+  const del=document.createElement('span');del.className='ac-del';del.textContent='×';del.title='Eliminar aclaración';
+  head.append(t,close,del);
+
+  const body=document.createElement('div');body.className='aclar-body';
+  const ta=document.createElement('textarea');ta.value=a.text||'';ta.placeholder='Escribe la aclaración…';
+  ta.addEventListener('pointerdown',e=>e.stopPropagation());
+  let txtT=null;
+  ta.addEventListener('input',()=>{
+    ta.style.height='auto';ta.style.height=ta.scrollHeight+'px';
+    a.text=ta.value;
+    clearTimeout(txtT);txtT=setTimeout(()=>patchAclar(a.id,{text:a.text}),350);
+  });
+  body.appendChild(ta);
+  bub.append(head,body);
+
+  const rz=document.createElement('div');rz.className='aclar-resize';rz.title='Ampliar';
+  bub.appendChild(rz);
+
+  /* plegar/desplegar */
+  const setMini=(m)=>{a.mini=m;bub.classList.toggle('mini',m);patchAclar(a.id,{mini:m});
+    if(!m){ta.style.height='auto';ta.style.height=ta.scrollHeight+'px'}};
+  mk.addEventListener('click',e=>{e.stopPropagation();setMini(!a.mini)});
+  close.addEventListener('pointerdown',e=>e.stopPropagation());
+  close.addEventListener('click',e=>{e.stopPropagation();setMini(true)});
+
+  /* eliminar (el subrayado NO se toca) */
+  del.addEventListener('pointerdown',e=>e.stopPropagation());
+  del.addEventListener('click',async e=>{e.stopPropagation();
+    const ok=await askConfirm('¿Eliminar esta aclaración? El subrayado no se borra.');if(!ok)return;
+    saveAclars(loadAclars().filter(z=>z.id!==a.id));
+    mk.remove();bub.remove();scheduleAnchors();refreshAclarPanelIfOpen();
+  });
+
+  /* arrastrar la viñeta por la cabecera (persistir solo al soltar) */
+  let dg=false,ox,oy;
+  head.addEventListener('pointerdown',e=>{
+    if(e.target===close||e.target===del)return;
+    dg=true;head.setPointerCapture(e.pointerId);
+    const r=bub.getBoundingClientRect();ox=e.clientX-r.left;oy=e.clientY-r.top;e.preventDefault();
+  },{passive:false});
+  head.addEventListener('pointermove',e=>{
+    if(!dg)return;e.preventDefault();
+    const lr=nl.getBoundingClientRect();
+    const nx=Math.max(0,e.clientX-lr.left-ox),ny=Math.max(0,e.clientY-lr.top-oy);
+    bub.style.left=nx+'px';bub.style.top=ny+'px';a.bx=nx/scale;a.by=ny/scale;
+  },{passive:false});
+  head.addEventListener('pointerup',()=>{if(dg){dg=false;patchAclar(a.id,{bx:a.bx,by:a.by})}});
+  head.addEventListener('pointercancel',()=>{dg=false});
+
+  /* ampliar por la esquina (persistir solo al soltar) */
+  let rzing=false,rx,ry,rw,rh;
+  rz.addEventListener('pointerdown',e=>{e.stopPropagation();e.preventDefault();rzing=true;rz.setPointerCapture(e.pointerId);
+    rx=e.clientX;ry=e.clientY;const r=bub.getBoundingClientRect();rw=r.width;rh=r.height},{passive:false});
+  rz.addEventListener('pointermove',e=>{if(!rzing)return;e.preventDefault();e.stopPropagation();
+    const nw=Math.max(150,rw+(e.clientX-rx)),nh=Math.max(90,rh+(e.clientY-ry));
+    bub.style.width=nw+'px';bub.style.height=nh+'px';a.w=nw/scale;a.h=nh/scale},{passive:false});
+  rz.addEventListener('pointerup',e=>{if(!rzing)return;rzing=false;e.stopPropagation();patchAclar(a.id,{w:a.w,h:a.h})});
+
+  nl.appendChild(mk);nl.appendChild(bub);
+  if(!a.mini){ta.style.height='auto';ta.style.height=ta.scrollHeight+'px'}
+}
 
 /* primeras N palabras de un texto → título de la entrada */
 function firstWords(txt,n){
