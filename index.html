@@ -663,7 +663,7 @@ body.fullscreen #gid-bar{bottom:20px}
       <div class="bk-icon">📤</div>
       <div class="bk-info">
         <div class="bk-title">Exportar copia completa</div>
-        <div class="bk-sub">Guarda carpetas, PDFs y anotaciones en un archivo .json. Hazlo antes de actualizar la app.</div>
+        <div class="bk-sub">Guarda carpetas, PDFs y TODAS tus anotaciones (subrayados, notas, nodos, glosario, conclusiones, aclaraciones, marcadores, temas…) en un archivo .zip. Hazlo antes de actualizar la app.</div>
       </div>
       <div class="bk-arr">›</div>
     </div>
@@ -1212,7 +1212,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v71'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v72'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2193,7 +2193,13 @@ async function runExport(){
     const files=await dbGetAll('files');
 
     const zip=new ZipBuilder();
-    const meta={app:'LecturaPDF',ver:4,exported:Date.now(),folders,annotations,files:[]};
+    /* ver:5 → además de PDFs y anotaciones (IndexedDB), la copia incluye ahora
+       TODOS los datos de localStorage de cada documento (nodos, glosario,
+       conclusiones, aclaraciones, marcadores, línea de tiempo, temas, orden de
+       páginas, márgenes, embeds…). Hasta ahora esos datos NO iban en la copia:
+       solo vivían en el aparato y en la nube. Las copias antiguas (ver 4) no
+       traían el campo `ls` y se siguen importando sin problema. */
+    const meta={app:'LecturaPDF',ver:5,exported:Date.now(),folders,annotations,files:[]};
 
     for(let i=0;i<files.length;i++){
       const f=files[i];
@@ -2205,7 +2211,8 @@ async function runExport(){
       const entry=f.id+'.pdf';
       zip.add('pdfs/'+entry,f.data);
       meta.files.push({id:f.id,hash:f.hash||null,folderId:f.folderId,name:f.name,
-                       size:f.size,added:f.added,file:entry});
+                       size:f.size,added:f.added,file:entry,
+                       ls:collectDocData(f.id).ls});
     }
     /* Los metadatos y anotaciones caben de sobra en un JSON pequeño */
     zip.add('lecturapdf.json',new TextEncoder().encode(JSON.stringify(meta)));
@@ -2283,6 +2290,11 @@ document.getElementById('backup-input').addEventListener('change',async e=>{
       try{
         await dbPut('files',{id:jf[i].id,hash,folderId:jf[i].folderId,name:jf[i].name,
                              size:jf[i].size,added:jf[i].added,data:u8});
+        /* Restaura los datos de localStorage del documento (nodos, glosario,
+           conclusiones, aclaraciones, marcadores, temas, orden, márgenes…).
+           Solo las copias nuevas (ver 5) traen jf[i].ls; las antiguas no y se
+           omite sin más. applyDocData escribe SIN marcar cambios de sync. */
+        if(jf[i].ls)applyDocData(jf[i].id,{ls:jf[i].ls});
         okCount++;
       }catch(err){
         console.error('[import] falló:',jf[i].name,err);
