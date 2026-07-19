@@ -4317,6 +4317,28 @@ function renderSummary(tab){
       },430);
     };
     acts.appendChild(go);
+
+    /* EDITAR la nota desde el panel (antes solo se podía en la propia página) */
+    const ed=document.createElement('button');ed.className='ent-btn';ed.textContent='✎ Editar';
+    ed.onclick=async e=>{
+      e.stopPropagation();
+      const d=await askEmbedEdit(n.title||'',n.text||'',{showTheme:false});
+      if(!d)return;
+      n.title=d.title;n.text=d.text;      // n es la referencia real de ann.notes
+      scheduleSave();renderSummary(tab);forceNoteLayerRefresh(pg);
+    };
+    acts.appendChild(ed);
+
+    /* ELIMINAR la nota desde el panel */
+    const del=document.createElement('button');del.className='ent-btn del';del.textContent='Eliminar';
+    del.onclick=async e=>{
+      e.stopPropagation();
+      const ok=await askConfirm('¿Eliminar esta nota?');if(!ok)return;
+      const ann=annotations[pg];if(ann)ann.notes=(ann.notes||[]).filter(x=>x.id!==n.id);
+      scheduleSave();renderSummary(tab);forceNoteLayerRefresh(pg);renderPageAnchors();
+    };
+    acts.appendChild(del);
+
     bd.appendChild(acts);
 
     card.append(hd,bd);
