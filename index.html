@@ -752,6 +752,9 @@ body.fullscreen #gid-bar{bottom:20px}
     <button class="tool-btn" id="tb-conclusions" title="Conclusiones">
       <svg viewBox="0 0 24 24"><path d="M9 21h6"/><path d="M10 18h4"/><path d="M12 2a6 6 0 00-3.6 10.8c.6.5 1 1.2 1.1 2h5c.1-.8.5-1.5 1.1-2A6 6 0 0012 2z"/></svg>
     </button>
+    <button class="tool-btn" id="tb-aclar" title="Aclaraciones">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M9.5 9.2a2.6 2.6 0 015 .9c0 1.7-2.5 2.2-2.5 3.9"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </button>
     <button class="tool-btn" id="tb-margin" title="Ampliar márgenes para escribir">
       <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
     </button>
@@ -902,6 +905,19 @@ body.fullscreen #gid-bar{bottom:20px}
   <div id="conclusions-body" class="sp-body"></div>
   <div style="padding:0 12px 12px;flex-shrink:0">
     <button id="conclusions-export" class="sp-action-btn">Exportar conclusiones</button>
+  </div>
+</div>
+
+<!-- aclaraciones panel -->
+<div id="aclar-panel" class="side-panel">
+  <div class="sp-top">
+    <span class="sp-title">❔ Aclaraciones</span>
+    <button class="sp-themes" title="Gestionar temas"></button>
+    <button class="sp-close" data-panel="aclar-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div id="aclar-body" class="sp-body"></div>
+  <div style="padding:0 12px 12px;flex-shrink:0">
+    <button id="aclar-export" class="sp-action-btn">Exportar aclaraciones</button>
   </div>
 </div>
 
@@ -3712,7 +3728,7 @@ const notesPanel=document.getElementById('notes-panel');
    abrir un panel.
    ══════════════════════════════════════════════════════════════════ */
 const ALL_PANELS=['notes-panel','summary-panel','bookmarks-panel','thumbs-panel',
-                  'timeline-panel','glossary-panel','conclusions-panel','resumen-panel'];
+                  'timeline-panel','glossary-panel','conclusions-panel','aclar-panel','resumen-panel'];
 function closeAllPanels(except){
   ALL_PANELS.forEach(id=>{
     if(id===except)return;
@@ -4050,13 +4066,14 @@ function renderPageAnchors(){
   const byPage={};
   const bump=(pg,kind)=>{
     pg=Number(pg);if(!pg)return;
-    byPage[pg]=byPage[pg]||{glos:0,conc:0,node:0,note:0};
+    byPage[pg]=byPage[pg]||{glos:0,conc:0,node:0,note:0,aclar:0};
     byPage[pg][kind]++;
   };
 
   loadNodes().forEach(n=>(n.pages||[]).forEach(pg=>bump(pg,'node')));
   loadEnts('glos').forEach(g=>bump(g.page,'glos'));
   loadEnts('conc').forEach(g=>bump(g.page,'conc'));
+  loadAclars().forEach(a=>bump(a.page,'aclar'));
   for(const slot of pageOrder){
     const ann=annotations[slot.pid];if(!ann)continue;
     (ann.notes||[]).filter(n=>(n.title&&n.title.trim())||(n.text&&n.text.trim())).forEach(()=>bump(slot.pid,'note'));
@@ -4066,14 +4083,15 @@ function renderPageAnchors(){
     glos:{ic:'📖', bg:'#F9D5E5', label:'Definiciones', open:async()=>{openPanel('glossary-panel');await autoUpdateEnts('glos');renderEnts('glos')}},
     conc:{ic:'💡',bg:'#BFE8DC', label:'Conclusiones', open:async()=>{openPanel('conclusions-panel');await autoUpdateEnts('conc');renderEnts('conc')}},
     node:{ic:'🔗',bg:'#E3D0F5', label:'Nodos',        open:()=>openNodesTab()},
-    note:{ic:'🗒️', bg:'#FFF0C9', label:'Notas',        open:()=>{summaryTab='notes';renderSummary('notes');openPanel('summary-panel')}}
+    note:{ic:'🗒️', bg:'#FFF0C9', label:'Notas',        open:()=>{summaryTab='notes';renderSummary('notes');openPanel('summary-panel')}},
+    aclar:{ic:'❔',bg:'#00C2AE', label:'Aclaraciones', open:()=>{openPanel('aclar-panel');refreshAclarPanel()}}
   };
 
   Object.entries(byPage).forEach(([pg,counts])=>{
     const wrap=pagesInner.querySelector(`[data-page="${pg}"]`);if(!wrap)return;
     const nl=wrap.querySelector('.note-layer');if(!nl)return;
     const box=document.createElement('div');box.className='pg-anchors';
-    ['glos','conc','node','note'].forEach(k=>{
+    ['glos','conc','node','note','aclar'].forEach(k=>{
       if(!counts[k])return;
       const d=DEF[k];
       const a=document.createElement('div');a.className='pg-anchor';
@@ -4591,7 +4609,132 @@ function loadAclars(){try{return JSON.parse(localStorage.getItem(aclarKey())||'[
 function saveAclars(arr){try{localStorage.setItem(aclarKey(),JSON.stringify(arr))}catch(e){}}
 /* rellena/borra un campo de UNA aclaración por id (persistente) */
 function patchAclar(id,fields){const arr=loadAclars();const x=arr.find(z=>z.id===id);if(x){Object.assign(x,fields);saveAclars(arr)}}
-function refreshAclarPanelIfOpen(){}   // lo completa el panel (pieza posterior)
+const entThemeFilterAclar={v:'__all__'};   // filtro por tema del panel de aclaraciones
+function refreshAclarPanelIfOpen(){const p=document.getElementById('aclar-panel');if(p&&p.classList.contains('open'))refreshAclarPanel()}
+
+/* panel de Aclaraciones: agrupadas por tema, con editar / borrar / ir / exportar */
+function refreshAclarPanel(){
+  const body=document.getElementById('aclar-body');if(!body)return;
+  body.innerHTML='';
+  let flt=entThemeFilterAclar.v;
+  if(flt!=='__all__'&&flt!==''&&!themeById(flt)){flt='__all__';entThemeFilterAclar.v='__all__'}
+
+  /* desplegable de tema (mismo estilo que glosario/conclusiones), aquí solo filtra */
+  const themesM=loadThemes().sort((a,b)=>(a.num||0)-(b.num||0));
+  const sel=document.createElement('select');sel.className='glos-manual-add-theme';
+  const oAll=document.createElement('option');oAll.value='__all__';oAll.textContent='TODO';sel.appendChild(oAll);
+  const oNone=document.createElement('option');oNone.value='';oNone.textContent='Sin tema';sel.appendChild(oNone);
+  themesM.forEach(t=>{const o=document.createElement('option');o.value=t.id;o.textContent=(t.num?t.num+' · ':'')+(t.name||'Tema');sel.appendChild(o)});
+  sel.value=flt;
+  sel.onchange=()=>{entThemeFilterAclar.v=sel.value;refreshAclarPanel()};
+  body.appendChild(sel);
+
+  let items=loadAclars();
+  if(flt!=='__all__')items=items.filter(a=>((a.themeId||'')===flt));
+
+  if(!items.length){
+    const em=document.createElement('div');em.className='np-empty';
+    em.textContent= flt==='__all__'
+      ? 'Subraya con el color "Aclaraciones" y pulsa ✓ Cerrar para escribir aquí la aclaración.'
+      : (flt===''?'No hay aclaraciones sin tema.':'No hay aclaraciones en este tema.');
+    body.appendChild(em);return;
+  }
+
+  const cnt=document.createElement('div');cnt.className='ent-count';
+  cnt.textContent=items.length+(items.length===1?' aclaración':' aclaraciones');
+  body.appendChild(cnt);
+
+  const themes=loadThemes().sort((a,b)=>(a.num||0)-(b.num||0));
+  const byTheme=new Map();themes.forEach(t=>byTheme.set(t.id,[]));
+  const noTheme=[];
+  items.forEach(a=>{if(a.themeId&&byTheme.has(a.themeId))byTheme.get(a.themeId).push(a);else noTheme.push(a)});
+
+  const renderGroup=(list,theme)=>{
+    if(!list.length)return;
+    const sorted=[...list].sort((a,b)=>posOfPid(a.page)-posOfPid(b.page));
+    const th=document.createElement('div');th.className='theme-hd';
+    if(theme){th.style.background=theme.color;
+      th.innerHTML=`<span class="theme-hd-num">${theme.num}</span><span class="theme-hd-name">${esc(theme.name)}</span><span class="theme-hd-cnt">${sorted.length}</span>`;
+    }else{th.style.background='var(--bg2)';
+      th.innerHTML=`<span class="theme-hd-name" style="color:var(--ink3)">Sin tema</span><span class="theme-hd-cnt">${sorted.length}</span>`;}
+    body.appendChild(th);
+    sorted.forEach(a=>body.appendChild(buildAclarCard(a)));
+  };
+  themes.forEach(t=>renderGroup(byTheme.get(t.id),t));
+  renderGroup(noTheme,null);
+}
+
+function buildAclarCard(a){
+  const card=document.createElement('div');card.className='ent-card';
+  const hd=document.createElement('div');hd.className='ent-hd';
+  const arrow=document.createElement('span');arrow.className='ent-arrow';arrow.textContent='›';
+  const dot=document.createElement('div');dot.className='ent-dot';dot.style.background=a.color||'#00C2AE';
+  const title=document.createElement('span');title.className='ent-title';title.textContent=a.ref||'Aclaración';
+  const pg=document.createElement('span');pg.className='ent-pg';pg.textContent='p.'+pageLabel(a.page);
+  hd.append(arrow,dot,title,pg);
+
+  const bd=document.createElement('div');bd.className='ent-body';
+  const _th=a.themeId?themeById(a.themeId):null;
+  const badge=document.createElement('div');badge.className='ent-theme-badge'+(_th?'':' none');
+  if(_th){badge.style.background=_th.color;badge.textContent=(_th.num?_th.num+' · ':'')+(_th.name||'Tema')}else{badge.textContent='Sin tema'}
+  bd.appendChild(badge);
+  const txt=document.createElement('div');txt.className='ent-text';txt.textContent=a.text||'(vacío)';
+  bd.appendChild(txt);
+
+  const acts=document.createElement('div');acts.className='ent-acts';
+  const go=document.createElement('button');go.className='ent-btn go';go.textContent='→ Ir a la página '+pageLabel(a.page);
+  go.onclick=e=>{e.stopPropagation();
+    if(posOfPid(a.page)<=0){showTip('Esta aclaración no está en ninguna página');return}
+    goPage(posOfPid(a.page));
+    document.getElementById('aclar-panel').classList.remove('open');
+    setTimeout(()=>{const w=pagesInner.querySelector(`[data-page="${a.page}"]`);
+      if(w){w.style.outline='3px solid '+(a.color||'#00C2AE');setTimeout(()=>w.style.outline='',1400)}},420);
+  };
+  acts.appendChild(go);
+
+  const ed=document.createElement('button');ed.className='ent-btn';ed.textContent='✎ Editar';
+  ed.onclick=async e=>{e.stopPropagation();
+    const d=await askEmbedEdit(a.ref||'Aclaración',a.text||'',{showTheme:true,themeId:a.themeId||null});
+    if(!d)return;
+    patchAclar(a.id,{ref:d.title,text:d.text,themeId:d.themeId||null});
+    refreshAclarPanel();renderPageAnchors();forceNoteLayerRefresh(a.page);
+  };
+  acts.appendChild(ed);
+
+  const del=document.createElement('button');del.className='ent-btn del';del.textContent='Eliminar';
+  del.onclick=async e=>{e.stopPropagation();
+    const ok=await askConfirm('¿Eliminar esta aclaración? El subrayado no se borra.');if(!ok)return;
+    saveAclars(loadAclars().filter(x=>x.id!==a.id));
+    refreshAclarPanel();renderPageAnchors();forceNoteLayerRefresh(a.page);
+    showTip('Aclaración eliminada (el subrayado sigue ahí)',1800);
+  };
+  acts.appendChild(del);
+
+  bd.appendChild(acts);card.append(hd,bd);
+  hd.onclick=()=>{const o=bd.classList.toggle('open');arrow.classList.toggle('open',o)};
+  return card;
+}
+
+function exportAclars(){
+  const items=loadAclars();
+  if(!items.length){showTip('No hay aclaraciones que exportar todavía');return}
+  const sorted=[...items].sort((a,b)=>posOfPid(a.page)-posOfPid(b.page));
+  const sep='═'.repeat(52);
+  let out=`ACLARACIONES\n${currentFileName}\n`;
+  out+=`${new Date().toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric'})}`;
+  out+=`  ·  ${sorted.length} ${sorted.length===1?'aclaración':'aclaraciones'}\n${sep}\n\n`;
+  sorted.forEach((a,i)=>{
+    const th=a.themeId?themeById(a.themeId):null;
+    out+=`${String(i+1).padStart(2,'0')}. ${(a.ref||'Aclaración').toUpperCase()}\n`;
+    out+=`    ${'─'.repeat(44)}\n`;
+    const words=(a.text||'').split(/\s+/);let line='';
+    words.forEach(w=>{if((line+' '+w).trim().length>72){out+='    '+line.trim()+'\n';line=w}else line+=' '+w});
+    if(line.trim())out+='    '+line.trim()+'\n';
+    out+=`    → Página ${pageLabel(a.page)}${th?'  ·  '+(th.num?th.num+' · ':'')+(th.name||''):''}\n\n`;
+  });
+  out+=sep+'\n';
+  downloadBlob(new Blob([out],{type:'text/plain'}),'Aclaraciones_'+((currentFileName||'documento').replace(/\.[^.]+$/,''))+'.txt');
+}
 
 /* ancla = encima de la última palabra subrayada del grupo; ref = texto subrayado */
 function aclarAnchorForGid(gid){
@@ -4620,7 +4763,6 @@ async function createAclarFromGid(gid,themeId){
   arr.push({id:uid(),gid,themeId:themeId||null,page:anc.pid,ref:anc.ref||'',
             text:text,ax:anc.x,ay:anc.y,color:anc.color||curColor,created:Date.now(),mini:true});
   saveAclars(arr);
-  if(themeId){const m=loadThemeMap();m[gid]=themeId;saveThemeMap(m)}
   showTip('Aclaración guardada',1500);
   forceNoteLayerRefresh(anc.pid);
   scheduleAnchors();
@@ -4812,6 +4954,8 @@ function deleteTheme(themeId){
     a.forEach(g=>{if(g.themeId===themeId){g.themeId=null;ch=true}});
     if(ch)saveEnts(k,a);
   }
+  /* 3) aclaraciones: su tema vive dentro de cada aclaración */
+  {const aa=loadAclars();let ch=false;aa.forEach(a=>{if(a.themeId===themeId){a.themeId=null;ch=true}});if(ch)saveAclars(aa)}
 }
 function renderThemesMgr(){
   const list=document.getElementById('tm-list');
@@ -4887,6 +5031,7 @@ function refreshEntPanels(){
     const p=document.getElementById(pid);
     if(p&&p.classList.contains('open'))renderEnts(k);
   });
+  refreshAclarPanelIfOpen();
   renderPageAnchors();
 }
 function openThemesMgr(kind){
@@ -5260,6 +5405,12 @@ document.getElementById('tb-conclusions').onclick=async()=>{
 document.querySelector('#conclusions-panel .sp-close').onclick=()=>document.getElementById('conclusions-panel').classList.remove('open');
 document.getElementById('conclusions-export').onclick=()=>exportEnts('conc');
 addPanelSwipe('conclusions-panel');
+/* ── Aclaraciones ── */
+document.getElementById('tb-aclar').onclick=()=>{openPanel('aclar-panel');refreshAclarPanel()};
+document.querySelector('#aclar-panel .sp-close').onclick=()=>document.getElementById('aclar-panel').classList.remove('open');
+document.querySelectorAll('#aclar-panel .sp-themes').forEach(b=>b.onclick=()=>openThemesMgr('glos'));
+document.getElementById('aclar-export').onclick=()=>exportAclars();
+addPanelSwipe('aclar-panel');
 /* ══ FULLSCREEN ══ */
 let fullscreenOn=false;
 const fsHint=document.getElementById('fs-hint');
