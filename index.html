@@ -195,7 +195,7 @@ input,textarea{user-select:text!important;-webkit-user-select:text!important}
 .stnote-del{font-size:18px;color:rgba(74,68,88,.45);cursor:pointer;padding:2px 0 2px 8px;line-height:1;flex-shrink:0;touch-action:manipulation}
 .stnote-body{padding:8px 10px 10px}
 .stnote textarea{width:100%;flex:1;background:transparent;border:none;outline:none;resize:none;font-size:13px;color:var(--ink);font-family:inherit;line-height:1.5;min-height:50px;touch-action:auto;pointer-events:all}
-.stnote-body{display:flex;flex-direction:column;flex:1;min-height:0}
+.stnote-body{display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto}
 
 /* notes panel (barra rápida) */
 #notes-panel{position:fixed;right:-300px;top:0;width:280px;max-width:85vw;height:100%;height:100dvh;background:var(--card);border-left:1px solid var(--border);box-shadow:-6px 0 24px rgba(120,100,140,.14);z-index:600;display:flex;flex-direction:column;transition:right .26s cubic-bezier(.4,0,.2,1)}
@@ -3431,9 +3431,14 @@ function renderNote(nl,nd,num,focus){
   const note=document.createElement('div');note.className='stnote';note.dataset.nid=nd.id;
   if(nd.mini)note.classList.add('mini');
   note.style.left=(nd.x*scale)+'px';note.style.top=(nd.y*scale)+'px';
-  /* tamaño guardado (ampliable). Por defecto 180px de ancho, alto automático. */
-  note.style.width=((nd.w||180)*scale)+'px';
-  if(nd.h)note.style.height=(nd.h*scale)+'px';
+  /* tamaño guardado (ampliable). Por defecto 180px de ancho, alto automático.
+     OJO: si la nota está plegada (mini) NO se aplica el tamaño fijo, porque el
+     ancho/alto en línea manda sobre la clase .mini y la nota se quedaba enorme
+     al plegarla. En mini deja que mande el CSS (ancho auto, alto según título). */
+  if(!nd.mini){
+    note.style.width=((nd.w||180)*scale)+'px';
+    if(nd.h)note.style.height=(nd.h*scale)+'px';
+  }
   /* color de la nota (vinculado al tipo de contenido) */
   if(nd.color)note.style.background=nd.color;
 
@@ -3449,6 +3454,14 @@ function renderNote(nl,nd,num,focus){
     nd.mini=!nd.mini;
     note.classList.toggle('mini',nd.mini);
     fold.textContent=nd.mini?'▸':'▾';
+    /* al plegar quitamos el tamaño fijo (si no, la nota grande no se recoge);
+       al desplegar lo devolvemos tal cual estaba guardado */
+    if(nd.mini){
+      note.style.width='';note.style.height='';
+    }else{
+      note.style.width=((nd.w||180)*scale)+'px';
+      if(nd.h)note.style.height=(nd.h*scale)+'px';
+    }
     const ann=annotations[num];if(ann){const x=ann.notes.find(n=>n.id===nd.id);if(x)x.mini=nd.mini}
     scheduleSave();
   });
@@ -3545,6 +3558,7 @@ function renderNote(nl,nd,num,focus){
     ta.style.display=m==='draw'?'none':'block';
     drawWrap.style.display=m==='draw'?'block':'none';
     if(m==='draw')redrawNoteCanvas();
+    else{ta.style.height='auto';ta.style.height=ta.scrollHeight+'px'}
     scheduleSave();
   }
   btnType.onclick=()=>setMode('text');
