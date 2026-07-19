@@ -231,7 +231,8 @@ body.fullscreen #rd-bottom-show{display:none}
 .modal-bg{position:fixed;inset:0;background:rgba(74,68,88,.32);display:flex;align-items:flex-end;justify-content:center;z-index:900}
 .modal{background:var(--card);border-radius:22px 22px 0 0;width:100%;max-width:560px;padding:22px 20px;padding-bottom:max(22px,env(safe-area-inset-bottom));max-height:82dvh;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .modal h3{font-size:16px;font-weight:600;color:var(--ink);margin-bottom:16px;text-align:center}
-.modal input[type=text],.modal input[type=number]{width:100%;background:var(--bg2);border:none;border-radius:12px;color:var(--ink);font-size:16px;padding:13px 14px;outline:none;margin-bottom:12px}
+.modal input[type=text],.modal input[type=number],.modal textarea{width:100%;background:var(--bg2);border:none;border-radius:12px;color:var(--ink);font-size:16px;padding:13px 14px;outline:none;margin-bottom:12px}
+.modal textarea{font-family:inherit;line-height:1.5;resize:vertical;min-height:64px}
 .modal-btns{display:flex;gap:10px;margin-top:6px}
 .mbtn{flex:1;padding:13px;border:none;border-radius:12px;font-size:15px;font-weight:500;cursor:pointer}
 .mbtn.cancel{background:var(--bg2);color:var(--ink)}
@@ -379,12 +380,12 @@ body.fullscreen #rd-bottom-show{display:none}
 .node-pg{font-size:11px;color:var(--ink2);flex-shrink:0}
 .node-body{display:none;padding:0 12px 10px 30px}
 .node-body.open{display:block}
-.node-desc{font-size:13px;color:var(--ink2);line-height:1.45;margin-bottom:8px}
+.node-desc{font-size:13px;color:var(--ink2);line-height:1.45;margin-bottom:8px;white-space:pre-wrap;word-break:break-word}
 .node-sub{border-left:2px solid var(--border);padding-left:10px;margin-bottom:6px}
 .node-sub-item{padding:5px 4px;border-bottom:1px solid var(--border);cursor:pointer}
 .node-sub-item:last-child{border-bottom:none}
 .node-sub-title{font-size:13px;font-weight:500;color:var(--ink)}
-.node-sub-desc{font-size:12px;color:var(--ink2);line-height:1.4;margin-top:2px;display:none}
+.node-sub-desc{font-size:12px;color:var(--ink2);line-height:1.4;margin-top:2px;display:none;white-space:pre-wrap;word-break:break-word}
 .node-sub-desc.open{display:block}
 .node-sub-sub{border-left:2px solid var(--border);padding-left:8px;margin-top:4px}
 .node-sub-sub-item{font-size:12px;color:var(--ink2);padding:3px 2px;cursor:pointer}
@@ -968,8 +969,8 @@ body.fullscreen #gid-bar{bottom:20px}
 <div class="modal-bg hidden" id="modal-node">
   <div class="modal">
     <h3 id="modal-node-title">Nuevo nodo conceptual</h3>
-    <input id="node-title-in" type="text" placeholder="Título (ej: Bandura – Aprendizaje vicario)" maxlength="80">
-    <input id="node-body-in" type="text" placeholder="Descripción breve" maxlength="200">
+    <input id="node-title-in" type="text" placeholder="Título (ej: Bandura – Aprendizaje vicario)">
+    <textarea id="node-body-in" placeholder="Descripción / resumen (todo lo que quieras)" rows="4"></textarea>
     <div style="font-size:13px;color:var(--ink2);margin-bottom:12px">Se ancla a la página <span id="node-pg-label">1</span></div>
     <div class="modal-btns">
       <button class="mbtn cancel" id="modal-node-cancel">Cancelar</button>
@@ -982,8 +983,8 @@ body.fullscreen #gid-bar{bottom:20px}
 <div class="modal-bg hidden" id="modal-subnode">
   <div class="modal">
     <h3>Añadir subnivel</h3>
-    <input id="subnode-title-in" type="text" placeholder="Subtítulo" maxlength="80">
-    <input id="subnode-body-in" type="text" placeholder="Explicación" maxlength="300">
+    <input id="subnode-title-in" type="text" placeholder="Subtítulo">
+    <textarea id="subnode-body-in" placeholder="Explicación (todo lo que quieras)" rows="4"></textarea>
     <div class="modal-btns">
       <button class="mbtn cancel" id="modal-subnode-cancel">Cancelar</button>
       <button class="mbtn ok" id="modal-subnode-ok">Añadir</button>
