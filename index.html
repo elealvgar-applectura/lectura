@@ -431,14 +431,27 @@ body.fullscreen #rd-bottom-show{display:none}
 .cmap-act-btn.sub{background:var(--mante)}
 .cmap-act-btn.del{background:rgba(229,139,139,.2);color:var(--danger)}
 .cmap-act-btn:active{opacity:.8}
-/* botones de acción como ICONO pequeño: antes el texto ("📌 Plasmar",
-   "✎ Editar"…) pesaba visualmente más que el propio título del nodo. */
-.ic-btn{width:30px;height:30px;padding:0;border:none;border-radius:8px;background:var(--bg2);color:var(--ink2);font-size:14px;line-height:1;cursor:pointer;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;font-family:inherit}
-.ic-btn:active{opacity:.7}
-.ic-btn.go{background:var(--lila);color:var(--ink)}
-.ic-btn.sub{background:var(--mante);color:var(--ink)}
-.ic-btn.del{background:transparent;color:var(--danger)}
-.cmap-acts{gap:5px}
+/* ═══ BOTONES DE ACCIÓN DE FICHA ═══
+   Iconos de trazo (los mismos del resto de la app), pequeños y sin fondo,
+   pegados al título. Antes eran botones con texto y con fondo de color:
+   pesaban más que el propio contenido y llenaban una fila entera. */
+.nd-btn{width:24px;height:24px;padding:0;border:none;background:none;color:var(--ink3);
+  cursor:pointer;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
+  border-radius:6px;-webkit-tap-highlight-color:transparent}
+.nd-btn .ico{width:15px;height:15px;stroke-width:1.7}
+.nd-btn:active{background:var(--bg2);color:var(--ink)}
+.nd-btn.danger{color:var(--danger)}
+/* fila de acciones: aparece pegada al título y no empuja el texto */
+.cmap-acts{display:inline-flex;gap:1px;flex-shrink:0;margin-left:2px}
+/* título + acciones en la misma línea (subniveles de nodos y pasos) */
+.node-sub-row{display:flex;align-items:center;gap:6px}
+.node-sub-row>:first-child{flex:1;min-width:0}
+/* botones principales: icono + etiqueta alineados */
+.node-add-btn,.bm-add-btn{display:flex;align-items:center;justify-content:center;gap:7px}
+.node-add-btn .ico,.bm-add-btn .ico{width:16px;height:16px}
+.cmap-chev{width:13px;height:13px;stroke-width:2}
+/* barras de formato: mismo tamaño de icono que el resto */
+.rich-tb .ico{width:15px;height:15px;stroke-width:1.7}
 /* el selector de vincular se abre DESDE otro cuadro: tiene que pintarse por
    encima de él, esté donde esté en el HTML */
 #modal-cmap-link{z-index:920}
@@ -1003,8 +1016,8 @@ body.fullscreen #gid-bar{bottom:20px}
     <button class="sp-close" data-panel="cmap-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <div id="cmap-toolrow" style="display:flex;gap:6px;padding:0 12px 8px;flex-shrink:0">
-    <button id="cmap-toggle-all" class="ic-btn" title="Desplegar todo">▾</button>
-    <button id="cmap-toggle-win" class="ic-btn" title="Ver en ventana movible">⤢</button>
+    <button id="cmap-toggle-all" class="nd-btn" title="Desplegar todo"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 9.5 12 15l5.5-5.5"/></svg></button>
+    <button id="cmap-toggle-win" class="nd-btn" title="Ver en ventana movible"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4.5H4.5V9M15 4.5H19.5V9M9 19.5H4.5V15M15 19.5H19.5V15"/></svg></button>
   </div>
   <div id="cmap-body" class="sp-body"></div>
   <div id="cmap-win-resize"></div>
@@ -1098,8 +1111,8 @@ body.fullscreen #gid-bar{bottom:20px}
       <button type="button" data-cmd="fontSize" data-val="5" title="Más grande">A+</button>
       <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
       <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
-      <button type="button" data-cmd="removeFormat" title="Quitar el formato">✕fmt</button>
-      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración">🔗</button>
+      <button type="button" data-cmd="removeFormat" title="Quitar el formato"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.4 19.4h11"/><path d="M15.6 5.2 5.4 15.4a1.6 1.6 0 0 0 0 2.3l1.7 1.7h4l7.8-7.8a1.6 1.6 0 0 0 0-2.3l-3.3-3.3a1.6 1.6 0 0 0-2.3 0Z"/></svg></button>
+      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.4 13.6a3.4 3.4 0 0 0 5 .3l2.4-2.4a3.4 3.4 0 0 0-4.8-4.8l-1.4 1.4"/><path d="M13.6 10.4a3.4 3.4 0 0 0-5-.3l-2.4 2.4a3.4 3.4 0 0 0 4.8 4.8l1.4-1.4"/></svg></button>
     </div>
     <div id="emb-edit-text" class="rich-ed rich-content" contenteditable="true" data-ph="Texto / definición / conclusión (con formato, sin límite)"></div>
     <div class="modal-btns">
@@ -1123,8 +1136,8 @@ body.fullscreen #gid-bar{bottom:20px}
       <button type="button" data-cmd="fontSize" data-val="5" title="Más grande">A+</button>
       <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
       <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
-      <button type="button" data-cmd="removeFormat" title="Quitar el formato">✕fmt</button>
-      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración">🔗</button>
+      <button type="button" data-cmd="removeFormat" title="Quitar el formato"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.4 19.4h11"/><path d="M15.6 5.2 5.4 15.4a1.6 1.6 0 0 0 0 2.3l1.7 1.7h4l7.8-7.8a1.6 1.6 0 0 0 0-2.3l-3.3-3.3a1.6 1.6 0 0 0-2.3 0Z"/></svg></button>
+      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.4 13.6a3.4 3.4 0 0 0 5 .3l2.4-2.4a3.4 3.4 0 0 0-4.8-4.8l-1.4 1.4"/><path d="M13.6 10.4a3.4 3.4 0 0 0-5-.3l-2.4 2.4a3.4 3.4 0 0 0 4.8 4.8l1.4-1.4"/></svg></button>
     </div>
     <div id="node-body-in" class="rich-ed rich-content" contenteditable="true" data-ph="Descripción / resumen (con formato, todo lo que quieras)"></div>
     <div style="font-size:13px;color:var(--ink2);margin-bottom:12px">Se ancla a la página <span id="node-pg-label">1</span></div>
@@ -1150,8 +1163,8 @@ body.fullscreen #gid-bar{bottom:20px}
       <button type="button" data-cmd="fontSize" data-val="5" title="Más grande">A+</button>
       <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
       <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
-      <button type="button" data-cmd="removeFormat" title="Quitar el formato">✕fmt</button>
-      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración">🔗</button>
+      <button type="button" data-cmd="removeFormat" title="Quitar el formato"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.4 19.4h11"/><path d="M15.6 5.2 5.4 15.4a1.6 1.6 0 0 0 0 2.3l1.7 1.7h4l7.8-7.8a1.6 1.6 0 0 0 0-2.3l-3.3-3.3a1.6 1.6 0 0 0-2.3 0Z"/></svg></button>
+      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.4 13.6a3.4 3.4 0 0 0 5 .3l2.4-2.4a3.4 3.4 0 0 0-4.8-4.8l-1.4 1.4"/><path d="M13.6 10.4a3.4 3.4 0 0 0-5-.3l-2.4 2.4a3.4 3.4 0 0 0 4.8 4.8l1.4-1.4"/></svg></button>
     </div>
     <div id="subnode-body-in" class="rich-ed rich-content" contenteditable="true" data-ph="Explicación (con formato, todo lo que quieras)"></div>
     <div class="modal-btns">
@@ -1177,8 +1190,8 @@ body.fullscreen #gid-bar{bottom:20px}
       <button type="button" data-cmd="fontSize" data-val="5" title="Más grande">A+</button>
       <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
       <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
-      <button type="button" data-cmd="removeFormat" title="Quitar el formato">✕fmt</button>
-      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración">🔗</button>
+      <button type="button" data-cmd="removeFormat" title="Quitar el formato"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.4 19.4h11"/><path d="M15.6 5.2 5.4 15.4a1.6 1.6 0 0 0 0 2.3l1.7 1.7h4l7.8-7.8a1.6 1.6 0 0 0 0-2.3l-3.3-3.3a1.6 1.6 0 0 0-2.3 0Z"/></svg></button>
+      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.4 13.6a3.4 3.4 0 0 0 5 .3l2.4-2.4a3.4 3.4 0 0 0-4.8-4.8l-1.4 1.4"/><path d="M13.6 10.4a3.4 3.4 0 0 0-5-.3l-2.4 2.4a3.4 3.4 0 0 0 4.8 4.8l1.4-1.4"/></svg></button>
     </div>
     <div id="aclar-text-in" class="rich-ed rich-content" contenteditable="true" data-ph="Escribe la aclaración o información más profunda (con formato, sin límite)"></div>
     <div class="modal-btns">
@@ -1203,8 +1216,8 @@ body.fullscreen #gid-bar{bottom:20px}
       <button type="button" data-cmd="fontSize" data-val="5" title="Más grande">A+</button>
       <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
       <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
-      <button type="button" data-cmd="removeFormat" title="Quitar el formato">✕fmt</button>
-      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración">🔗</button>
+      <button type="button" data-cmd="removeFormat" title="Quitar el formato"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.4 19.4h11"/><path d="M15.6 5.2 5.4 15.4a1.6 1.6 0 0 0 0 2.3l1.7 1.7h4l7.8-7.8a1.6 1.6 0 0 0 0-2.3l-3.3-3.3a1.6 1.6 0 0 0-2.3 0Z"/></svg></button>
+      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.4 13.6a3.4 3.4 0 0 0 5 .3l2.4-2.4a3.4 3.4 0 0 0-4.8-4.8l-1.4 1.4"/><path d="M13.6 10.4a3.4 3.4 0 0 0-5-.3l-2.4 2.4a3.4 3.4 0 0 0 4.8 4.8l1.4-1.4"/></svg></button>
     </div>
     <div id="cmap-body-in" class="rich-ed rich-content" contenteditable="true" data-ph="Descripción o definición clave (opcional, con formato)"></div>
     <div class="modal-btns">
@@ -1268,8 +1281,8 @@ body.fullscreen #gid-bar{bottom:20px}
       <button type="button" data-cmd="fontSize" data-val="5" title="Más grande">A+</button>
       <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
       <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
-      <button type="button" data-cmd="removeFormat" title="Quitar el formato">✕fmt</button>
-      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración">🔗</button>
+      <button type="button" data-cmd="removeFormat" title="Quitar el formato"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.4 19.4h11"/><path d="M15.6 5.2 5.4 15.4a1.6 1.6 0 0 0 0 2.3l1.7 1.7h4l7.8-7.8a1.6 1.6 0 0 0 0-2.3l-3.3-3.3a1.6 1.6 0 0 0-2.3 0Z"/></svg></button>
+      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.4 13.6a3.4 3.4 0 0 0 5 .3l2.4-2.4a3.4 3.4 0 0 0-4.8-4.8l-1.4 1.4"/><path d="M13.6 10.4a3.4 3.4 0 0 0-5-.3l-2.4 2.4a3.4 3.4 0 0 0 4.8 4.8l1.4-1.4"/></svg></button>
     </div>
     <div id="proc-step-body-in" class="rich-ed rich-content" contenteditable="true" data-ph="Descripción del paso (opcional, con formato)"></div>
     <div style="margin:0 0 12px">
@@ -1587,6 +1600,22 @@ const ICON={
   share:'<path d="M12 15.4V3.9"/><path d="M8.4 7.5 12 3.9l3.6 3.6"/><path d="M5 14v4.6a1.6 1.6 0 0 0 1.6 1.6h10.8a1.6 1.6 0 0 0 1.6-1.6V14"/>',
   bookmark:'<path d="M6.5 4.2h11a1 1 0 0 1 1 1v15l-6.5-4.3-6.5 4.3v-15a1 1 0 0 1 1-1Z"/>',
   plus:'<path d="M12 5.5v13M5.5 12h13"/>',
+  /* ── ACCIONES DE FICHA ─────────────────────────────────────────────
+     Mismo lenguaje que el resto: trazo unico, sin relleno. Sustituyen a
+     los emojis (📌 ✎ 🗑…), que rompian la estetica y ademas se veian
+     distintos en cada aparato. */
+  pin:'<path d="M9.5 3.6h5a1 1 0 0 1 .8 1.6l-.6.9v3.4l2.2 2.6a1 1 0 0 1-.8 1.7H7.9a1 1 0 0 1-.8-1.7l2.2-2.6V6.1l-.6-.9a1 1 0 0 1 .8-1.6Z"/><path d="M12 13.8v6.6"/>',
+  dots:'<circle cx="5.6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18.4" cy="12" r="1.3"/>',
+  chevUp:'<path d="M6.5 14.5 12 9l5.5 5.5"/>',
+  chevDown:'<path d="M6.5 9.5 12 15l5.5-5.5"/>',
+  chevRight:'<path d="M9.5 6.5 15 12l-5.5 5.5"/>',
+  link:'<path d="M10.4 13.6a3.4 3.4 0 0 0 5 .3l2.4-2.4a3.4 3.4 0 0 0-4.8-4.8l-1.4 1.4"/><path d="M13.6 10.4a3.4 3.4 0 0 0-5-.3l-2.4 2.4a3.4 3.4 0 0 0 4.8 4.8l1.4-1.4"/>',
+  outdent:'<path d="M10 6.5h10M10 12h10M10 17.5h10"/><path d="M6.6 9.6 4 12l2.6 2.4"/>',
+  indent:'<path d="M10 6.5h10M10 12h10M10 17.5h10"/><path d="M4 9.6 6.6 12 4 14.4"/>',
+  jump:'<path d="M5.5 12h11"/><path d="M12.6 7.4 17.2 12l-4.6 4.6"/>',
+  winExpand:'<path d="M9 4.5H4.5V9M15 4.5H19.5V9M9 19.5H4.5V15M15 19.5H19.5V15"/>',
+  winDock:'<path d="M4.5 9H9V4.5M19.5 9H15V4.5M4.5 15H9v4.5M19.5 15H15v4.5"/>',
+  eraserFmt:'<path d="M8.4 19.4h11"/><path d="M15.6 5.2 5.4 15.4a1.6 1.6 0 0 0 0 2.3l1.7 1.7h4l7.8-7.8a1.6 1.6 0 0 0 0-2.3l-3.3-3.3a1.6 1.6 0 0 0-2.3 0Z"/>',
   sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2.6v2.2M12 19.2v2.2M4.4 4.4l1.6 1.6M18 18l1.6 1.6M2.6 12h2.2M19.2 12h2.2M4.4 19.6 6 18M18 6l1.6-1.6"/>',
   moon:'<path d="M20.2 14.4A8.4 8.4 0 0 1 9.6 3.8a8.4 8.4 0 1 0 10.6 10.6Z"/>',
 
@@ -1645,6 +1674,13 @@ const FOLDER_ICONS=[
 /* helper: devuelve el <svg> como string */
 function svg(name,cls){
   return `<svg class="${cls||'ico'}" viewBox="0 0 24 24" aria-hidden="true">${ICON[name]||''}</svg>`;
+}
+/* botón con icono + etiqueta. Para las acciones PRINCIPALES, que sí llevan
+   texto; las secundarias van solo con icono (ver .nd-btn). */
+function setIconLabel(btn,icon,label){
+  btn.innerHTML=svg(icon)+'<span></span>';
+  btn.querySelector('span').textContent=label;
+  return btn;
 }
 
 /* ══ DB ══ */
@@ -4154,7 +4190,8 @@ function askSubNodeEdit(title,body){return new Promise(r=>{
 function refreshNodesPanel(){
   npNodesBody.innerHTML='';
   const nodes=loadNodes();
-  const addBtn=document.createElement('button');addBtn.className='node-add-btn';addBtn.textContent='＋ Nuevo nodo en página '+curPage;
+  const addBtn=document.createElement('button');addBtn.className='node-add-btn';
+  setIconLabel(addBtn,'plus','Nuevo nodo en página '+curPage);
   addBtn.onclick=async()=>{const d=await askNode(curPage);if(!d)return;nodes.push({id:uid(),title:d.title,body:d.body,pages:[curPid()],color:curColor,children:[],created:Date.now()});saveNodes(nodes);refreshNodesPanel();renderNodeAnchors();showTip('Nodo creado',1400)};
   npNodesBody.appendChild(addBtn);
   if(!nodes.length){const em=document.createElement('div');em.className='np-empty';em.textContent='Crea nodos conceptuales anclados al PDF.\nCada nodo puede tener subniveles de profundidad.';npNodesBody.appendChild(em);return}
@@ -4194,9 +4231,6 @@ function buildNodeEl(node,nodes){
   const subWrap=document.createElement('div');subWrap.className='node-sub';
   node.children.forEach(ch=>subWrap.appendChild(buildSubTree(ch,node.children,nodes)));
   body.appendChild(subWrap);
-  // actions
-  const acts=document.createElement('div');acts.className='node-actions';
-  const goBtn=document.createElement('button');goBtn.className='node-act-btn go';
   /* Si el nodo abarca varias paginas, "Ir" abria SIEMPRE la primera y no habia
      forma de saltar a las demas desde aqui. Ahora despliega un menu con todas,
      ordenadas por su posicion real en el documento. */
@@ -4207,45 +4241,62 @@ function buildNodeEl(node,nodes){
     setTimeout(()=>{const w=pagesInner.querySelector(`[data-page="${pg}"]`);
       if(w){w.style.outline='3px solid '+(node.color||'#E3D0F5');setTimeout(()=>w.style.outline='',1400)}},420);
   };
-  const updGoLabel=()=>{const n=nodePages().length;goBtn.textContent=n>1?`→ Ir (${n})`:'→ Ir'};
-  updGoLabel();
-  goBtn.onclick=e=>{
-    e.stopPropagation();
+  const doGo=()=>{
     const pgs=nodePages();
     if(!pgs.length){showTip('Este nodo no está vinculado a ninguna página');return}
     if(pgs.length===1){goTo(pgs[0]);return}
-    const r=goBtn.getBoundingClientRect();
+    const r=hd.getBoundingClientRect();
     showCtx(r.left,r.bottom+6,pgs.map(pg=>({
-      icon:'file',
-      label:'Página '+pageLabel(pg),
-      action:()=>goTo(pg)
+      icon:'file',label:'Página '+pageLabel(pg),action:()=>goTo(pg)
     })));
   };
-  const pgBtn=document.createElement('button');pgBtn.className='node-act-btn sub';pgBtn.textContent='＋ Pág.';
-  pgBtn.onclick=async e=>{
-    e.stopPropagation();
-    const v=await askName(`Vincular "${node.title}" a otra página (1–${totalPages})`,String(curPage));
-    if(!v)return;
-    const pos=parseInt(v);
-    if(isNaN(pos)||pos<1||pos>totalPages){showTip('Número de página no válido');return}
-    const pg=pidAtPos(pos);
-    if(!node.pages.includes(pg)){node.pages.push(pg);node.pages.sort((a,b)=>a-b);saveNodes(nodes);refreshNodesPanel();renderNodeAnchors();showTip(`Nodo vinculado a la página ${pos} `,1600)}
-    else showTip('Ya está vinculado a esa página');
-  };
-  const subBtn=document.createElement('button');subBtn.className='node-act-btn sub';subBtn.textContent='＋ Subnivel';subBtn.onclick=async e=>{e.stopPropagation();const d=await askSubNode();if(!d)return;if(!node.children)node.children=[];node.children.push({id:uid(),title:d.title,body:d.body,children:[]});saveNodes(nodes);refreshNodesPanel();renderNodeAnchors()};
-  /* EDITAR el nodo: reutiliza el modal de creación, precargado */
-  const editBtn=document.createElement('button');editBtn.className='node-act-btn sub';editBtn.textContent='✎ Editar';
-  editBtn.onclick=async e=>{
-    e.stopPropagation();
+  const doEdit=async()=>{
     const d=await askNodeEdit(node.title,node.body||'');
     if(!d)return;
     node.title=d.title;node.body=d.body;
     saveNodes(nodes);refreshNodesPanel();renderNodeAnchors();showTip('Nodo actualizado',1200);
   };
-  const delBtn=document.createElement('button');delBtn.className='node-act-btn del';delBtn.textContent='Eliminar';delBtn.onclick=async e=>{e.stopPropagation();const ok=await askConfirm(`¿Eliminar "${node.title}"?`);if(!ok)return;const i=nodes.indexOf(node);if(i>-1)nodes.splice(i,1);saveNodes(nodes);refreshNodesPanel();renderNodeAnchors()};
-  const embBtn=document.createElement('button');embBtn.className='node-act-btn sub';embBtn.textContent='📌 Plasmar';
-  embBtn.onclick=e=>{e.stopPropagation();addEmbed('node',node.id,curPid());notesPanel.classList.remove('open')};
-  acts.append(goBtn,editBtn,pgBtn,subBtn,embBtn,delBtn);body.appendChild(acts);
+  const doSub=async()=>{
+    const d=await askSubNode();if(!d)return;
+    if(!node.children)node.children=[];
+    node.children.push({id:uid(),title:d.title,body:d.body,children:[]});
+    saveNodes(nodes);refreshNodesPanel();renderNodeAnchors();
+  };
+  const doAddPage=async()=>{
+    const v=await askName(`Vincular "${node.title}" a otra página (1–${totalPages})`,String(curPage));
+    if(!v)return;
+    const pos=parseInt(v);
+    if(isNaN(pos)||pos<1||pos>totalPages){showTip('Número de página no válido');return}
+    const pg=pidAtPos(pos);
+    if(!node.pages.includes(pg)){node.pages.push(pg);node.pages.sort((a,b)=>a-b);saveNodes(nodes);refreshNodesPanel();renderNodeAnchors();showTip(`Nodo vinculado a la página ${pos}`,1600)}
+    else showTip('Ya está vinculado a esa página');
+  };
+  /* acciones junto al título, como en el mapa conceptual */
+  const acts=document.createElement('span');acts.className='cmap-acts';
+  const mkN=(icon,title,fn)=>{
+    const b=document.createElement('button');
+    b.className='nd-btn';b.title=title;b.innerHTML=svg(icon);
+    b.onclick=e=>{e.stopPropagation();fn(e)};
+    return b;
+  };
+  acts.append(
+    mkN('pencil','Editar',doEdit),
+    mkN('plus','Añadir subnivel',doSub),
+    mkN('dots','Más opciones',e=>{
+      const r=e.currentTarget.getBoundingClientRect();
+      showCtx(r.left-150,r.bottom+6,[
+        {icon:'jump',label:'Ir a la página',action:doGo},
+        {icon:'pin', label:'Plasmar en la página',action:()=>{addEmbed('node',node.id,curPid());notesPanel.classList.remove('open')}},
+        {icon:'plusFile',label:'Vincular a otra página',action:doAddPage},
+        {icon:'trash',label:'Eliminar',danger:true,action:async()=>{
+          const ok=await askConfirm(`¿Eliminar "${node.title}"?`);if(!ok)return;
+          const i=nodes.indexOf(node);if(i>-1)nodes.splice(i,1);
+          saveNodes(nodes);refreshNodesPanel();renderNodeAnchors();
+        }}
+      ]);
+    })
+  );
+  hd.appendChild(acts);
   card.append(hd,body);
   hd.onclick=()=>{const open=body.classList.toggle('open');arrow.classList.toggle('open',open)};
   return card;
@@ -4259,26 +4310,40 @@ function buildSubTree(item,siblings,nodes){
   if(!item.children)item.children=[];
   const el=document.createElement('div');el.className='node-sub-item';
 
+  /* título + acciones en la MISMA línea (iconos pequeños), igual que en el
+     mapa conceptual: antes eran tres botones con texto debajo de cada
+     subnivel y llenaban el panel de ruido. */
+  const titleRow=document.createElement('div');titleRow.className='node-sub-row';
   const titleEl=document.createElement('div');titleEl.className='node-sub-title';titleEl.textContent=item.title;
-  el.appendChild(titleEl);
+  const acts=document.createElement('span');acts.className='cmap-acts';
+  const mkS=(icon,title,fn)=>{
+    const b=document.createElement('button');
+    b.className='nd-btn';b.title=title;b.innerHTML=svg(icon);
+    b.onclick=e=>{e.stopPropagation();fn(e)};
+    return b;
+  };
+  acts.append(
+    mkS('pencil','Editar',async()=>{
+      const d=await askSubNodeEdit(item.title,item.body||'');if(!d)return;
+      item.title=d.title;item.body=d.body;saveNodes(nodes);refreshNodesPanel();renderNodeAnchors();
+    }),
+    mkS('plus','Profundizar',async()=>{
+      const d=await askSubNode();if(!d)return;
+      item.children.push({id:uid(),title:d.title,body:d.body,children:[]});
+      saveNodes(nodes);refreshNodesPanel();renderNodeAnchors();
+    }),
+    mkS('trash','Eliminar',async()=>{
+      const ok=await askConfirm(`¿Eliminar "${item.title}" y todo lo que cuelga de él?`);if(!ok)return;
+      const i=siblings.indexOf(item);if(i>-1)siblings.splice(i,1);
+      saveNodes(nodes);refreshNodesPanel();renderNodeAnchors();
+    })
+  );
+  acts.lastChild.classList.add('danger');
+  titleRow.append(titleEl,acts);
+  el.appendChild(titleRow);
   if(item.body&&String(item.body).trim()){
     const bodyEl=document.createElement('div');bodyEl.className='node-sub-desc rich-content';bodyEl.innerHTML=richHTML(item.body);el.appendChild(bodyEl);
   }
-  const acts=document.createElement('div');acts.className='node-sub-acts';
-  const editSub=document.createElement('button');editSub.textContent='✎ Editar';
-  editSub.onclick=async e=>{e.stopPropagation();
-    const d=await askSubNodeEdit(item.title,item.body||'');if(!d)return;
-    item.title=d.title;item.body=d.body;saveNodes(nodes);refreshNodesPanel();renderNodeAnchors()};
-  const deep=document.createElement('button');deep.className='deep';deep.textContent='＋ Profundizar';
-  deep.onclick=async e=>{e.stopPropagation();
-    const d=await askSubNode();if(!d)return;
-    item.children.push({id:uid(),title:d.title,body:d.body,children:[]});saveNodes(nodes);refreshNodesPanel();renderNodeAnchors()};
-  const delBtn=document.createElement('button');delBtn.className='del';delBtn.textContent='× Eliminar';
-  delBtn.onclick=async e=>{e.stopPropagation();
-    const ok=await askConfirm(`¿Eliminar "${item.title}" y todo lo que cuelga de él?`);if(!ok)return;
-    const i=siblings.indexOf(item);if(i>-1)siblings.splice(i,1);saveNodes(nodes);refreshNodesPanel();renderNodeAnchors()};
-  acts.append(editSub,deep,delBtn);
-  el.appendChild(acts);
 
   /* los subniveles más profundos van indentados DEBAJO de los botones */
   if(item.children.length){
@@ -4957,7 +5022,8 @@ addPanelSwipe('bookmarks-panel');
 function renderBookmarks(){
   const body=document.getElementById('bookmarks-body');body.innerHTML='';
   const bms=loadBms().sort((a,b)=>posOfPid(a.page)-posOfPid(b.page));
-  const addBtn=document.createElement('button');addBtn.className='bm-add-btn';addBtn.textContent=`＋ Marcar página ${curPage}`;
+  const addBtn=document.createElement('button');addBtn.className='bm-add-btn';
+  setIconLabel(addBtn,'bookmark',`Marcar página ${curPage}`);
   addBtn.onclick=async()=>{const name=await askBmName(curPage);if(!name)return;bms.push({id:uid(),page:curPid(),name,color:curColor,created:Date.now()});saveBms(bms);renderBookmarks();renderBmAnchors();showTip('Marcador añadido',1400)};
   body.appendChild(addBtn);
   if(!bms.length){const em=document.createElement('div');em.className='np-empty';em.textContent='Sin marcadores. Toca el botón de arriba para marcar la página actual.';body.appendChild(em);return}
@@ -5065,7 +5131,8 @@ function askProc(title,themeId){return new Promise(r=>{
 function refreshProcPanel(){
   const body=document.getElementById('proc-body');body.innerHTML='';
   const procs=loadProc();
-  const addBtn=document.createElement('button');addBtn.className='node-add-btn';addBtn.textContent='＋ Nuevo proceso';
+  const addBtn=document.createElement('button');addBtn.className='node-add-btn';
+  setIconLabel(addBtn,'plus','Nuevo proceso');
   addBtn.onclick=async()=>{
     const d=await askProc('',null);if(!d)return;
     procs.push({id:uid(),title:d.title,themeId:d.themeId,steps:[],open:true,created:Date.now()});
@@ -5116,7 +5183,7 @@ function buildProcCard(proc,procs){
   body.appendChild(stepsWrap);
 
   const addStepBtn=document.createElement('button');addStepBtn.className='node-add-btn';addStepBtn.style.marginBottom='8px';
-  addStepBtn.textContent='＋ Paso';
+  setIconLabel(addStepBtn,'plus','Paso');
   addStepBtn.onclick=async e=>{
     e.stopPropagation();
     const d=await askProcStep(proc,null);if(!d)return;
@@ -5125,29 +5192,32 @@ function buildProcCard(proc,procs){
   };
   body.appendChild(addStepBtn);
 
-  const acts=document.createElement('div');acts.className='cmap-acts';
-  const editBtn=document.createElement('button');editBtn.className='cmap-act-btn';editBtn.textContent='✎ Editar';
-  editBtn.onclick=async e=>{
-    e.stopPropagation();
-    const d=await askProc(proc.title,proc.themeId);if(!d)return;
-    proc.title=d.title;proc.themeId=d.themeId;
-    saveProc(procs);refreshProcPanel();
+  /* acciones junto al título, en iconos (igual que mapa conceptual y nodos) */
+  const acts=document.createElement('span');acts.className='cmap-acts';
+  const mkP=(icon,title,fn)=>{
+    const b=document.createElement('button');
+    b.className='nd-btn';b.title=title;b.innerHTML=svg(icon);
+    b.onclick=e=>{e.stopPropagation();fn(e)};
+    return b;
   };
-  const delBtn=document.createElement('button');delBtn.className='cmap-act-btn del';delBtn.textContent='Eliminar';
-  delBtn.onclick=async e=>{
-    e.stopPropagation();
-    const ok=await askConfirm(`¿Eliminar el proceso "${proc.title}" y todos sus pasos?`);if(!ok)return;
-    const i=procs.indexOf(proc);if(i>-1)procs.splice(i,1);
-    saveProc(procs);refreshProcPanel();
-  };
-  const embBtn=document.createElement('button');embBtn.className='cmap-act-btn sub';embBtn.textContent='📌 Plasmar';
-  embBtn.onclick=e=>{
-    e.stopPropagation();
-    addEmbed('proc',proc.id,curPid());
-    document.getElementById('proc-panel').classList.remove('open');
-  };
-  acts.append(editBtn,embBtn,delBtn);
-  body.appendChild(acts);
+  acts.append(
+    mkP('pencil','Editar',async()=>{
+      const d=await askProc(proc.title,proc.themeId);if(!d)return;
+      proc.title=d.title;proc.themeId=d.themeId;
+      saveProc(procs);refreshProcPanel();
+    }),
+    mkP('pin','Plasmar en la página',()=>{
+      addEmbed('proc',proc.id,curPid());
+      document.getElementById('proc-panel').classList.remove('open');
+    }),
+    mkP('trash','Eliminar',async()=>{
+      const ok=await askConfirm(`¿Eliminar el proceso "${proc.title}" y todos sus pasos?`);if(!ok)return;
+      const i=procs.indexOf(proc);if(i>-1)procs.splice(i,1);
+      saveProc(procs);refreshProcPanel();
+    })
+  );
+  acts.lastChild.classList.add('danger');
+  hd.appendChild(acts);
   card.append(hd,body);
 
   hd.onclick=()=>{
@@ -5163,8 +5233,34 @@ function buildProcCard(proc,procs){
    diagrama visual (piezas siguientes) sea pequeño para tocar con precisión */
 function buildProcStepRow(step,proc,procs){
   const row=document.createElement('div');row.className='proc-step-row';
+  /* título y acciones en la misma línea, como el resto de herramientas */
+  const titleRow=document.createElement('div');titleRow.className='node-sub-row';
   const title=document.createElement('div');title.className='proc-step-title';title.textContent=step.title;
-  row.appendChild(title);
+  const acts=document.createElement('span');acts.className='cmap-acts';
+  const mkE=(icon,t,fn)=>{
+    const b=document.createElement('button');
+    b.className='nd-btn';b.title=t;b.innerHTML=svg(icon);
+    b.onclick=e=>{e.stopPropagation();fn(e)};
+    return b;
+  };
+  acts.append(
+    mkE('pencil','Editar',async()=>{
+      const d=await askProcStep(proc,step);if(!d)return;
+      step.title=d.title;step.desc=d.desc;step.from=d.from;
+      saveProc(procs);refreshProcPanel();
+    }),
+    mkE('trash','Eliminar',async()=>{
+      const ok=await askConfirm(`¿Eliminar el paso "${step.title}"?`);if(!ok)return;
+      const i=proc.steps.indexOf(step);if(i>-1)proc.steps.splice(i,1);
+      /* limpia referencias colgantes: ningún otro paso debe seguir apuntando
+         a un paso que ya no existe */
+      proc.steps.forEach(s=>{if(s.from)s.from=s.from.filter(id=>id!==step.id)});
+      saveProc(procs);refreshProcPanel();
+    })
+  );
+  acts.lastChild.classList.add('danger');
+  titleRow.append(title,acts);
+  row.appendChild(titleRow);
 
   const fromLabel=document.createElement('div');fromLabel.className='proc-step-from';
   if(step.from&&step.from.length){
@@ -5180,26 +5276,6 @@ function buildProcStepRow(step,proc,procs){
     row.appendChild(d);
   }
 
-  const acts=document.createElement('div');acts.className='cmap-acts';
-  const editBtn=document.createElement('button');editBtn.className='cmap-act-btn';editBtn.textContent='✎ Editar';
-  editBtn.onclick=async e=>{
-    e.stopPropagation();
-    const d=await askProcStep(proc,step);if(!d)return;
-    step.title=d.title;step.desc=d.desc;step.from=d.from;
-    saveProc(procs);refreshProcPanel();
-  };
-  const delBtn=document.createElement('button');delBtn.className='cmap-act-btn del';delBtn.textContent='Eliminar';
-  delBtn.onclick=async e=>{
-    e.stopPropagation();
-    const ok=await askConfirm(`¿Eliminar el paso "${step.title}"?`);if(!ok)return;
-    const i=proc.steps.indexOf(step);if(i>-1)proc.steps.splice(i,1);
-    /* limpia referencias colgantes: ningún otro paso debe seguir apuntando a
-       un paso que ya no existe */
-    proc.steps.forEach(s=>{if(s.from)s.from=s.from.filter(id=>id!==step.id)});
-    saveProc(procs);refreshProcPanel();
-  };
-  acts.append(editBtn,delBtn);
-  row.appendChild(acts);
   return row;
 }
 
@@ -5648,23 +5724,97 @@ function newCmapNode(level,title,pid){
    retomar un tema anterior hay que usar "＋ Subnivel" a mano en el panel. */
 function cmapInsert(maps,level,title,pid){
   const rank=l=>{const i=CMAP_LEVELS.indexOf(l);return i<0?CMAP_LEVELS.length:i};
+  /* posición REAL en el documento (no el valor del pid, que para páginas
+     insertadas vale >=10000). Sin página conocida → 0, así nunca "gana"
+     como el ancestro más cercano. */
+  const posOf=p=>p?posOfPid(p):0;
+  const newPos=posOf(pid);
+  const node=newCmapNode(level,title,pid);
+
+  /* Colocación POR PÁGINA, no "al último que abrí".
+     Antes todo se colgaba del último mapa creado, así que subrayar un
+     epígrafe de la página 12 lo metía dentro del tema que estuviera abierto
+     aunque ese tema fuera de la página 40. Ahora se busca el sitio que le
+     toca por el orden del documento, igual que un índice. */
   if(level==='cmap_titulo'){
-    const node=newCmapNode(level,title,pid);node.fold=false;
-    maps.push(node);return node;
+    node.fold=false;
+    let i=maps.length;
+    for(let k=0;k<maps.length;k++){if(posOf(maps[k].page)>newPos){i=k;break}}
+    maps.splice(i,0,node);
+    return node;
   }
   if(!maps.length){
     showTip('Subraya primero un Título general para abrir un mapa conceptual');
     return null;
   }
-  let parent=maps[maps.length-1];
-  while(parent.children&&parent.children.length){
-    const last=parent.children[parent.children.length-1];
-    if(rank(last.level)<rank(level))parent=last;else break;
-  }
-  const node=newCmapNode(level,title,pid);
-  if(!parent.children)parent.children=[];
-  parent.children.push(node);
+
+  /* padre = el nodo MÁS PROFUNDO, de nivel más superficial que el nuevo, que
+     empiece en una página no posterior a la del nuevo. A igualdad de página
+     gana el más profundo (un epígrafe va bajo el subtítulo de esa página, no
+     bajo su título). */
+  let best=null,bestPos=-1,bestRank=-1;
+  const visit=n=>{
+    if(rank(n.level)<rank(level)){
+      const p=posOf(n.page);
+      if(p<=newPos&&(p>bestPos||(p===bestPos&&rank(n.level)>bestRank))){
+        best=n;bestPos=p;bestRank=rank(n.level);
+      }
+    }
+    (n.children||[]).forEach(visit);
+  };
+  maps.forEach(visit);
+  if(!best)best=maps[0];        // todo está por delante: cuelga del primer tema
+
+  if(!best.children)best.children=[];
+  let i=best.children.length;
+  for(let k=0;k<best.children.length;k++){if(posOf(best.children[k].page)>newPos){i=k;break}}
+  best.children.splice(i,0,node);
   return node;
+}
+
+/* ══ MOVER NODOS A MANO ══
+   La colocación automática acierta casi siempre, pero el material no
+   siempre sigue el orden de las páginas. Estas cuatro operaciones permiten
+   recolocar cualquier nodo sin rehacerlo.
+   `maps` es el array raíz; se busca el padre real de cada nodo. */
+function cmapParentOf(maps,node){
+  let found=null;
+  const visit=(list,parent)=>{
+    list.forEach(n=>{
+      if(n===node){found={list,parent};return}
+      if(n.children&&n.children.length)visit(n.children,n);
+    });
+  };
+  visit(maps,null);
+  return found;
+}
+/* sube o baja el nodo entre sus hermanos (dir=-1 arriba, +1 abajo) */
+function cmapMove(maps,node,dir){
+  const f=cmapParentOf(maps,node);if(!f)return false;
+  const i=f.list.indexOf(node),j=i+dir;
+  if(j<0||j>=f.list.length)return false;
+  f.list.splice(i,1);f.list.splice(j,0,node);
+  return true;
+}
+/* saca el nodo un nivel hacia fuera: pasa a ser hermano de su padre */
+function cmapOutdent(maps,node){
+  const f=cmapParentOf(maps,node);if(!f||!f.parent)return false;
+  const g=cmapParentOf(maps,f.parent);if(!g)return false;
+  f.list.splice(f.list.indexOf(node),1);
+  g.list.splice(g.list.indexOf(f.parent)+1,0,node);
+  return true;
+}
+/* mete el nodo dentro del hermano anterior */
+function cmapIndent(maps,node){
+  const f=cmapParentOf(maps,node);if(!f)return false;
+  const i=f.list.indexOf(node);
+  if(i<=0)return false;                       // no hay hermano encima
+  const prev=f.list[i-1];
+  f.list.splice(i,1);
+  if(!prev.children)prev.children=[];
+  prev.children.push(node);
+  prev.fold=false;                            // que se vea dónde ha ido
+  return true;
 }
 /* Igual que las aclaraciones (createAclarFromGid, arriba): se crea UNA VEZ al
    cerrar el grupo de subrayado, no se reconstruye solo. El texto subrayado
@@ -5770,7 +5920,7 @@ function renderAclar(nl,a,num){
     +'<button type="button" data-cmd="insertUnorderedList">•</button>'
     +'<button type="button" data-cmd="insertOrderedList">1.</button>'
     +'<input type="color" data-cmd="foreColor" value="#c0392b">'
-    +'<button type="button" data-cmd="richLink" title="Vincular con una ficha">🔗</button>';
+    +'<button type="button" data-cmd="richLink" title="Vincular con una ficha">'+svg('link')+'</button>';
   const ed=document.createElement('div');ed.className='aclar-ed rich-content';ed.contentEditable='true';
   ed.setAttribute('data-ph','Escribe la aclaración…');ed.innerHTML=richHTML(a.text||'');
   ed.addEventListener('pointerdown',e=>e.stopPropagation());
@@ -6468,7 +6618,7 @@ function buildCmapEl(node,siblings,maps){
   const card=document.createElement('div');card.className='cmap-card';
 
   const hd=document.createElement('div');hd.className='cmap-hd';
-  const arrow=document.createElement('span');arrow.className='cmap-arrow'+(node.fold?'':' open');arrow.textContent='›';
+  const arrow=document.createElement('span');arrow.className='cmap-arrow'+(node.fold?'':' open');arrow.innerHTML=svg('chevRight','ico cmap-chev');
   const dot=document.createElement('div');dot.className='cmap-dot';dot.style.background=cmapLevelDot(node.level);
   const titleEl=document.createElement('span');titleEl.className='cmap-title';titleEl.textContent=node.title;
   hd.append(arrow,dot,titleEl);
@@ -6476,6 +6626,57 @@ function buildCmapEl(node,siblings,maps){
     const pgEl=document.createElement('span');pgEl.className='cmap-pg';pgEl.textContent='p.'+pageLabel(node.page);
     hd.appendChild(pgEl);
   }
+
+  /* ACCIONES JUNTO AL TÍTULO, no en una fila propia debajo: antes los
+     botones con texto pesaban más que el propio nodo. Solo las tres de uso
+     diario van a la vista; el resto, en el menú ⋯ para no distraer. */
+  const acts=document.createElement('span');acts.className='cmap-acts';
+  const mk=(icon,title,fn,cls)=>{
+    const b=document.createElement('button');
+    b.className='nd-btn'+(cls?' '+cls:'');b.title=title;b.innerHTML=svg(icon);
+    b.onclick=e=>{e.stopPropagation();fn(e)};
+    return b;
+  };
+  const doEdit=async()=>{
+    const d=await askCmapNode(node.title,node.desc||'');if(!d)return;
+    node.title=d.title;node.desc=d.desc;
+    saveCmap(maps);refreshCmapPanel();renderPageAnchors();showTip('Actualizado',1200);
+  };
+  const doSub=async()=>{
+    const d=await askCmapNode('','');if(!d)return;
+    const child=newCmapNode(cmapNextLevel(node.level),d.title,node.page);child.desc=d.desc;
+    node.children.push(child);node.fold=false;
+    saveCmap(maps);refreshCmapPanel();renderPageAnchors();
+  };
+  const doGo=()=>{
+    if(!node.page){showTip('Este nodo no tiene página anclada');return}
+    goPage(posOfPid(node.page));closeCmapPanel();
+    setTimeout(()=>{const w=pagesInner.querySelector(`[data-page="${node.page}"]`);
+      if(w){w.style.outline='3px solid '+cmapLevelDot(node.level);setTimeout(()=>w.style.outline='',1400)}},420);
+  };
+  const after=fn=>()=>{if(fn()){saveCmap(maps);refreshCmapPanel();renderPageAnchors()}};
+  acts.append(
+    mk('pencil','Editar',doEdit),
+    mk('plus','Añadir subnivel',doSub),
+    mk('dots','Más opciones',e=>{
+      const r=e.currentTarget.getBoundingClientRect();
+      showCtx(r.left-150,r.bottom+6,[
+        {icon:'jump',    label:'Ir a la página',      action:doGo},
+        {icon:'pin',     label:'Plasmar en la página',action:()=>{addEmbed('cmap',node.id,curPid());closeCmapPanel()}},
+        {icon:'chevUp',  label:'Subir',               action:after(()=>cmapMove(maps,node,-1))},
+        {icon:'chevDown',label:'Bajar',               action:after(()=>cmapMove(maps,node,1))},
+        {icon:'indent',  label:'Meter dentro del de arriba',action:after(()=>cmapIndent(maps,node))},
+        {icon:'outdent', label:'Sacar un nivel',      action:after(()=>cmapOutdent(maps,node))},
+        {icon:'trash',   label:'Eliminar',danger:true,action:async()=>{
+          const ok=await askConfirm(`¿Eliminar "${node.title}" y todo lo que cuelga de él?`);if(!ok)return;
+          const f=cmapParentOf(maps,node);
+          if(f)f.list.splice(f.list.indexOf(node),1);
+          saveCmap(maps);refreshCmapPanel();renderPageAnchors();
+        }}
+      ]);
+    })
+  );
+  hd.appendChild(acts);
 
   const body=document.createElement('div');body.className='cmap-body-wrap'+(node.fold?'':' open');
   if(node.desc&&String(node.desc).trim()){
@@ -6485,46 +6686,6 @@ function buildCmapEl(node,siblings,maps){
   const childWrap=document.createElement('div');childWrap.className='cmap-children';
   node.children.forEach(ch=>childWrap.appendChild(buildCmapEl(ch,node.children,maps)));
   body.appendChild(childWrap);
-
-  const acts=document.createElement('div');acts.className='cmap-acts';
-  const goBtn=document.createElement('button');goBtn.className='ic-btn go';goBtn.textContent='→';goBtn.title='Ir a la página';
-  goBtn.onclick=e=>{
-    e.stopPropagation();
-    if(!node.page){showTip('Este nodo no tiene página anclada');return}
-    goPage(posOfPid(node.page));document.getElementById('cmap-panel').classList.remove('open');
-    setTimeout(()=>{const w=pagesInner.querySelector(`[data-page="${node.page}"]`);
-      if(w){w.style.outline='3px solid '+cmapLevelDot(node.level);setTimeout(()=>w.style.outline='',1400)}},420);
-  };
-  const editBtn=document.createElement('button');editBtn.className='ic-btn';editBtn.textContent='✎';editBtn.title='Editar';
-  editBtn.onclick=async e=>{
-    e.stopPropagation();
-    const d=await askCmapNode(node.title,node.desc||'');if(!d)return;
-    node.title=d.title;node.desc=d.desc;
-    saveCmap(maps);refreshCmapPanel();renderPageAnchors();showTip('Actualizado',1200);
-  };
-  const subBtn=document.createElement('button');subBtn.className='ic-btn sub';subBtn.textContent='＋';subBtn.title='Añadir subnivel';
-  subBtn.onclick=async e=>{
-    e.stopPropagation();
-    const d=await askCmapNode('','');if(!d)return;
-    const child=newCmapNode(cmapNextLevel(node.level),d.title,node.page);child.desc=d.desc;
-    node.children.push(child);
-    saveCmap(maps);refreshCmapPanel();renderPageAnchors();
-  };
-  const delBtn=document.createElement('button');delBtn.className='ic-btn del';delBtn.textContent='🗑';delBtn.title='Eliminar';
-  delBtn.onclick=async e=>{
-    e.stopPropagation();
-    const ok=await askConfirm(`¿Eliminar "${node.title}" y todo lo que cuelga de él?`);if(!ok)return;
-    const i=siblings.indexOf(node);if(i>-1)siblings.splice(i,1);
-    saveCmap(maps);refreshCmapPanel();renderPageAnchors();
-  };
-  const embBtn=document.createElement('button');embBtn.className='ic-btn sub';embBtn.textContent='📌';embBtn.title='Plasmar en la página';
-  embBtn.onclick=e=>{
-    e.stopPropagation();
-    addEmbed('cmap',node.id,curPid());
-    document.getElementById('cmap-panel').classList.remove('open');
-  };
-  acts.append(goBtn,editBtn,subBtn,embBtn,delBtn);
-  body.appendChild(acts);
   card.append(hd,body);
 
   hd.onclick=()=>{
@@ -6540,7 +6701,8 @@ function refreshCmapPanel(){
   const body=document.getElementById('cmap-body');body.innerHTML='';
   const maps=loadCmap();
 
-  const addBtn=document.createElement('button');addBtn.className='node-add-btn';addBtn.textContent='＋ Nuevo tema (título general)';
+  const addBtn=document.createElement('button');addBtn.className='node-add-btn';
+  setIconLabel(addBtn,'plus','Nuevo tema');
   addBtn.onclick=async()=>{
     const d=await askCmapNode('','');if(!d)return;
     const node=newCmapNode('cmap_titulo',d.title,curPid());node.desc=d.desc;node.fold=false;
@@ -6550,7 +6712,7 @@ function refreshCmapPanel(){
 
   if(!maps.length){
     const em=document.createElement('div');em.className='np-empty';
-    em.textContent='Subraya un Título general (o pulsa ＋ arriba) para empezar un mapa conceptual.\nLos subtítulos, epígrafes y guiones se cuelgan solos del último tema abierto.';
+    em.textContent='Subraya un Título general (o púlsalo arriba) para empezar un mapa conceptual.\nLos subtítulos, epígrafes y guiones se colocan solos en el sitio que les toca según su página.';
     body.appendChild(em);return;
   }
   maps.forEach(node=>body.appendChild(buildCmapEl(node,maps,maps)));
@@ -6568,7 +6730,7 @@ document.getElementById('cmap-toggle-all').onclick=()=>{
   maps.forEach(root=>cmapWalk(root,n=>{n.fold=!cmapAllOpen}));
   saveCmap(maps);
   const allBtn=document.getElementById('cmap-toggle-all');
-  allBtn.textContent=cmapAllOpen?'▸':'▾';
+  allBtn.innerHTML=svg(cmapAllOpen?'chevUp':'chevDown');
   allBtn.title=cmapAllOpen?'Plegar todo':'Desplegar todo';
   refreshCmapPanel();renderPageAnchors();   // el plegado también se ve en lo plasmado
 };
@@ -6581,7 +6743,7 @@ function closeCmapPanel(){
   const p=document.getElementById('cmap-panel');
   p.classList.remove('open','floating');
   p.style.left='';p.style.top='';p.style.width='';p.style.height='';p.style.transform='';
-  document.getElementById('cmap-toggle-win').textContent='⤢';
+  document.getElementById('cmap-toggle-win').innerHTML=svg('winExpand');
   document.getElementById('cmap-toggle-win').title='Ver en ventana movible';
 }
 document.querySelector('#cmap-panel .sp-close').onclick=closeCmapPanel;
@@ -6600,10 +6762,10 @@ function cmapWinSaveRect(){
 }
 document.getElementById('cmap-toggle-win').onclick=()=>{
   const floating=cmapPanelEl.classList.toggle('floating');
-  /* solo el icono: el texto largo ("⤡ Acoplar") desbordaba el botón cuadrado
-     de 30px y se salía del recuadro. La explicación va en el title. */
+  /* solo el icono: el texto largo ("⤡ Acoplar") desbordaba el botón y se
+     salía del recuadro. La explicación va en el title. */
   const winBtn=document.getElementById('cmap-toggle-win');
-  winBtn.textContent=floating?'⤡':'⤢';
+  winBtn.innerHTML=svg(floating?'winDock':'winExpand');
   winBtn.title=floating?'Volver a acoplar el panel':'Ver en ventana movible';
   if(floating){
     const saved=loadCmapWin();
