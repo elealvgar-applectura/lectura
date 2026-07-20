@@ -1369,9 +1369,9 @@ const PALETTES={
     {c:'#E3D0F5',n:'Lila',    t:'Subtítulos y apartados'},
     {c:'#FFF3B0',n:'Amarillo',t:'Hilo conductor · ideas clave'},
     {c:'#F9D5E5',n:'Rosa',    t:'Definiciones'},
-    {c:'#C8E7F5',n:'Azul',    t:'Autores y citas'},
+    {c:'#C8E7F5',n:'Azul',    t:'Guiones (mapa conceptual)'},
     {c:'#CDEFC8',n:'Verde',   t:'Ejemplos y casos'},
-    {c:'#FFC4BC',n:'Rojo',    t:'Fechas y datos'},
+    {c:'#FFC4BC',n:'Rojo',    t:'Epígrafes (mapa conceptual)'},
     {c:'#BFE8DC',n:'Menta',   t:'Conclusiones'},
     {c:'#FFE4D6',n:'Melocotón',t:'Críticas'},
     {c:'#D6D9F5',n:'Lavanda', t:'Conceptos a repasar'},
@@ -1382,9 +1382,9 @@ const PALETTES={
     {c:'#BF5AF2',n:'Morado',   t:'Subtítulos'},
     {c:'#FFD60A',n:'Amarillo', t:'Hilo conductor'},
     {c:'#FF2D75',n:'Fucsia',   t:'Definiciones'},
-    {c:'#0A84FF',n:'Azul',     t:'Autores y citas'},
+    {c:'#0A84FF',n:'Azul',     t:'Guiones (mapa conceptual)'},
     {c:'#30D158',n:'Verde',    t:'Ejemplos'},
-    {c:'#FF453A',n:'Rojo',     t:'Fechas y datos'},
+    {c:'#FF453A',n:'Rojo',     t:'Epígrafes (mapa conceptual)'},
     {c:'#40C8E0',n:'Turquesa', t:'Conclusiones'},
     {c:'#FF6482',n:'Coral',    t:'Críticas'},
     {c:'#5E5CE6',n:'Índigo',   t:'Muy importante'},
@@ -1395,9 +1395,9 @@ const PALETTES={
     {c:'#B392AC',n:'Malva',     t:'Subtítulos'},
     {c:'#E9D8A6',n:'Arena',     t:'Hilo conductor'},
     {c:'#DDA0A8',n:'Rosa viejo',t:'Definiciones'},
-    {c:'#8DA9C4',n:'Azul gris', t:'Autores y citas'},
+    {c:'#8DA9C4',n:'Azul gris', t:'Guiones (mapa conceptual)'},
     {c:'#A3B18A',n:'Salvia',    t:'Ejemplos'},
-    {c:'#E07A5F',n:'Terracota', t:'Fechas'},
+    {c:'#E07A5F',n:'Terracota', t:'Epígrafes (mapa conceptual)'},
     {c:'#84A98C',n:'Oliva',     t:'Conclusiones'},
     {c:'#9D5C63',n:'Granate',   t:'Críticas'},
     {c:'#C9ADA7',n:'Topo',      t:'Conceptos a repasar'},
@@ -2789,6 +2789,10 @@ function entKindForColor(c){
   if(isDefColor(c))return'glos';
   if(isConcColor(c))return'conc';
   if(isAclarColor(c))return'aclar';
+  if(isTitleColor(c))return'cmap_titulo';
+  if(isSubtitleColor(c))return'cmap_subtitulo';
+  if(isEpigrafeColor(c))return'cmap_epigrafe';
+  if(isGuionColor(c))return'cmap_guion';
   return null;
 }
 /* devuelve el gid al que debe pertenecer un subrayado nuevo (y abre grupo si toca) */
@@ -4844,9 +4848,17 @@ function renderTimeline(){
 }
 
 /* ══ GLOSARIO · CONCLUSIONES ══ */
-function isDefColor(c){const defs=['#F9D5E5','#FF2D75','#DDA0A8','#F5C7D8','#FFC4BC'];return defs.some(d=>d.toLowerCase()===(c||'').toLowerCase())}
+function isDefColor(c){const defs=['#F9D5E5','#FF2D75','#DDA0A8','#F5C7D8'];return defs.some(d=>d.toLowerCase()===(c||'').toLowerCase())}
 /* colores marcados como "Conclusiones" en las tres paletas */
 function isConcColor(c){const cs=['#BFE8DC','#40C8E0','#84A98C'];return cs.some(d=>d.toLowerCase()===(c||'').toLowerCase())}
+/* colores marcados como "Títulos generales" / "Subtítulos" en las tres paletas:
+   mapa conceptual, nivel 1 y 2 */
+function isTitleColor(c){const cs=['#FFD9A8','#FF9F0A','#D4A373'];return cs.some(d=>d.toLowerCase()===(c||'').toLowerCase())}
+function isSubtitleColor(c){const cs=['#E3D0F5','#BF5AF2','#B392AC'];return cs.some(d=>d.toLowerCase()===(c||'').toLowerCase())}
+/* mapa conceptual, nivel 3 y 4: colores que antes eran "Fechas y datos" y
+   "Autores y citas" (Elena no los usa para eso, reconvertidos a petición suya) */
+function isEpigrafeColor(c){const cs=['#FFC4BC','#FF453A','#E07A5F'];return cs.some(d=>d.toLowerCase()===(c||'').toLowerCase())}
+function isGuionColor(c){const cs=['#C8E7F5','#0A84FF','#8DA9C4'];return cs.some(d=>d.toLowerCase()===(c||'').toLowerCase())}
 /* colores marcados como "Aclaraciones" en las tres paletas (cian/turquesa) */
 function isAclarColor(c){const cs=['#57CFC4','#00D1B2','#4E9E93'];return cs.some(d=>d.toLowerCase()===(c||'').toLowerCase())}
 
