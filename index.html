@@ -302,7 +302,9 @@ body.fullscreen #rd-bottom-show{display:none}
 .bk-status{background:var(--lila);border-color:transparent;cursor:default}
 .bk-status:active{transform:none}
 .bk-danger{border-color:rgba(229,139,139,.35)}
-.bk-icon{font-size:26px;flex-shrink:0}
+.bk-icon{flex-shrink:0;display:flex;align-items:center;color:var(--ink2)}
+.bk-icon .ico{width:24px;height:24px}
+.bk-danger .bk-icon{color:var(--danger)}
 .bk-info{flex:1;min-width:0}
 .bk-title{font-size:15px;font-weight:600;color:var(--ink);margin-bottom:3px}
 .bk-sub{font-size:13px;color:var(--ink2);line-height:1.45}
@@ -643,7 +645,7 @@ body.fullscreen #fs-hint{display:block!important}
 .pg-anchors>*{pointer-events:auto}
 .pg-anchor{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.9);border:1px solid var(--border);border-radius:20px;padding:3px 8px 3px 6px;font-size:11px;font-weight:700;color:var(--ink2);cursor:pointer;box-shadow:0 1px 5px rgba(120,100,140,.14);backdrop-filter:blur(6px);opacity:.5;transition:opacity .15s,transform .1s;touch-action:manipulation;white-space:nowrap}
 .pg-anchor:hover,.pg-anchor:active{opacity:1;transform:scale(1.05)}
-.pg-anchor .ic{font-size:12px;line-height:1}
+.pg-anchor .ico{width:13px;height:13px;stroke-width:1.8}
 
 /* ═══ NOTAS COLAPSABLES EN PÁGINA ═══ */
 .stnote.mini{width:auto;max-width:160px}
@@ -756,7 +758,7 @@ body.fullscreen #gid-bar{bottom:20px}
   </div>
   <div id="bk-body">
     <div class="bk-card bk-status">
-      <div class="bk-icon">🗂️</div>
+      <div class="bk-icon"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7.5A2 2 0 0 1 5 5.5h3.6a2 2 0 0 1 1.5.7l1 1.2a2 2 0 0 0 1.5.7H19a2 2 0 0 1 2 2v7.4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg></div>
       <div class="bk-info">
         <div class="bk-title">Tu biblioteca</div>
         <div class="bk-sub" id="bk-stats">Calculando…</div>
@@ -764,7 +766,7 @@ body.fullscreen #gid-bar{bottom:20px}
     </div>
     <div class="bk-sep">EXPORTAR</div>
     <div class="bk-card" id="bk-export">
-      <div class="bk-icon">📤</div>
+      <div class="bk-icon"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.4V3.9"/><path d="M8.4 7.5 12 3.9l3.6 3.6"/><path d="M5 14v4.6a1.6 1.6 0 0 0 1.6 1.6h10.8a1.6 1.6 0 0 0 1.6-1.6V14"/></svg></div>
       <div class="bk-info">
         <div class="bk-title">Exportar copia completa</div>
         <div class="bk-sub">Guarda carpetas, PDFs y TODAS tus anotaciones (subrayados, notas, nodos, glosario, conclusiones, aclaraciones, marcadores, temas…) en un archivo .zip. Hazlo antes de actualizar la app.</div>
@@ -773,7 +775,7 @@ body.fullscreen #gid-bar{bottom:20px}
     </div>
     <div class="bk-sep">RESTAURAR</div>
     <div class="bk-card" id="bk-merge">
-      <div class="bk-icon">📥</div>
+      <div class="bk-icon"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.9v11.5"/><path d="M8.4 11.8 12 15.4l3.6-3.6"/><path d="M5 14v4.6a1.6 1.6 0 0 0 1.6 1.6h10.8a1.6 1.6 0 0 0 1.6-1.6V14"/></svg></div>
       <div class="bk-info">
         <div class="bk-title">Importar y añadir</div>
         <div class="bk-sub">Añade el contenido de la copia a lo que ya hay. No borra nada.</div>
@@ -781,7 +783,7 @@ body.fullscreen #gid-bar{bottom:20px}
       <div class="bk-arr">›</div>
     </div>
     <div class="bk-card bk-danger" id="bk-replace">
-      <div class="bk-icon">🔄</div>
+      <div class="bk-icon"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.4 12a8.4 8.4 0 0 1-14.3 6"/><path d="M3.6 12a8.4 8.4 0 0 1 14.3-6"/><path d="M17.9 2.6V6h-3.4M6.1 21.4V18h3.4"/></svg></div>
       <div class="bk-info">
         <div class="bk-title">Restaurar desde copia</div>
         <div class="bk-sub">Borra todo y restaura exactamente el estado de la copia. Ideal tras actualizar la app.</div>
@@ -795,9 +797,9 @@ body.fullscreen #gid-bar{bottom:20px}
     </div>
     <div class="bk-sep">INFORMACIÓN</div>
     <div class="bk-info-box">
-      <div class="bk-info-row"><span>💡</span><span>Antes de actualizar: exporta → actualiza → restaura desde copia.</span></div>
-      <div class="bk-info-row"><span>📁</span><span>Guarda el archivo .json en iCloud Drive para tenerlo siempre disponible.</span></div>
-      <div class="bk-info-row"><span>⚠️</span><span>Si borras datos de Safari en Ajustes del iPad, la biblioteca se pierde. La copia es la única forma de recuperarla.</span></div>
+      <div class="bk-info-row"><span>·</span><span>Antes de actualizar: exporta → actualiza → restaura desde copia.</span></div>
+      <div class="bk-info-row"><span>·</span><span>Guarda el archivo .zip en iCloud Drive para tenerlo siempre disponible.</span></div>
+      <div class="bk-info-row"><span>·</span><span>Si borras datos de Safari en Ajustes del iPad, la biblioteca se pierde. La copia es la única forma de recuperarla.</span></div>
     </div>
   </div>
 </div>
@@ -948,7 +950,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <!-- summary panel -->
 <div id="summary-panel" class="side-panel">
   <div class="sp-top">
-    <span class="sp-title">✎ Notas</span>
+    <span class="sp-title">Notas</span>
     <button class="sp-close" data-panel="summary-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <div id="summary-body" class="sp-body"></div>
@@ -978,7 +980,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <!-- procesos y teorías panel (sustituye a la antigua línea de tiempo) -->
 <div id="proc-panel" class="side-panel">
   <div class="sp-top">
-    <span class="sp-title">🔁 Procesos y teorías</span>
+    <span class="sp-title">Procesos y teorías</span>
     <button class="sp-close" data-panel="proc-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <div id="proc-body" class="sp-body"></div>
@@ -1000,7 +1002,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <!-- conclusions panel -->
 <div id="conclusions-panel" class="side-panel">
   <div class="sp-top">
-    <span class="sp-title">💡 Conclusiones</span>
+    <span class="sp-title">Conclusiones</span>
     <button class="sp-themes" title="Gestionar temas"></button>
     <button class="sp-close" data-panel="conclusions-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
@@ -1013,7 +1015,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <!-- aclaraciones panel -->
 <div id="aclar-panel" class="side-panel">
   <div class="sp-top">
-    <span class="sp-title">❔ Aclaraciones</span>
+    <span class="sp-title">Aclaraciones</span>
     <button class="sp-themes" title="Gestionar temas"></button>
     <button class="sp-close" data-panel="aclar-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
@@ -1026,7 +1028,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <!-- mapa conceptual panel -->
 <div id="cmap-panel" class="side-panel">
   <div class="sp-top">
-    <span class="sp-title">🗺️ Mapa conceptual</span>
+    <span class="sp-title">Mapa conceptual</span>
     <button class="sp-close" data-panel="cmap-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <div id="cmap-toolrow" style="display:flex;gap:6px;padding:0 12px 8px;flex-shrink:0">
@@ -1040,7 +1042,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <!-- resumen (subrayados) panel -->
 <div id="resumen-panel" class="side-panel">
   <div class="sp-top">
-    <span class="sp-title">📄 Resumen</span>
+    <span class="sp-title">Resumen</span>
     <button class="sp-close" data-panel="resumen-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <div id="resumen-body" class="sp-body"></div>
@@ -1053,7 +1055,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <!-- barra de sesión de subrayado (definición / conclusión en curso) -->
 <div id="gid-bar" class="hidden">
   <span id="gid-label"></span>
-  <button id="gid-close">✓ Cerrar</button>
+  <button id="gid-close">Cerrar</button>
   <button id="gid-cancel" title="Descartar el grupo (los subrayados se mantienen)">×</button>
 </div>
 
@@ -1408,8 +1410,8 @@ body.fullscreen #gid-bar{bottom:20px}
     <h3>Insertar página</h3>
     <p style="font-size:13px;color:var(--ink2);margin-bottom:14px;line-height:1.5">Se insertará después de la página actual.</p>
     <div class="modal-btns" style="flex-direction:column;gap:8px">
-      <button class="mbtn ok" id="ins-blank" style="background:var(--lila);width:100%">📄 Hoja en blanco</button>
-      <button class="mbtn ok" id="ins-img" style="background:var(--menta);width:100%">🖼️ Imagen o PDF de archivo</button>
+      <button class="mbtn ok" id="ins-blank" style="background:var(--lila);width:100%">Hoja en blanco</button>
+      <button class="mbtn ok" id="ins-img" style="background:var(--menta);width:100%">Imagen o PDF de archivo</button>
       <button class="mbtn cancel" id="ins-cancel" style="width:100%">Cancelar</button>
     </div>
   </div>
@@ -1468,7 +1470,7 @@ body.fullscreen #gid-bar{bottom:20px}
   </div>
 </div>
 
-<div id="pencil-badge" class="hidden">✏️ Apple Pencil</div>
+<div id="pencil-badge" class="hidden">Apple Pencil</div>
 <div class="ctx-menu hidden" id="ctx-menu"></div>
 <div id="tip" class="hidden"></div>
 
@@ -1476,7 +1478,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v80'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v81'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -1520,7 +1522,7 @@ function showVersion(){
       localStorage.setItem('lp_lastver',APP_VER);
       const t=document.createElement('div');
       t.id='ver-toast';
-      t.textContent='✅ Actualizado a '+APP_VER;
+      t.textContent='Actualizado a '+APP_VER;
       document.body.appendChild(t);
       setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),400)},3600);
     }
@@ -3007,10 +3009,10 @@ let curGid=null, curGidKind=null, curGidCount=0;
    (ver cmapInsert). "titulo" siempre abre un mapa/tema nuevo. */
 const CMAP_LEVELS=['cmap_titulo','cmap_subtitulo','cmap_epigrafe','cmap_guion'];
 const CMAP_LEVEL_META={
-  cmap_titulo:   {label:'🗺️ Título general',dot:'#FFD9A8'},
-  cmap_subtitulo:{label:'🗺️ Subtítulo',     dot:'#E3D0F5'},
-  cmap_epigrafe: {label:'🗺️ Epígrafe',      dot:'#FFC4BC'},
-  cmap_guion:    {label:'🗺️ Guión',         dot:'#C8E7F5'},
+  cmap_titulo:   {label:'Título general',dot:'#FFD9A8'},
+  cmap_subtitulo:{label:'Subtítulo',     dot:'#E3D0F5'},
+  cmap_epigrafe: {label:'Epígrafe',      dot:'#FFC4BC'},
+  cmap_guion:    {label:'Guión',         dot:'#C8E7F5'},
 };
 function entKindForColor(c){
   if(isDefColor(c))return'glos';
@@ -3086,7 +3088,7 @@ function updateGidBar(){
   const dot=cmapMeta?cmapMeta.dot:(curGidKind==='aclar'?'#00C7B4':(ENT_KINDS[curGidKind]?ENT_KINDS[curGidKind].dot:'#888'));
   bar.classList.remove('hidden');
   bar.style.borderColor=dot;
-  const nm=cmapMeta?cmapMeta.label:(curGidKind==='glos'?'✦ Definición':curGidKind==='conc'?'💡 Conclusión':'❔ Aclaración');
+  const nm=cmapMeta?cmapMeta.label:(curGidKind==='glos'?'Definición':curGidKind==='conc'?'Conclusión':'Aclaración');
   document.getElementById('gid-label').textContent=
     nm+' · '+curGidCount+(curGidCount===1?' trazo':' trazos');
 }
@@ -3950,8 +3952,8 @@ function renderNote(nl,nd,num,focus){
 
   /* selector de modo: teclado o lápiz */
   const modeRow=document.createElement('div');modeRow.className='stnote-mode';
-  const btnType=document.createElement('button');btnType.textContent='⌨ Teclado';
-  const btnDraw=document.createElement('button');btnDraw.textContent='✏ Lápiz';
+  const btnType=document.createElement('button');btnType.textContent='Teclado';
+  const btnDraw=document.createElement('button');btnDraw.textContent='Lápiz';
   modeRow.append(btnType,btnDraw);
 
   /* área de texto.
@@ -4624,13 +4626,14 @@ function renderPageAnchors(){
     (ann.notes||[]).filter(n=>(n.title&&n.title.trim())||(n.text&&n.text.trim())).forEach(()=>bump(slot.pid,'note'));
   }
 
+  /* iconos de trazo, como el resto de la app (antes eran emojis) */
   const DEF={
-    glos:{ic:'📖', bg:'#F9D5E5', label:'Definiciones', open:async()=>{openPanel('glossary-panel');await autoUpdateEnts('glos');renderEnts('glos')}},
-    conc:{ic:'💡',bg:'#BFE8DC', label:'Conclusiones', open:async()=>{openPanel('conclusions-panel');await autoUpdateEnts('conc');renderEnts('conc')}},
-    node:{ic:'🔗',bg:'#E3D0F5', label:'Nodos',        open:()=>openNodesTab()},
-    note:{ic:'🗒️', bg:'#FFF0C9', label:'Notas',        open:()=>{summaryTab='notes';renderSummary('notes');openPanel('summary-panel')}},
-    aclar:{ic:'❔',bg:'#00C2AE', label:'Aclaraciones', open:()=>{openPanel('aclar-panel');refreshAclarPanel()}},
-    cmap:{ic:'🗺️',bg:'#FFD9A8', label:'Mapa conceptual', open:()=>{openPanel('cmap-panel');refreshCmapPanel()}}
+    glos:{ic:'file',    bg:'#F9D5E5', label:'Definiciones', open:async()=>{openPanel('glossary-panel');await autoUpdateEnts('glos');renderEnts('glos')}},
+    conc:{ic:'heartMind',bg:'#BFE8DC',label:'Conclusiones', open:async()=>{openPanel('conclusions-panel');await autoUpdateEnts('conc');renderEnts('conc')}},
+    node:{ic:'synapse', bg:'#E3D0F5', label:'Nodos',        open:()=>openNodesTab()},
+    note:{ic:'pencil',  bg:'#FFF0C9', label:'Notas',        open:()=>{summaryTab='notes';renderSummary('notes');openPanel('summary-panel')}},
+    aclar:{ic:'eye',    bg:'#00C2AE', label:'Aclaraciones', open:()=>{openPanel('aclar-panel');refreshAclarPanel()}},
+    cmap:{ic:'brain',   bg:'#FFD9A8', label:'Mapa conceptual', open:()=>{openPanel('cmap-panel');refreshCmapPanel()}}
   };
 
   Object.entries(byPage).forEach(([pg,counts])=>{
@@ -4642,7 +4645,7 @@ function renderPageAnchors(){
       const d=DEF[k];
       const a=document.createElement('div');a.className='pg-anchor';
       a.style.borderColor=d.bg;
-      a.innerHTML=`<span class="ic">${d.ic}</span>${counts[k]}`;
+      a.innerHTML=svg(d.ic)+counts[k];
       a.title=`${d.label}: ${counts[k]} en esta página`;
       a.onclick=e=>{e.stopPropagation();d.open()};
       box.appendChild(a);
@@ -4736,43 +4739,39 @@ function renderSummary(tab){
     tx.innerHTML=(n.text&&n.text.trim())?richHTML(n.text):'(nota vacía)';
     bd.appendChild(tx);
 
-    const acts=document.createElement('div');acts.className='ent-acts';
-    const go=document.createElement('button');go.className='ent-btn go';go.textContent='→ Ir a la página '+pg;
-    go.onclick=e=>{
-      e.stopPropagation();
-      goPage(posOfPid(pg));document.getElementById('summary-panel').classList.remove('open');
-      setTimeout(()=>{
-        const w=pagesInner.querySelector(`[data-page="${pg}"]`);
-        const el=w?.querySelector(`.note-layer [data-nid="${n.id}"]`);
-        if(el){el.style.outline='3px solid #BF5AF2';el.style.borderRadius='10px';
-          setTimeout(()=>el.style.outline='',1600)}
-      },430);
+    /* acciones en iconos junto al título, como en el resto de herramientas */
+    const acts=document.createElement('span');acts.className='cmap-acts';
+    const mkN2=(icon,title,fn)=>{
+      const b=document.createElement('button');
+      b.className='nd-btn';b.title=title;b.innerHTML=svg(icon);
+      b.onclick=e=>{e.stopPropagation();fn(e)};
+      return b;
     };
-    acts.appendChild(go);
-
-    /* EDITAR la nota desde el panel (antes solo se podía en la propia página) */
-    const ed=document.createElement('button');ed.className='ent-btn';ed.textContent='✎ Editar';
-    ed.onclick=async e=>{
-      e.stopPropagation();
-      const d=await askEmbedEdit(n.title||'',n.text||'',{showTheme:false});
-      if(!d)return;
-      n.title=d.title;n.text=d.text;      // n es la referencia real de ann.notes
-      scheduleSave();renderSummary(tab);forceNoteLayerRefresh(pg);
-    };
-    acts.appendChild(ed);
-
-    /* ELIMINAR la nota desde el panel */
-    const del=document.createElement('button');del.className='ent-btn del';del.textContent='Eliminar';
-    del.onclick=async e=>{
-      e.stopPropagation();
-      const ok=await askConfirm('¿Eliminar esta nota?');if(!ok)return;
-      const ann=annotations[pg];if(ann)ann.notes=(ann.notes||[]).filter(x=>x.id!==n.id);
-      scheduleSave();renderSummary(tab);forceNoteLayerRefresh(pg);renderPageAnchors();
-    };
-    acts.appendChild(del);
-
-    bd.appendChild(acts);
-
+    acts.append(
+      mkN2('jump','Ir a la página',()=>{
+        goPage(posOfPid(pg));document.getElementById('summary-panel').classList.remove('open');
+        setTimeout(()=>{
+          const w=pagesInner.querySelector(`[data-page="${pg}"]`);
+          const el=w?.querySelector(`.note-layer [data-nid="${n.id}"]`);
+          if(el){el.style.outline='3px solid #BF5AF2';el.style.borderRadius='10px';
+            setTimeout(()=>el.style.outline='',1600)}
+        },430);
+      }),
+      /* EDITAR la nota desde el panel (antes solo se podía en la propia página) */
+      mkN2('pencil','Editar',async()=>{
+        const d=await askEmbedEdit(n.title||'',n.text||'',{showTheme:false});
+        if(!d)return;
+        n.title=d.title;n.text=d.text;      // n es la referencia real de ann.notes
+        scheduleSave();renderSummary(tab);forceNoteLayerRefresh(pg);
+      }),
+      mkN2('trash','Eliminar',async()=>{
+        const ok=await askConfirm('¿Eliminar esta nota?');if(!ok)return;
+        const ann=annotations[pg];if(ann)ann.notes=(ann.notes||[]).filter(x=>x.id!==n.id);
+        scheduleSave();renderSummary(tab);forceNoteLayerRefresh(pg);renderPageAnchors();
+      })
+    );
+    acts.lastChild.classList.add('danger');
+    hd.appendChild(acts);
     card.append(hd,bd);
     hd.onclick=()=>{const o=bd.classList.toggle('open');arrow.classList.toggle('open',o)};
     body.appendChild(card);
@@ -5062,7 +5061,8 @@ function renderBmAnchors(){
     const wrap=pagesInner.querySelector(`[data-page="${bm.page}"]`);if(!wrap)return;
     const nl=wrap.querySelector('.note-layer');if(!nl)return;
     const anchor=document.createElement('div');anchor.className='bm-anchor';
-    anchor.style.cssText=`top:4px;background:${bm.color};color:var(--ink)`;anchor.textContent='🔖 '+bm.name;
+    anchor.style.cssText=`top:4px;background:${bm.color};color:var(--ink)`;
+    setIconLabel(anchor,'bookmark',bm.name);
     anchor.title=bm.name;
     anchor.onclick=()=>{renderBookmarks();openPanel('bookmarks-panel')};
     nl.appendChild(anchor);
@@ -5636,36 +5636,38 @@ function buildAclarCard(a){
   const txt=document.createElement('div');txt.className='ent-text rich-content';txt.innerHTML=a.text?richHTML(a.text):'(vacío)';
   bd.appendChild(txt);
 
-  const acts=document.createElement('div');acts.className='ent-acts';
-  const go=document.createElement('button');go.className='ent-btn go';go.textContent='→ Ir a la página '+pageLabel(a.page);
-  go.onclick=e=>{e.stopPropagation();
-    if(posOfPid(a.page)<=0){showTip('Esta aclaración no está en ninguna página');return}
-    goPage(posOfPid(a.page));
-    document.getElementById('aclar-panel').classList.remove('open');
-    setTimeout(()=>{const w=pagesInner.querySelector(`[data-page="${a.page}"]`);
-      if(w){w.style.outline='3px solid '+(a.color||'#00C2AE');setTimeout(()=>w.style.outline='',1400)}},420);
+  /* acciones en iconos junto al título, como en el resto de herramientas */
+  const acts=document.createElement('span');acts.className='cmap-acts';
+  const mkA=(icon,title,fn)=>{
+    const b=document.createElement('button');
+    b.className='nd-btn';b.title=title;b.innerHTML=svg(icon);
+    b.onclick=e=>{e.stopPropagation();fn(e)};
+    return b;
   };
-  acts.appendChild(go);
-
-  const ed=document.createElement('button');ed.className='ent-btn';ed.textContent='✎ Editar';
-  ed.onclick=async e=>{e.stopPropagation();
-    const d=await askAclarText(a.ref,{text:a.text,themeId:a.themeId||null});
-    if(!d)return;
-    patchAclar(a.id,{text:d.text,themeId:d.themeId||null});
-    refreshAclarPanel();renderPageAnchors();forceNoteLayerRefresh(a.page);
-  };
-  acts.appendChild(ed);
-
-  const del=document.createElement('button');del.className='ent-btn del';del.textContent='Eliminar';
-  del.onclick=async e=>{e.stopPropagation();
-    const ok=await askConfirm('¿Eliminar esta aclaración? El subrayado no se borra.');if(!ok)return;
-    saveAclars(loadAclars().filter(x=>x.id!==a.id));
-    refreshAclarPanel();renderPageAnchors();forceNoteLayerRefresh(a.page);
-    showTip('Aclaración eliminada (el subrayado sigue ahí)',1800);
-  };
-  acts.appendChild(del);
-
-  bd.appendChild(acts);card.append(hd,bd);
+  acts.append(
+    mkA('jump','Ir a la página',()=>{
+      if(posOfPid(a.page)<=0){showTip('Esta aclaración no está en ninguna página');return}
+      goPage(posOfPid(a.page));
+      document.getElementById('aclar-panel').classList.remove('open');
+      setTimeout(()=>{const w=pagesInner.querySelector(`[data-page="${a.page}"]`);
+        if(w){w.style.outline='3px solid '+(a.color||'#00C2AE');setTimeout(()=>w.style.outline='',1400)}},420);
+    }),
+    mkA('pencil','Editar',async()=>{
+      const d=await askAclarText(a.ref,{text:a.text,themeId:a.themeId||null});
+      if(!d)return;
+      patchAclar(a.id,{text:d.text,themeId:d.themeId||null});
+      refreshAclarPanel();renderPageAnchors();forceNoteLayerRefresh(a.page);
+    }),
+    mkA('trash','Eliminar',async()=>{
+      const ok=await askConfirm('¿Eliminar esta aclaración? El subrayado no se borra.');if(!ok)return;
+      saveAclars(loadAclars().filter(x=>x.id!==a.id));
+      refreshAclarPanel();renderPageAnchors();forceNoteLayerRefresh(a.page);
+      showTip('Aclaración eliminada (el subrayado sigue ahí)',1800);
+    })
+  );
+  acts.lastChild.classList.add('danger');
+  hd.appendChild(acts);
+  card.append(hd,bd);
   hd.onclick=()=>{const o=bd.classList.toggle('open');arrow.classList.toggle('open',o)};
   return card;
 }
@@ -6406,9 +6408,6 @@ function buildEntCard(kind,g){
   txt.innerHTML=(g.body&&String(g.body).trim())?richHTML(g.body):'(vacío)';
   bd.appendChild(txt);
 
-  const acts=document.createElement('div');acts.className='ent-acts';
-
-  const go=document.createElement('button');go.className='ent-btn go';
   /* g.page es un PID interno: hay que mostrar su POSICION real (pageLabel).
      Antes se imprimia el pid en crudo, asi que tras insertar una pagina salian
      rotulos como "Ir a la página 10000". */
@@ -6424,25 +6423,16 @@ function buildEntCard(kind,g){
     setTimeout(()=>{const w=pagesInner.querySelector(`[data-page="${pg}"]`);
       if(w){w.style.outline='3px solid '+(g.color||K.dot);setTimeout(()=>w.style.outline='',1400)}},420);
   };
-  const _ep=entPages();
-  go.textContent = _ep.length>1
-    ? `→ Ir (${_ep.length} págs.)`
-    : '→ Ir a la página '+pageLabel(g.page);
-  go.onclick=e=>{
-    e.stopPropagation();
+  const doGo=e=>{
     const pgs=entPages();
-    if(!pgs.length)return;
+    if(!pgs.length){showTip('Esta ficha no tiene página');return}
     if(pgs.length===1){entGo(pgs[0]);return}
-    const r=go.getBoundingClientRect();
+    const r=(e&&e.currentTarget||hd).getBoundingClientRect();
     showCtx(r.left,r.bottom+6,pgs.map(pg=>({
       icon:'file',label:'Página '+pageLabel(pg),action:()=>entGo(pg)
     })));
   };
-  acts.appendChild(go);
-
-  const ed=document.createElement('button');ed.className='ent-btn';ed.textContent='✎ Editar';
-  ed.onclick=async e=>{
-    e.stopPropagation();
+  const doEdit=async()=>{
     /* El tema de una ficha AUTOMÁTICA vive en el mapa gid→tema; el de una
        MANUAL vive dentro de la ficha (g.themeId). Pasamos el tema actual al
        modal para que salga preseleccionado. */
@@ -6460,33 +6450,40 @@ function buildEntCard(kind,g){
     }
     renderEnts(kind);renderPageAnchors(); // actualiza también las tarjetas plasmadas
   };
-  acts.appendChild(ed);
-
-  const emb=document.createElement('button');emb.className='ent-btn';emb.textContent='📌 Plasmar';
-  emb.onclick=e=>{
-    e.stopPropagation();
-    /* usamos SIEMPRE el gid (estable) y no el id, que se regenera cuando las
-       entradas automáticas se reconstruyen: si guardáramos el id, el embed
-       quedaría huérfano y la tarjeta desaparecería al plasmar otra. */
-    addEmbed(kind,g.gid||g.id,curPid());
-    document.getElementById(kind==='glos'?'glossary-panel':'conclusions-panel').classList.remove('open');
+  /* acciones en iconos junto al título, como en el mapa conceptual */
+  const acts=document.createElement('span');acts.className='cmap-acts';
+  const mkG=(icon,title,fn)=>{
+    const b=document.createElement('button');
+    b.className='nd-btn';b.title=title;b.innerHTML=svg(icon);
+    b.onclick=e=>{e.stopPropagation();fn(e)};
+    return b;
   };
-  acts.appendChild(emb);
-
-  const del=document.createElement('button');del.className='ent-btn del';del.textContent='Eliminar';
-  del.onclick=async e=>{
-    e.stopPropagation();
-    const ok=await askConfirm(`¿Eliminar "${g.title}" de ${K.label}?`);if(!ok)return;
-    /* Si es automática, hay que recordar que se borró: si no, autoUpdateEnts
-       la regenera desde el subrayado en cuanto se reabra el panel. */
-    if(g.auto&&g.gid)markEntDeleted(kind,g.gid);
-    const a=loadEnts(kind).filter(x=>x.id!==g.id);saveEnts(kind,a);
-    renderEnts(kind);renderPageAnchors();
-    showTip(K.label+': entrada eliminada (el subrayado sigue ahí)',1800);
-  };
-  acts.appendChild(del);
-
-  bd.appendChild(acts);
+  acts.append(
+    mkG('jump','Ir a la página',doGo),
+    mkG('pencil','Editar',doEdit),
+    mkG('dots','Más opciones',e=>{
+      const r=e.currentTarget.getBoundingClientRect();
+      showCtx(r.left-150,r.bottom+6,[
+        {icon:'pin',label:'Plasmar en la página',action:()=>{
+          /* usamos SIEMPRE el gid (estable) y no el id, que se regenera cuando
+             las entradas automáticas se reconstruyen: si guardáramos el id, el
+             embed quedaría huérfano y la tarjeta desaparecería al plasmar otra. */
+          addEmbed(kind,g.gid||g.id,curPid());
+          document.getElementById(kind==='glos'?'glossary-panel':'conclusions-panel').classList.remove('open');
+        }},
+        {icon:'trash',label:'Eliminar',danger:true,action:async()=>{
+          const ok=await askConfirm(`¿Eliminar "${g.title}" de ${K.label}?`);if(!ok)return;
+          /* Si es automática, hay que recordar que se borró: si no,
+             autoUpdateEnts la regenera desde el subrayado al reabrir. */
+          if(g.auto&&g.gid)markEntDeleted(kind,g.gid);
+          const a=loadEnts(kind).filter(x=>x.id!==g.id);saveEnts(kind,a);
+          renderEnts(kind);renderPageAnchors();
+          showTip(K.label+': entrada eliminada (el subrayado sigue ahí)',1800);
+        }}
+      ]);
+    })
+  );
+  hd.appendChild(acts);
   card.append(hd,bd);
   hd.onclick=()=>{const o=bd.classList.toggle('open');arrow.classList.toggle('open',o)};
   return card;
@@ -6890,9 +6887,9 @@ function askCmapLink(){
     cmapLinkRes=res;
     const list=document.getElementById('cmap-link-list');list.innerHTML='';
     const groups=[
-      {kind:'glos', ic:'📖',label:'Definiciones', items:loadEnts('glos').map(it=>({id:it.gid||it.id,title:it.title}))},
-      {kind:'conc', ic:'💡',label:'Conclusiones', items:loadEnts('conc').map(it=>({id:it.gid||it.id,title:it.title}))},
-      {kind:'aclar',ic:'❔',label:'Aclaraciones', items:loadAclars().map(it=>({id:it.id,title:it.ref||'Aclaración'}))}
+      {kind:'glos', label:'Definiciones', items:loadEnts('glos').map(it=>({id:it.gid||it.id,title:it.title}))},
+      {kind:'conc', label:'Conclusiones', items:loadEnts('conc').map(it=>({id:it.gid||it.id,title:it.title}))},
+      {kind:'aclar',label:'Aclaraciones', items:loadAclars().map(it=>({id:it.id,title:it.ref||'Aclaración'}))}
     ];
     let any=false;
     groups.forEach(g=>{
@@ -6903,7 +6900,7 @@ function askCmapLink(){
          con varias fichas los elementos se encogían de alto y el texto
          quedaba cortado por la mitad (ilegible). */
       h.style.cssText='flex:0 0 auto;font-size:11.5px;font-weight:700;color:var(--ink3);margin:8px 2px 2px;text-transform:uppercase;letter-spacing:.04em';
-      h.textContent=g.ic+' '+g.label;list.appendChild(h);
+      h.textContent=g.label;list.appendChild(h);
       g.items.forEach(it=>{
         const b=document.createElement('button');
         b.style.cssText='flex:0 0 auto;display:block;width:100%;min-height:38px;text-align:left;padding:9px 10px;border:none;border-radius:9px;background:var(--bg2);color:var(--ink);font-family:inherit;font-size:13.5px;line-height:1.35;cursor:pointer;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
