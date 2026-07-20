@@ -199,9 +199,8 @@ input,textarea{user-select:text!important;-webkit-user-select:text!important}
 /* nota con formato: se ve tal cual, pero se edita desde el panel de notas */
 .stnote-ro{font-size:13px;color:var(--ink);line-height:1.5;padding:2px 0;flex:1;min-height:0;overflow-y:auto;-webkit-user-select:text;user-select:text}
 
-/* notes panel (barra rápida) */
-#notes-panel{position:fixed;right:-300px;top:0;width:280px;max-width:85vw;height:100%;height:100dvh;background:var(--card);border-left:1px solid var(--border);box-shadow:-6px 0 24px rgba(120,100,140,.14);z-index:600;display:flex;flex-direction:column;transition:right .26s cubic-bezier(.4,0,.2,1)}
-#notes-panel.open{right:0}
+/* notes panel (barra rápida) — el tamaño y el deslizamiento los define la
+   regla común de .side-panel, más abajo */
 #notes-panel-top{display:flex;align-items:center;gap:8px;padding:0 12px;height:54px;border-bottom:1px solid var(--border);flex-shrink:0}
 #notes-panel-title{font-size:15px;font-weight:600;color:var(--ink);flex:1}
 #notes-panel-close{width:34px;height:34px;border:none;background:transparent;cursor:pointer;border-radius:10px;display:flex;align-items:center;justify-content:center}
@@ -319,8 +318,20 @@ body.fullscreen #rd-bottom-show{display:none}
 .spinner{width:34px;height:34px;border:3px solid var(--bg2);border-top-color:var(--rosa);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 /* ══ SIDE PANELS (generic) ══ */
-.side-panel{position:fixed;right:-340px;top:0;width:320px;max-width:90vw;height:100%;height:100dvh;background:var(--card);border-left:1px solid var(--border);box-shadow:-6px 0 24px rgba(120,100,140,.14);z-index:600;display:flex;flex-direction:column;transition:right .26s cubic-bezier(.4,0,.2,1)}
-.side-panel.open{right:0}
+/* ═══ PANELES LATERALES ═══
+   ANCHO: se estudia directamente desde el panel (mapa conceptual, glosario,
+   resumen…), así que 320px se quedaban muy cortos: los títulos salían
+   cortados con puntos suspensivos y sobraba hueco a la izquierda. Ahora el
+   ancho se adapta a la pantalla y llega casi hasta el documento.
+   CIERRE: antes se escondía con `right:-340px`, un número atado al ancho
+   fijo. Con el ancho variable eso ya no vale, así que se desliza con
+   transform: funciona sea cual sea el ancho. */
+.side-panel,#notes-panel{position:fixed;right:0;top:0;
+  width:clamp(320px,44vw,760px);max-width:94vw;
+  height:100%;height:100dvh;background:var(--card);border-left:1px solid var(--border);
+  box-shadow:-6px 0 24px rgba(120,100,140,.14);z-index:600;display:flex;flex-direction:column;
+  transform:translateX(101%);transition:transform .26s cubic-bezier(.4,0,.2,1)}
+.side-panel.open,#notes-panel.open{transform:translateX(0)}
 .sp-top{display:flex;align-items:center;gap:8px;padding:0 12px;height:54px;border-bottom:1px solid var(--border);flex-shrink:0}
 .sp-title{font-size:15px;font-weight:600;color:var(--ink);flex:1}
 .sp-themes{width:34px;height:34px;border:none;background:transparent;cursor:pointer;border-radius:10px;
@@ -349,8 +360,6 @@ body.fullscreen #rd-bottom-show{display:none}
 .side-panel input,.side-panel textarea{user-select:text;-webkit-user-select:text;font-size:16px}
 
 /* notes panel */
-#notes-panel{position:fixed;right:-320px;top:0;width:300px;max-width:90vw;height:100%;height:100dvh;background:var(--card);border-left:1px solid var(--border);box-shadow:-6px 0 24px rgba(120,100,140,.14);z-index:600;display:flex;flex-direction:column;transition:right .26s cubic-bezier(.4,0,.2,1)}
-#notes-panel.open{right:0}
 #notes-panel-top{display:flex;align-items:center;gap:6px;padding:0 10px;height:54px;border-bottom:1px solid var(--border);flex-shrink:0}
 .np-tab.on{background:var(--card)!important;color:var(--ink)!important;box-shadow:var(--shadow)}
 #notes-panel-close{width:34px;height:34px;border:none;background:transparent;cursor:pointer;border-radius:10px;display:flex;align-items:center;justify-content:center}
@@ -368,7 +377,7 @@ body.fullscreen #rd-bottom-show{display:none}
 .node-arrow{font-size:11px;color:var(--ink2);transition:transform .18s;flex-shrink:0}
 .node-arrow.open{transform:rotate(90deg)}
 .node-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.node-title{font-size:14px;font-weight:600;color:var(--ink);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.node-title{font-size:14px;font-weight:600;color:var(--ink);flex:1;min-width:0;line-height:1.32;overflow-wrap:anywhere}
 .node-pg{font-size:11px;color:var(--ink2);flex-shrink:0}
 .node-body{display:none;padding:0 12px 10px 30px}
 .node-body.open{display:block}
@@ -419,7 +428,9 @@ body.fullscreen #rd-bottom-show{display:none}
 .cmap-arrow{font-size:11px;color:var(--ink2);transition:transform .18s;flex-shrink:0}
 .cmap-arrow.open{transform:rotate(90deg)}
 .cmap-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.cmap-title{font-size:14px;font-weight:600;color:var(--ink);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* El título NO se corta: se estudia leyendo desde el panel, así que un
+   "ESTRUC…" no sirve de nada. Se reparte en varias líneas si hace falta. */
+.cmap-title{font-size:14px;font-weight:600;color:var(--ink);flex:1;min-width:0;line-height:1.32;overflow-wrap:anywhere}
 .cmap-pg{font-size:11px;color:var(--ink2);flex-shrink:0}
 .cmap-body-wrap{display:none;padding:0 12px 10px 30px}
 .cmap-body-wrap.open{display:block}
@@ -435,10 +446,13 @@ body.fullscreen #rd-bottom-show{display:none}
    Iconos de trazo (los mismos del resto de la app), pequeños y sin fondo,
    pegados al título. Antes eran botones con texto y con fondo de color:
    pesaban más que el propio contenido y llenaban una fila entera. */
-.nd-btn{width:24px;height:24px;padding:0;border:none;background:none;color:var(--ink3);
+.nd-btn{width:22px;height:22px;padding:0;border:none;background:none;color:var(--ink3);
   cursor:pointer;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
-  border-radius:6px;-webkit-tap-highlight-color:transparent}
-.nd-btn .ico{width:15px;height:15px;stroke-width:1.7}
+  border-radius:6px;-webkit-tap-highlight-color:transparent;opacity:.62;transition:opacity .12s}
+.nd-btn .ico{width:13.5px;height:13.5px;stroke-width:1.7}
+/* discretos por defecto para no competir con el título, nítidos al usarlos */
+.cmap-hd:hover .nd-btn,.node-header:hover .nd-btn,.node-sub-row:hover .nd-btn,
+.proc-step-row:hover .nd-btn,.nd-btn:active{opacity:1}
 .nd-btn:active{background:var(--bg2);color:var(--ink)}
 .nd-btn.danger{color:var(--danger)}
 /* fila de acciones: aparece pegada al título y no empuja el texto */
@@ -587,7 +601,7 @@ body.fullscreen #fs-hint{display:block!important}
 .ent-arrow{font-size:15px;color:var(--ink3);transition:transform .18s;flex-shrink:0;line-height:1}
 .ent-arrow.open{transform:rotate(90deg)}
 .ent-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
-.ent-title{flex:1;font-size:13.5px;font-weight:600;color:var(--ink);line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ent-title{flex:1;min-width:0;font-size:13.5px;font-weight:600;color:var(--ink);line-height:1.35;overflow-wrap:anywhere}
 .ent-pg{font-size:11px;color:var(--ink3);flex-shrink:0}
 .ent-body{display:none;padding:0 12px 11px 30px}
 .ent-body.open{display:block}
