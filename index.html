@@ -4101,11 +4101,12 @@ function renderEmbeds(){
        dejar el asa de ampliar fuera de la vista: las encajamos al mostrarlas.
        Solo se ajusta lo que se ve; el tamaño guardado no se toca hasta que el
        usuario mueva o redimensione la tarjeta a propósito. */
-    fitEmbedCard(card,nl);
+    fitCardInPage(card,nl);
   });
 }
-/* encaja una tarjeta dentro de los límites de la página (sin guardar nada) */
-function fitEmbedCard(card,nl){
+/* encaja una tarjeta dentro de los límites de la página (sin guardar nada).
+   La usan tanto las plasmadas como las viñetas de aclaraciones. */
+function fitCardInPage(card,nl){
   const lw=nl.clientWidth,lh=nl.clientHeight;
   if(!lw||!lh)return;
   if(card.offsetWidth>lw)card.style.width=lw+'px';
@@ -5042,7 +5043,7 @@ function renderAclar(nl,a,num){
   bub.appendChild(rz);
 
   /* plegar/desplegar */
-  const setMini=(m)=>{a.mini=m;bub.classList.toggle('mini',m);patchAclar(a.id,{mini:m})};
+  const setMini=(m)=>{a.mini=m;bub.classList.toggle('mini',m);if(!m)fitCardInPage(bub,nl);patchAclar(a.id,{mini:m})};
   mk.addEventListener('click',e=>{e.stopPropagation();setMini(!a.mini)});
   close.addEventListener('pointerdown',e=>e.stopPropagation());
   close.addEventListener('click',e=>{e.stopPropagation();setMini(true)});
@@ -5064,8 +5065,11 @@ function renderAclar(nl,a,num){
   },{passive:false});
   head.addEventListener('pointermove',e=>{
     if(!dg)return;e.preventDefault();
-    const lr=nl.getBoundingClientRect();
-    const nx=Math.max(0,e.clientX-lr.left-ox),ny=Math.max(0,e.clientY-lr.top-oy);
+    const lr=nl.getBoundingClientRect(),br=bub.getBoundingClientRect();
+    /* no dejamos que la viñeta se salga de la página, para que el asa de
+       ampliar de la esquina siempre quede alcanzable */
+    const maxX=Math.max(0,lr.width-br.width),maxY=Math.max(0,lr.height-br.height);
+    const nx=Math.min(maxX,Math.max(0,e.clientX-lr.left-ox)),ny=Math.min(maxY,Math.max(0,e.clientY-lr.top-oy));
     bub.style.left=nx+'px';bub.style.top=ny+'px';a.bx=nx/scale;a.by=ny/scale;
   },{passive:false});
   head.addEventListener('pointerup',()=>{if(dg){dg=false;patchAclar(a.id,{bx:a.bx,by:a.by})}});
@@ -5076,11 +5080,19 @@ function renderAclar(nl,a,num){
   rz.addEventListener('pointerdown',e=>{e.stopPropagation();e.preventDefault();rzing=true;rz.setPointerCapture(e.pointerId);
     rx=e.clientX;ry=e.clientY;const r=bub.getBoundingClientRect();rw=r.width;rh=r.height},{passive:false});
   rz.addEventListener('pointermove',e=>{if(!rzing)return;e.preventDefault();e.stopPropagation();
-    const nw=Math.max(150,rw+(e.clientX-rx)),nh=Math.max(90,rh+(e.clientY-ry));
+    /* tope: que no crezca más allá del borde de la página, para que el asa
+       nunca se quede fuera de la vista */
+    const lr=nl.getBoundingClientRect();
+    const maxW=Math.max(150,lr.width-bub.offsetLeft),maxH=Math.max(90,lr.height-bub.offsetTop);
+    const nw=Math.min(maxW,Math.max(150,rw+(e.clientX-rx))),nh=Math.min(maxH,Math.max(90,rh+(e.clientY-ry)));
     bub.style.width=nw+'px';bub.style.height=nh+'px';a.w=nw/scale;a.h=nh/scale},{passive:false});
   rz.addEventListener('pointerup',e=>{if(!rzing)return;rzing=false;e.stopPropagation();patchAclar(a.id,{w:a.w,h:a.h})});
 
   nl.appendChild(mk);nl.appendChild(bub);
+  /* encaja la viñeta en la página: si es más grande que la pantalla o se sale
+     por un borde, se queda del tamaño de la página y el texto hace scroll por
+     dentro, con el asa de ampliar siempre a la vista. Igual que las plasmadas. */
+  if(!a.mini)fitCardInPage(bub,nl);
 }
 
 /* primeras N palabras de un texto → título de la entrada */
