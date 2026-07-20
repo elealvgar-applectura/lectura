@@ -422,6 +422,25 @@ body.fullscreen #rd-bottom-show{display:none}
 .node-act-btn:active{opacity:.8}
 .node-add-btn{width:100%;padding:12px;background:transparent;border:1.5px dashed var(--ink3);border-radius:12px;color:var(--ink2);font-size:13px;cursor:pointer;margin-top:4px}
 .node-add-btn:active{background:var(--bg2)}
+
+/* ═══ MAPA CONCEPTUAL ═══ */
+.cmap-card{background:var(--bg);border:1px solid var(--border);border-radius:12px;margin-bottom:8px;overflow:hidden}
+.cmap-hd{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer}
+.cmap-arrow{font-size:11px;color:var(--ink2);transition:transform .18s;flex-shrink:0}
+.cmap-arrow.open{transform:rotate(90deg)}
+.cmap-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.cmap-title{font-size:14px;font-weight:600;color:var(--ink);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cmap-pg{font-size:11px;color:var(--ink2);flex-shrink:0}
+.cmap-body-wrap{display:none;padding:0 12px 10px 30px}
+.cmap-body-wrap.open{display:block}
+.cmap-desc{font-size:13px;color:var(--ink2);line-height:1.45;margin-bottom:8px;word-break:break-word}
+.cmap-children{border-left:2px solid var(--border);padding-left:10px;margin-bottom:6px}
+.cmap-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.cmap-act-btn{flex:1 1 auto;min-width:70px;padding:8px 6px;border:none;border-radius:10px;font-size:12px;font-weight:500;cursor:pointer;color:var(--ink);white-space:nowrap;background:var(--bg2)}
+.cmap-act-btn.go{background:var(--lila)}
+.cmap-act-btn.sub{background:var(--mante)}
+.cmap-act-btn.del{background:rgba(229,139,139,.2);color:var(--danger)}
+.cmap-act-btn:active{opacity:.8}
 /* node anchors on PDF */
 .node-anchor{position:absolute;left:4px;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--ink);cursor:pointer;border:2px solid #fff;box-shadow:0 2px 8px rgba(120,100,140,.3);z-index:10;pointer-events:all;transition:transform .1s;touch-action:manipulation}
 .node-anchor:active{transform:scale(.88)}
@@ -811,6 +830,9 @@ body.fullscreen #gid-bar{bottom:20px}
     <button class="tool-btn" id="tb-thumbs" title="Vista de páginas">
       <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
     </button>
+    <button class="tool-btn" id="tb-cmap" title="Mapa conceptual">
+      <svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.6"/><circle cx="18" cy="6" r="2.6"/><circle cx="6" cy="18" r="2.6"/><circle cx="18" cy="18" r="2.6"/><path d="M8.3 7.3L15.7 15.7M15.7 8.3L8.3 15.7"/></svg>
+    </button>
     <div class="tsep"></div>
     <span id="rd-page-info" style="font-size:13px;color:var(--ink2);white-space:nowrap;flex-shrink:0;margin:0 6px"></span>
   </div>
@@ -949,6 +971,18 @@ body.fullscreen #gid-bar{bottom:20px}
   <div style="padding:0 12px 12px;flex-shrink:0">
     <button id="aclar-export" class="sp-action-btn">Exportar aclaraciones</button>
   </div>
+</div>
+
+<!-- mapa conceptual panel -->
+<div id="cmap-panel" class="side-panel">
+  <div class="sp-top">
+    <span class="sp-title">🗺️ Mapa conceptual</span>
+    <button class="sp-close" data-panel="cmap-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div id="cmap-toolrow" style="display:flex;gap:6px;padding:0 12px 8px;flex-shrink:0">
+    <button id="cmap-toggle-all" class="sp-action-btn" style="flex:1">▾ Desplegar todo</button>
+  </div>
+  <div id="cmap-body" class="sp-body"></div>
 </div>
 
 <!-- resumen (subrayados) panel -->
@@ -1121,6 +1155,31 @@ body.fullscreen #gid-bar{bottom:20px}
     <div class="modal-btns">
       <button class="mbtn cancel" id="modal-aclar-cancel">Cancelar</button>
       <button class="mbtn ok" id="modal-aclar-ok">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- modal del mapa conceptual: título + descripción con formato de un nodo -->
+<div class="modal-bg hidden" id="modal-cmap">
+  <div class="modal">
+    <h3 id="modal-cmap-title">Nodo del mapa</h3>
+    <input id="cmap-title-in" type="text" placeholder="Título" maxlength="200">
+    <div class="rich-tb" id="cmap-body-tb">
+      <button type="button" data-cmd="bold" title="Negrita"><b>B</b></button>
+      <button type="button" data-cmd="italic" title="Cursiva"><i>I</i></button>
+      <button type="button" data-cmd="underline" title="Subrayado"><u>U</u></button>
+      <button type="button" data-cmd="insertUnorderedList" title="Lista con guiones">•</button>
+      <button type="button" data-cmd="insertOrderedList" title="Lista numerada">1.</button>
+      <button type="button" data-cmd="fontSize" data-val="2" title="Más pequeño">A−</button>
+      <button type="button" data-cmd="fontSize" data-val="5" title="Más grande">A+</button>
+      <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
+      <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
+      <button type="button" data-cmd="removeFormat" title="Quitar el formato">✕fmt</button>
+    </div>
+    <div id="cmap-body-in" class="rich-ed rich-content" contenteditable="true" data-ph="Descripción o definición clave (opcional, con formato)"></div>
+    <div class="modal-btns">
+      <button class="mbtn cancel" id="modal-cmap-cancel">Cancelar</button>
+      <button class="mbtn ok" id="modal-cmap-ok">Guardar</button>
     </div>
   </div>
 </div>
@@ -3909,7 +3968,7 @@ const notesPanel=document.getElementById('notes-panel');
    abrir un panel.
    ══════════════════════════════════════════════════════════════════ */
 const ALL_PANELS=['notes-panel','summary-panel','bookmarks-panel','thumbs-panel',
-                  'timeline-panel','glossary-panel','conclusions-panel','aclar-panel','resumen-panel'];
+                  'timeline-panel','glossary-panel','conclusions-panel','aclar-panel','resumen-panel','cmap-panel'];
 function closeAllPanels(except){
   ALL_PANELS.forEach(id=>{
     if(id===except)return;
@@ -4323,7 +4382,7 @@ function renderPageAnchors(){
   const byPage={};
   const bump=(pg,kind)=>{
     pg=Number(pg);if(!pg)return;
-    byPage[pg]=byPage[pg]||{glos:0,conc:0,node:0,note:0,aclar:0};
+    byPage[pg]=byPage[pg]||{glos:0,conc:0,node:0,note:0,aclar:0,cmap:0};
     byPage[pg][kind]++;
   };
 
@@ -4331,6 +4390,7 @@ function renderPageAnchors(){
   loadEnts('glos').forEach(g=>bump(g.page,'glos'));
   loadEnts('conc').forEach(g=>bump(g.page,'conc'));
   loadAclars().forEach(a=>bump(a.page,'aclar'));
+  loadCmap().forEach(root=>cmapWalk(root,n=>{if(n.page)bump(n.page,'cmap')}));
   for(const slot of pageOrder){
     const ann=annotations[slot.pid];if(!ann)continue;
     (ann.notes||[]).filter(n=>(n.title&&n.title.trim())||(n.text&&n.text.trim())).forEach(()=>bump(slot.pid,'note'));
@@ -4341,14 +4401,15 @@ function renderPageAnchors(){
     conc:{ic:'💡',bg:'#BFE8DC', label:'Conclusiones', open:async()=>{openPanel('conclusions-panel');await autoUpdateEnts('conc');renderEnts('conc')}},
     node:{ic:'🔗',bg:'#E3D0F5', label:'Nodos',        open:()=>openNodesTab()},
     note:{ic:'🗒️', bg:'#FFF0C9', label:'Notas',        open:()=>{summaryTab='notes';renderSummary('notes');openPanel('summary-panel')}},
-    aclar:{ic:'❔',bg:'#00C2AE', label:'Aclaraciones', open:()=>{openPanel('aclar-panel');refreshAclarPanel()}}
+    aclar:{ic:'❔',bg:'#00C2AE', label:'Aclaraciones', open:()=>{openPanel('aclar-panel');refreshAclarPanel()}},
+    cmap:{ic:'🗺️',bg:'#FFD9A8', label:'Mapa conceptual', open:()=>{openPanel('cmap-panel');refreshCmapPanel()}}
   };
 
   Object.entries(byPage).forEach(([pg,counts])=>{
     const wrap=pagesInner.querySelector(`[data-page="${pg}"]`);if(!wrap)return;
     const nl=wrap.querySelector('.note-layer');if(!nl)return;
     const box=document.createElement('div');box.className='pg-anchors';
-    ['glos','conc','node','note','aclar'].forEach(k=>{
+    ['glos','conc','node','note','aclar','cmap'].forEach(k=>{
       if(!counts[k])return;
       const d=DEF[k];
       const a=document.createElement('div');a.className='pg-anchor';
@@ -5112,8 +5173,6 @@ async function createCmapNodeFromGid(gid,level){
   scheduleAnchors();
   refreshCmapPanelIfOpen();
 }
-/* no-op hasta que exista el panel (se implementa en la siguiente pieza) */
-function refreshCmapPanelIfOpen(){}
 
 /* modal de la aclaración: tema + texto con formato.
    opts={text,themeId}. Devuelve {text,themeId} o null si se cancela. */
@@ -5781,6 +5840,145 @@ document.querySelector('#aclar-panel .sp-close').onclick=()=>document.getElement
 document.querySelectorAll('#aclar-panel .sp-themes').forEach(b=>b.onclick=()=>openThemesMgr('glos'));
 document.getElementById('aclar-export').onclick=()=>exportAclars();
 addPanelSwipe('aclar-panel');
+
+/* ══ MAPA CONCEPTUAL: panel ══
+   editor de título+descripción de un nodo (mismo patrón que askNodeEdit) */
+let cmapEditRes=null;
+wireRichToolbar(document.getElementById('cmap-body-tb'),document.getElementById('cmap-body-in'));
+document.getElementById('modal-cmap-cancel').onclick=()=>{document.getElementById('modal-cmap').classList.add('hidden');cmapEditRes&&cmapEditRes(null)};
+document.getElementById('modal-cmap-ok').onclick=()=>{
+  const t=document.getElementById('cmap-title-in').value.trim();if(!t){showTip('Escribe un título');return}
+  document.getElementById('modal-cmap').classList.add('hidden');
+  cmapEditRes&&cmapEditRes({title:t,desc:getRich(document.getElementById('cmap-body-in'))});
+};
+function askCmapNode(title,desc){return new Promise(r=>{
+  cmapEditRes=r;
+  document.getElementById('cmap-title-in').value=title||'';
+  setRich(document.getElementById('cmap-body-in'),desc||'');
+  document.getElementById('modal-cmap').classList.remove('hidden');
+  setTimeout(()=>document.getElementById('cmap-title-in').focus(),80);
+})}
+
+/* nivel del siguiente hijo: sigue la escala de colores y cae a 'manual'
+   (sin color, "sin fin") en cuanto se agotan los niveles con subrayador */
+function cmapNextLevel(level){
+  const i=CMAP_LEVELS.indexOf(level);
+  return(i<0||i===CMAP_LEVELS.length-1)?'manual':CMAP_LEVELS[i+1];
+}
+function cmapLevelDot(level){return(CMAP_LEVEL_META[level]&&CMAP_LEVEL_META[level].dot)||'#C9C3D6'}
+
+/* Recorre TODO el árbol de un mapa aplicando fn a cada nodo (usado por
+   "Desplegar/Plegar todo" y por las anclas de página). */
+function cmapWalk(node,fn){fn(node);(node.children||[]).forEach(ch=>cmapWalk(ch,fn))}
+
+/* `maps` es SIEMPRE la misma referencia en memoria durante todo el render:
+   igual que nodes en buildNodeEl/buildSubTree, para que guardar desde un
+   nodo anidado no pierda los cambios de sus hermanos. */
+function buildCmapEl(node,siblings,maps){
+  if(!node.children)node.children=[];
+  const card=document.createElement('div');card.className='cmap-card';
+
+  const hd=document.createElement('div');hd.className='cmap-hd';
+  const arrow=document.createElement('span');arrow.className='cmap-arrow'+(node.fold?'':' open');arrow.textContent='›';
+  const dot=document.createElement('div');dot.className='cmap-dot';dot.style.background=cmapLevelDot(node.level);
+  const titleEl=document.createElement('span');titleEl.className='cmap-title';titleEl.textContent=node.title;
+  hd.append(arrow,dot,titleEl);
+  if(node.page){
+    const pgEl=document.createElement('span');pgEl.className='cmap-pg';pgEl.textContent='p.'+pageLabel(node.page);
+    hd.appendChild(pgEl);
+  }
+
+  const body=document.createElement('div');body.className='cmap-body-wrap'+(node.fold?'':' open');
+  if(node.desc&&String(node.desc).trim()){
+    const desc=document.createElement('div');desc.className='cmap-desc rich-content';desc.innerHTML=richHTML(node.desc);
+    body.appendChild(desc);
+  }
+  const childWrap=document.createElement('div');childWrap.className='cmap-children';
+  node.children.forEach(ch=>childWrap.appendChild(buildCmapEl(ch,node.children,maps)));
+  body.appendChild(childWrap);
+
+  const acts=document.createElement('div');acts.className='cmap-acts';
+  const goBtn=document.createElement('button');goBtn.className='cmap-act-btn go';goBtn.textContent='→ Ir';
+  goBtn.onclick=e=>{
+    e.stopPropagation();
+    if(!node.page){showTip('Este nodo no tiene página anclada');return}
+    goPage(posOfPid(node.page));document.getElementById('cmap-panel').classList.remove('open');
+    setTimeout(()=>{const w=pagesInner.querySelector(`[data-page="${node.page}"]`);
+      if(w){w.style.outline='3px solid '+cmapLevelDot(node.level);setTimeout(()=>w.style.outline='',1400)}},420);
+  };
+  const editBtn=document.createElement('button');editBtn.className='cmap-act-btn';editBtn.textContent='✎ Editar';
+  editBtn.onclick=async e=>{
+    e.stopPropagation();
+    const d=await askCmapNode(node.title,node.desc||'');if(!d)return;
+    node.title=d.title;node.desc=d.desc;
+    saveCmap(maps);refreshCmapPanel();showTip('Actualizado',1200);
+  };
+  const subBtn=document.createElement('button');subBtn.className='cmap-act-btn sub';subBtn.textContent='＋ Subnivel';
+  subBtn.onclick=async e=>{
+    e.stopPropagation();
+    const d=await askCmapNode('','');if(!d)return;
+    const child=newCmapNode(cmapNextLevel(node.level),d.title,node.page);child.desc=d.desc;
+    node.children.push(child);
+    saveCmap(maps);refreshCmapPanel();
+  };
+  const delBtn=document.createElement('button');delBtn.className='cmap-act-btn del';delBtn.textContent='Eliminar';
+  delBtn.onclick=async e=>{
+    e.stopPropagation();
+    const ok=await askConfirm(`¿Eliminar "${node.title}" y todo lo que cuelga de él?`);if(!ok)return;
+    const i=siblings.indexOf(node);if(i>-1)siblings.splice(i,1);
+    saveCmap(maps);refreshCmapPanel();renderPageAnchors();
+  };
+  acts.append(goBtn,editBtn,subBtn,delBtn);
+  body.appendChild(acts);
+  card.append(hd,body);
+
+  hd.onclick=()=>{
+    node.fold=!node.fold;
+    arrow.classList.toggle('open',!node.fold);
+    body.classList.toggle('open',!node.fold);
+    saveCmap(maps);
+  };
+  return card;
+}
+
+function refreshCmapPanel(){
+  const body=document.getElementById('cmap-body');body.innerHTML='';
+  const maps=loadCmap();
+
+  const addBtn=document.createElement('button');addBtn.className='node-add-btn';addBtn.textContent='＋ Nuevo tema (título general)';
+  addBtn.onclick=async()=>{
+    const d=await askCmapNode('','');if(!d)return;
+    const node=newCmapNode('cmap_titulo',d.title,curPid());node.desc=d.desc;node.fold=false;
+    maps.push(node);saveCmap(maps);refreshCmapPanel();renderPageAnchors();showTip('Mapa creado',1400);
+  };
+  body.appendChild(addBtn);
+
+  if(!maps.length){
+    const em=document.createElement('div');em.className='np-empty';
+    em.textContent='Subraya un Título general (o pulsa ＋ arriba) para empezar un mapa conceptual.\nLos subtítulos, epígrafes y guiones se cuelgan solos del último tema abierto.';
+    body.appendChild(em);return;
+  }
+  maps.forEach(node=>body.appendChild(buildCmapEl(node,maps,maps)));
+}
+function refreshCmapPanelIfOpen(){
+  if(document.getElementById('cmap-panel').classList.contains('open'))refreshCmapPanel();
+}
+
+/* "Desplegar todo"/"Plegar todo": alterna sobre TODOS los nodos de TODOS los
+   mapas del documento, no solo el que se ve. */
+let cmapAllOpen=false;
+document.getElementById('cmap-toggle-all').onclick=()=>{
+  cmapAllOpen=!cmapAllOpen;
+  const maps=loadCmap();
+  maps.forEach(root=>cmapWalk(root,n=>{n.fold=!cmapAllOpen}));
+  saveCmap(maps);
+  document.getElementById('cmap-toggle-all').textContent=cmapAllOpen?'▸ Plegar todo':'▾ Desplegar todo';
+  refreshCmapPanel();
+};
+
+document.getElementById('tb-cmap').onclick=()=>{openPanel('cmap-panel');refreshCmapPanel()};
+document.querySelector('#cmap-panel .sp-close').onclick=()=>document.getElementById('cmap-panel').classList.remove('open');
+addPanelSwipe('cmap-panel');
 /* ══ FULLSCREEN ══ */
 let fullscreenOn=false;
 const fsHint=document.getElementById('fs-hint');
@@ -6019,6 +6217,7 @@ const MODAL_OK={
   'modal-embed-edit':'emb-edit-ok',      // Guardar
   'modal-node':'modal-node-ok',          // Crear
   'modal-subnode':'modal-subnode-ok',    // Anadir
+  'modal-cmap':'modal-cmap-ok',          // Guardar
   'modal-bookmark':'modal-bookmark-ok',  // Guardar
   'modal-name':'modal-name-ok',          // Guardar
   'modal-confirm':'modal-confirm-ok',    // Eliminar (es la accion que se pidio)
@@ -6035,6 +6234,7 @@ const MODAL_CANCEL={
   'modal-embed-edit':'emb-edit-cancel',
   'modal-node':'modal-node-cancel',
   'modal-subnode':'modal-subnode-cancel',
+  'modal-cmap':'modal-cmap-cancel',
   'modal-bookmark':'modal-bookmark-cancel',
   'modal-name':'modal-name-cancel',
   'modal-confirm':'modal-confirm-cancel',
