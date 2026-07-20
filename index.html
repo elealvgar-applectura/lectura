@@ -441,6 +441,9 @@ body.fullscreen #rd-bottom-show{display:none}
 .cmap-act-btn.sub{background:var(--mante)}
 .cmap-act-btn.del{background:rgba(229,139,139,.2);color:var(--danger)}
 .cmap-act-btn:active{opacity:.8}
+.cmap-link{color:#3a7afe;text-decoration:underline;text-decoration-style:dotted;cursor:pointer}
+.cmap-link:active{opacity:.6}
+#cmap-link-btn{font-size:12.5px}
 /* node anchors on PDF */
 .node-anchor{position:absolute;left:4px;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--ink);cursor:pointer;border:2px solid #fff;box-shadow:0 2px 8px rgba(120,100,140,.3);z-index:10;pointer-events:all;transition:transform .1s;touch-action:manipulation}
 .node-anchor:active{transform:scale(.88)}
@@ -1175,11 +1178,35 @@ body.fullscreen #gid-bar{bottom:20px}
       <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
       <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
       <button type="button" data-cmd="removeFormat" title="Quitar el formato">✕fmt</button>
+      <button type="button" id="cmap-link-btn" title="Selecciona texto y pulsa aquí para vincularlo con una definición, conclusión o aclaración">🔗 Vincular</button>
     </div>
     <div id="cmap-body-in" class="rich-ed rich-content" contenteditable="true" data-ph="Descripción o definición clave (opcional, con formato)"></div>
     <div class="modal-btns">
       <button class="mbtn cancel" id="modal-cmap-cancel">Cancelar</button>
       <button class="mbtn ok" id="modal-cmap-ok">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- selector de ficha para vincular (mapa conceptual) -->
+<div class="modal-bg hidden" id="modal-cmap-link">
+  <div class="modal">
+    <h3>Vincular con una ficha</h3>
+    <div id="cmap-link-list" style="max-height:50vh;overflow-y:auto;display:flex;flex-direction:column;gap:2px"></div>
+    <div class="modal-btns">
+      <button class="mbtn cancel" id="modal-cmap-link-cancel">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- vista rápida de la ficha vinculada (clic en un enlace del mapa) -->
+<div class="modal-bg hidden" id="modal-cmap-preview">
+  <div class="modal">
+    <h3 id="cmap-preview-title"></h3>
+    <div id="cmap-preview-body" class="rich-content" style="font-size:14px;color:var(--ink2);line-height:1.55;max-height:50vh;overflow-y:auto;margin-bottom:14px"></div>
+    <div class="modal-btns">
+      <button class="mbtn cancel" id="cmap-preview-close">Cerrar</button>
+      <button class="mbtn ok" id="cmap-preview-open">Ver ficha completa</button>
     </div>
   </div>
 </div>
@@ -5979,6 +6006,102 @@ document.getElementById('cmap-toggle-all').onclick=()=>{
 document.getElementById('tb-cmap').onclick=()=>{openPanel('cmap-panel');refreshCmapPanel()};
 document.querySelector('#cmap-panel .sp-close').onclick=()=>document.getElementById('cmap-panel').classList.remove('open');
 addPanelSwipe('cmap-panel');
+
+/* ══ MAPA CONCEPTUAL: hipervínculos a definición/conclusión/aclaración ══
+   Busca la ficha real a partir de {kind,ref} guardado en el span. Cada tipo
+   de ficha guarda el texto en un campo distinto (glos/conc → .body,
+   aclar → .text con .ref como título): mismos campos que usa el resto de
+   la app para esas fichas. */
+function cmapLinkTarget(kind,ref){
+  if(kind==='aclar'){
+    const a=loadAclars().find(x=>x.id===ref);
+    return a?{title:a.ref||'Aclaración',body:a.text||''}:null;
+  }
+  const it=loadEnts(kind).find(x=>x.gid===ref||x.id===ref);
+  return it?{title:it.title||'(sin título)',body:it.body||''}:null;
+}
+function cmapOpenLinkedPanel(kind){
+  if(kind==='glos'){openPanel('glossary-panel');autoUpdateEnts('glos').then(()=>renderEnts('glos'))}
+  else if(kind==='conc'){openPanel('conclusions-panel');autoUpdateEnts('conc').then(()=>renderEnts('conc'))}
+  else if(kind==='aclar'){openPanel('aclar-panel');refreshAclarPanel()}
+}
+let cmapPreviewKind=null;
+const mCmapPreview=document.getElementById('modal-cmap-preview');
+document.getElementById('cmap-preview-close').onclick=()=>mCmapPreview.classList.add('hidden');
+document.getElementById('cmap-preview-open').onclick=()=>{mCmapPreview.classList.add('hidden');if(cmapPreviewKind)cmapOpenLinkedPanel(cmapPreviewKind)};
+/* delegado a nivel de documento: funciona tanto en el panel como, más
+   adelante, en la tarjeta plasmada en la página (mismo span, mismo click) */
+document.addEventListener('click',e=>{
+  const link=e.target.closest('.cmap-link');
+  if(!link)return;
+  e.preventDefault();e.stopPropagation();
+  const kind=link.dataset.kind,ref=link.dataset.ref;
+  const t=cmapLinkTarget(kind,ref);
+  if(!t){showTip('Esa ficha ya no existe (puede que se haya borrado)');return}
+  cmapPreviewKind=kind;
+  document.getElementById('cmap-preview-title').textContent=t.title;
+  document.getElementById('cmap-preview-body').innerHTML=t.body?richHTML(t.body):'(vacío)';
+  mCmapPreview.classList.remove('hidden');
+});
+
+/* selector de ficha: lista agrupada por tipo, elegir una resuelve la promesa */
+let cmapLinkRes=null;
+const mCmapLink=document.getElementById('modal-cmap-link');
+document.getElementById('modal-cmap-link-cancel').onclick=()=>{mCmapLink.classList.add('hidden');cmapLinkRes&&cmapLinkRes(null)};
+function askCmapLink(){
+  return new Promise(res=>{
+    cmapLinkRes=res;
+    const list=document.getElementById('cmap-link-list');list.innerHTML='';
+    const groups=[
+      {kind:'glos', ic:'📖',label:'Definiciones', items:loadEnts('glos').map(it=>({id:it.gid||it.id,title:it.title}))},
+      {kind:'conc', ic:'💡',label:'Conclusiones', items:loadEnts('conc').map(it=>({id:it.gid||it.id,title:it.title}))},
+      {kind:'aclar',ic:'❔',label:'Aclaraciones', items:loadAclars().map(it=>({id:it.id,title:it.ref||'Aclaración'}))}
+    ];
+    let any=false;
+    groups.forEach(g=>{
+      if(!g.items.length)return;
+      any=true;
+      const h=document.createElement('div');
+      h.style.cssText='font-size:11.5px;font-weight:700;color:var(--ink3);margin:8px 2px 2px;text-transform:uppercase;letter-spacing:.04em';
+      h.textContent=g.ic+' '+g.label;list.appendChild(h);
+      g.items.forEach(it=>{
+        const b=document.createElement('button');
+        b.style.cssText='display:block;width:100%;text-align:left;padding:9px 10px;border:none;border-radius:9px;background:var(--bg2);color:var(--ink);font-family:inherit;font-size:13.5px;cursor:pointer;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+        b.textContent=it.title||'(sin título)';
+        b.onclick=()=>{mCmapLink.classList.add('hidden');cmapLinkRes&&cmapLinkRes({kind:g.kind,id:it.id,title:it.title||''})};
+        list.appendChild(b);
+      });
+    });
+    if(!any){
+      const em=document.createElement('div');
+      em.style.cssText='text-align:center;color:var(--ink3);font-size:13px;padding:20px 10px';
+      em.textContent='Aún no tienes definiciones, conclusiones ni aclaraciones en este documento.';
+      list.appendChild(em);
+    }
+    mCmapLink.classList.remove('hidden');
+  });
+}
+/* botón "🔗 Vincular" de la barra de formato del mapa: envuelve el texto
+   seleccionado en un span clicable. No es un data-cmd porque no es un
+   execCommand simple: primero hay que preguntar QUÉ ficha se vincula. */
+document.getElementById('cmap-link-btn').addEventListener('pointerdown',e=>e.preventDefault());
+document.getElementById('cmap-link-btn').addEventListener('click',async e=>{
+  e.preventDefault();
+  const ed=document.getElementById('cmap-body-in');
+  const sel=window.getSelection();
+  if(!sel||sel.isCollapsed||!ed.contains(sel.anchorNode)){
+    showTip('Selecciona primero el texto que quieres vincular');return;
+  }
+  const savedRange=sel.getRangeAt(0).cloneRange();
+  const target=await askCmapLink();
+  if(!target)return;
+  /* el selector pudo robar el foco/la selección: se restaura antes de insertar */
+  sel.removeAllRanges();sel.addRange(savedRange);
+  ed.focus();
+  const text=sel.toString()||target.title;
+  document.execCommand('insertHTML',false,
+    `<span class="cmap-link" data-kind="${target.kind}" data-ref="${esc(target.id)}">${esc(text)}</span>`);
+});
 /* ══ FULLSCREEN ══ */
 let fullscreenOn=false;
 const fsHint=document.getElementById('fs-hint');
@@ -6218,6 +6341,7 @@ const MODAL_OK={
   'modal-node':'modal-node-ok',          // Crear
   'modal-subnode':'modal-subnode-ok',    // Anadir
   'modal-cmap':'modal-cmap-ok',          // Guardar
+  'modal-cmap-preview':'cmap-preview-open', // Ver ficha completa
   'modal-bookmark':'modal-bookmark-ok',  // Guardar
   'modal-name':'modal-name-ok',          // Guardar
   'modal-confirm':'modal-confirm-ok',    // Eliminar (es la accion que se pidio)
@@ -6235,6 +6359,8 @@ const MODAL_CANCEL={
   'modal-node':'modal-node-cancel',
   'modal-subnode':'modal-subnode-cancel',
   'modal-cmap':'modal-cmap-cancel',
+  'modal-cmap-link':'modal-cmap-link-cancel',
+  'modal-cmap-preview':'cmap-preview-close',
   'modal-bookmark':'modal-bookmark-cancel',
   'modal-name':'modal-name-cancel',
   'modal-confirm':'modal-confirm-cancel',
