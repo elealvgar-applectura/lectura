@@ -4109,7 +4109,12 @@ function fitEmbedCard(card,nl){
   const lw=nl.clientWidth,lh=nl.clientHeight;
   if(!lw||!lh)return;
   if(card.offsetWidth>lw)card.style.width=lw+'px';
-  if(card.offsetHeight>lh&&card.style.height)card.style.height=lh+'px';
+  /* si la tarjeta es más alta que la página (contenido enorme), la dejamos del
+     alto de la página y su cuerpo hace scroll por dentro: así el asa de ampliar
+     de la esquina inferior nunca se queda fuera de la vista. Antes solo se
+     recortaba si había un alto fijo guardado, y las tarjetas altas por su
+     contenido se salían igual. */
+  if(card.offsetHeight>lh)card.style.height=lh+'px';
   if(card.offsetLeft+card.offsetWidth>lw)card.style.left=Math.max(0,lw-card.offsetWidth)+'px';
   if(card.offsetTop+card.offsetHeight>lh)card.style.top=Math.max(0,lh-card.offsetHeight)+'px';
 }
