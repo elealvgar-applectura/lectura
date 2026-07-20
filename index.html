@@ -196,6 +196,8 @@ input,textarea{user-select:text!important;-webkit-user-select:text!important}
 .stnote-body{padding:8px 10px 10px}
 .stnote textarea{width:100%;flex:1;background:transparent;border:none;outline:none;resize:none;font-size:13px;color:var(--ink);font-family:inherit;line-height:1.5;min-height:50px;touch-action:auto;pointer-events:all}
 .stnote-body{display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto}
+/* nota con formato: se ve tal cual, pero se edita desde el panel de notas */
+.stnote-ro{font-size:13px;color:var(--ink);line-height:1.5;padding:2px 0;flex:1;min-height:0;overflow-y:auto;-webkit-user-select:text;user-select:text}
 
 /* notes panel (barra rápida) */
 #notes-panel{position:fixed;right:-300px;top:0;width:280px;max-width:85vw;height:100%;height:100dvh;background:var(--card);border-left:1px solid var(--border);box-shadow:-6px 0 24px rgba(120,100,140,.14);z-index:600;display:flex;flex-direction:column;transition:right .26s cubic-bezier(.4,0,.2,1)}
@@ -401,6 +403,10 @@ body.fullscreen #rd-bottom-show{display:none}
 .rich-content i,.rich-content em{font-style:italic}
 .rich-content u{text-decoration:underline}
 .rich-content a{color:#3a7afe;text-decoration:underline}
+/* Los contenedores de texto llevan white-space:pre-wrap para respetar los saltos
+   del texto plano de siempre. Cuando el contenido YA es HTML con formato, los
+   saltos van en <br>/<div>, y pre-wrap los duplicaría dejando huecos enormes. */
+.ent-text.rich-content,.emb-text.rich-content{white-space:normal}
 /* barra de formato + área editable en los modales */
 .rich-tb{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:6px}
 .rich-tb button{min-width:32px;height:30px;padding:0 8px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--ink);font-size:14px;cursor:pointer;font-family:inherit;line-height:1;touch-action:manipulation}
@@ -1023,7 +1029,19 @@ body.fullscreen #gid-bar{bottom:20px}
       <label style="display:block;font-size:12.5px;color:var(--ink2);margin-bottom:5px">Tema</label>
       <select id="emb-edit-theme" style="width:100%;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);font-size:15px;padding:11px;outline:none;font-family:inherit"></select>
     </div>
-    <textarea id="emb-edit-text" placeholder="Texto / definición / conclusión…" rows="6" style="width:100%;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);font-size:15px;padding:11px;outline:none;font-family:inherit;line-height:1.5;resize:vertical;margin-bottom:12px"></textarea>
+    <div class="rich-tb" id="emb-edit-tb">
+      <button type="button" data-cmd="bold" title="Negrita"><b>B</b></button>
+      <button type="button" data-cmd="italic" title="Cursiva"><i>I</i></button>
+      <button type="button" data-cmd="underline" title="Subrayado"><u>U</u></button>
+      <button type="button" data-cmd="insertUnorderedList" title="Lista con guiones">•</button>
+      <button type="button" data-cmd="insertOrderedList" title="Lista numerada">1.</button>
+      <button type="button" data-cmd="fontSize" data-val="2" title="Más pequeño">A−</button>
+      <button type="button" data-cmd="fontSize" data-val="5" title="Más grande">A+</button>
+      <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
+      <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
+      <button type="button" data-cmd="removeFormat" title="Quitar el formato">✕fmt</button>
+    </div>
+    <div id="emb-edit-text" class="rich-ed rich-content" contenteditable="true" data-ph="Texto / definición / conclusión (con formato, sin límite)"></div>
     <div class="modal-btns">
       <button class="mbtn cancel" id="emb-edit-cancel">Cancelar</button>
       <button class="mbtn ok" id="emb-edit-ok" style="background:var(--lila)">Guardar</button>
@@ -1044,6 +1062,8 @@ body.fullscreen #gid-bar{bottom:20px}
       <button type="button" data-cmd="fontSize" data-val="2" title="Más pequeño">A−</button>
       <button type="button" data-cmd="fontSize" data-val="5" title="Más grande">A+</button>
       <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
+      <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
+      <button type="button" data-cmd="removeFormat" title="Quitar el formato">✕fmt</button>
     </div>
     <div id="node-body-in" class="rich-ed rich-content" contenteditable="true" data-ph="Descripción / resumen (con formato, todo lo que quieras)"></div>
     <div style="font-size:13px;color:var(--ink2);margin-bottom:12px">Se ancla a la página <span id="node-pg-label">1</span></div>
@@ -1068,6 +1088,8 @@ body.fullscreen #gid-bar{bottom:20px}
       <button type="button" data-cmd="fontSize" data-val="2" title="Más pequeño">A−</button>
       <button type="button" data-cmd="fontSize" data-val="5" title="Más grande">A+</button>
       <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
+      <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
+      <button type="button" data-cmd="removeFormat" title="Quitar el formato">✕fmt</button>
     </div>
     <div id="subnode-body-in" class="rich-ed rich-content" contenteditable="true" data-ph="Explicación (con formato, todo lo que quieras)"></div>
     <div class="modal-btns">
@@ -1092,6 +1114,8 @@ body.fullscreen #gid-bar{bottom:20px}
       <button type="button" data-cmd="fontSize" data-val="2" title="Más pequeño">A−</button>
       <button type="button" data-cmd="fontSize" data-val="5" title="Más grande">A+</button>
       <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
+      <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
+      <button type="button" data-cmd="removeFormat" title="Quitar el formato">✕fmt</button>
     </div>
     <div id="aclar-text-in" class="rich-ed rich-content" contenteditable="true" data-ph="Escribe la aclaración o información más profunda (con formato, sin límite)"></div>
     <div class="modal-btns">
@@ -1267,7 +1291,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v75'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v76'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -1587,14 +1611,34 @@ function richToPlain(html){
 /* conecta una barra de formato (botones con data-cmd) a un área editable */
 function wireRichToolbar(tb,ed){
   if(!tb||!ed)return;
+  /* hiliteColor (resaltador) necesita styleWithCSS en algunos navegadores; si
+     no está disponible se cae a backColor, que hace lo mismo en Safari/iPad. */
+  const run=(cmd,val)=>{
+    if(cmd==='hiliteColor'){
+      try{document.execCommand('styleWithCSS',false,true)}catch(e){}
+      if(!document.execCommand('hiliteColor',false,val))document.execCommand('backColor',false,val);
+      try{document.execCommand('styleWithCSS',false,false)}catch(e){}
+      return;
+    }
+    document.execCommand(cmd,false,val||null);
+  };
   tb.querySelectorAll('[data-cmd]').forEach(btn=>{
     const cmd=btn.getAttribute('data-cmd'),val=btn.getAttribute('data-val');
     if(btn.tagName==='INPUT'){
-      btn.addEventListener('input',()=>{ed.focus();document.execCommand(cmd,false,btn.value)});
+      btn.addEventListener('input',()=>{ed.focus();run(cmd,btn.value)});
     }else{
       btn.addEventListener('pointerdown',e=>e.preventDefault());   // no perder la selección al tocar el botón
-      btn.addEventListener('click',e=>{e.preventDefault();ed.focus();document.execCommand(cmd,false,val||null)});
+      btn.addEventListener('click',e=>{e.preventDefault();ed.focus();run(cmd,val)});
     }
+  });
+  /* PEGADO LIMPIO: al pegar de una web o un PDF, el navegador mete fuentes,
+     tamaños y fondos ajenos que descuadran la ficha. Pegamos solo el texto
+     (respetando los saltos de línea) y que el formato lo ponga ella. */
+  ed.addEventListener('paste',e=>{
+    const txt=(e.clipboardData||window.clipboardData)?.getData('text/plain');
+    if(txt==null)return;
+    e.preventDefault();
+    document.execCommand('insertHTML',false,esc(txt).replace(/\r?\n/g,'<br>'));
   });
 }
 
@@ -1647,12 +1691,13 @@ document.getElementById('emb-edit-ok').onclick=()=>{
   /* themeId solo se devuelve si el selector está visible (definiciones y
      conclusiones). Para nodos y otros usos el selector se oculta y no se toca. */
   const themeId = row.style.display!=='none' ? (sel.value||null) : undefined;
-  mEmbEdit.classList.add('hidden');embEditRes&&embEditRes({title:t,text:embEditText.value.trim(),themeId});
+  mEmbEdit.classList.add('hidden');embEditRes&&embEditRes({title:t,text:getRich(embEditText),themeId});
 };
+wireRichToolbar(document.getElementById('emb-edit-tb'),embEditText);
 /* opts.showTheme muestra el selector de tema (mismo que al insertar manual) y
    opts.themeId marca el tema actual. Sin opts, el modal funciona como antes. */
 function askEmbedEdit(title,text,opts){return new Promise(r=>{
-  embEditRes=r;embEditTitle.value=title||'';embEditText.value=text||'';
+  embEditRes=r;embEditTitle.value=title||'';setRich(embEditText,text);
   const row=document.getElementById('emb-edit-theme-row');
   const sel=document.getElementById('emb-edit-theme');
   if(opts&&opts.showTheme){
@@ -3662,7 +3707,13 @@ function renderNote(nl,nd,num,focus){
   const btnDraw=document.createElement('button');btnDraw.textContent='✏ Lápiz';
   modeRow.append(btnType,btnDraw);
 
-  /* área de texto */
+  /* área de texto.
+     Si la nota YA lleva formato (se editó desde el panel con negrita, color,
+     listas…), un textarea mostraría las etiquetas en crudo. En ese caso
+     enseñamos el texto formateado en modo lectura y se edita desde el panel.
+     Las notas de texto plano siguen siendo editables aquí, para escribir
+     rápido sobre la página sin abrir nada. */
+  const richNote=isRich(nd.text);
   const ta=document.createElement('textarea');ta.value=nd.text||'';ta.placeholder='Escribe tu nota…';ta.rows=3;
   ta.addEventListener('input',()=>{
     ta.style.height='auto';ta.style.height=ta.scrollHeight+'px';
@@ -3670,6 +3721,12 @@ function renderNote(nl,nd,num,focus){
     const ann=annotations[num];if(ann){const x=ann.notes.find(n=>n.id===nd.id);if(x)x.text=ta.value}
     scheduleSave();refreshNotesPanel();
   });
+
+  /* vista de solo lectura para las notas con formato (ver comentario arriba) */
+  const roEl=document.createElement('div');roEl.className='stnote-ro rich-content';
+  roEl.innerHTML=richHTML(nd.text||'');
+  roEl.style.display=richNote?'block':'none';
+  roEl.addEventListener('pointerdown',e=>e.stopPropagation());  // permitir seleccionar/desplazar sin arrastrar la nota
 
   /* área de dibujo a mano */
   const drawWrap=document.createElement('div');drawWrap.className='stnote-draw-wrap';
@@ -3728,7 +3785,8 @@ function renderNote(nl,nd,num,focus){
     const ann=annotations[num];if(ann){const x=ann.notes.find(n=>n.id===nd.id);if(x)x.mode=m}
     btnType.classList.toggle('on',m==='text');
     btnDraw.classList.toggle('on',m==='draw');
-    ta.style.display=m==='draw'?'none':'block';
+    ta.style.display=(m==='draw'||richNote)?'none':'block';
+    roEl.style.display=(m==='draw'||!richNote)?'none':'block';
     drawWrap.style.display=m==='draw'?'block':'none';
     if(m==='draw')redrawNoteCanvas();
     else{ta.style.height='auto';ta.style.height=ta.scrollHeight+'px'}
@@ -3737,7 +3795,7 @@ function renderNote(nl,nd,num,focus){
   btnType.onclick=()=>setMode('text');
   btnDraw.onclick=()=>setMode('draw');
 
-  body.append(modeRow,ta,drawWrap);
+  body.append(modeRow,ta,roEl,drawWrap);
 
   /* fila de colores: usa la paleta activa, para vincular la nota al tipo de
      contenido (Definiciones, Autores, Conclusiones…) por color */
@@ -3810,7 +3868,7 @@ function renderNote(nl,nd,num,focus){
 /* título mostrado para una nota (fallback al inicio del cuerpo) */
 function noteTitle(n){
   if(n.title&&n.title.trim())return n.title.trim();
-  if(n.text&&n.text.trim())return firstWords(n.text,5)+'…';
+  if(n.text&&n.text.trim())return firstWords(richToPlain(n.text),5)+'…';
   return 'Nota sin título';
 }
 
@@ -4362,8 +4420,8 @@ function renderSummary(tab){
     hd.append(arrow,dot,t,p);
 
     const bd=document.createElement('div');bd.className='ent-body';
-    const tx=document.createElement('div');tx.className='ent-text';
-    tx.textContent=(n.text&&n.text.trim())?n.text:'(nota vacía)';
+    const tx=document.createElement('div');tx.className='ent-text rich-content';
+    tx.innerHTML=(n.text&&n.text.trim())?richHTML(n.text):'(nota vacía)';
     bd.appendChild(tx);
 
     const acts=document.createElement('div');acts.className='ent-acts';
@@ -4420,7 +4478,7 @@ function exportSummaryText(tab){
       i++;
       out+=`${String(i).padStart(2,'0')}. ${noteTitle(n).toUpperCase()}\n`;
       out+=`    ${'─'.repeat(44)}\n`;
-      const words=(n.text||'').split(/\s+/);let line='';
+      const words=richToPlain(n.text||'').split(/\s+/);let line='';
       words.forEach(w=>{
         if((line+' '+w).trim().length>72){out+='    '+line.trim()+'\n';line=w}
         else line+=' '+w;
@@ -5490,7 +5548,8 @@ function buildEntCard(kind,g){
   else{badge.textContent='Sin tema'}
   bd.appendChild(badge);
 
-  const txt=document.createElement('div');txt.className='ent-text';txt.textContent=g.body||'(vacío)';
+  const txt=document.createElement('div');txt.className='ent-text rich-content';
+  txt.innerHTML=(g.body&&String(g.body).trim())?richHTML(g.body):'(vacío)';
   bd.appendChild(txt);
 
   const acts=document.createElement('div');acts.className='ent-acts';
@@ -5595,7 +5654,7 @@ function exportEnts(kind){
     out+=`${String(i+1).padStart(2,'0')}. ${g.title.toUpperCase()}\n`;
     out+=`    ${'─'.repeat(44)}\n`;
     /* cuerpo ajustado a ~72 col con sangría, para que se lea bien */
-    const words=(g.body||'').split(/\s+/);let line='';
+    const words=richToPlain(g.body||'').split(/\s+/);let line='';
     words.forEach(w=>{
       if((line+' '+w).trim().length>72){out+='    '+line.trim()+'\n';line=w}
       else line+=' '+w;
@@ -6529,7 +6588,7 @@ async function exportAnnotated(){
         });
         (ann.strokes||[]).forEach(s=>{if(!s.points||s.points.length<2)return;ctx.save();ctx.strokeStyle=s.color;ctx.lineWidth=s.size*f;ctx.lineCap='round';ctx.lineJoin='round';ctx.globalAlpha=(s.opacity??100)/100;ctx.beginPath();ctx.moveTo(s.points[0].x*f,s.points[0].y*f);s.points.forEach(p=>ctx.lineTo(p.x*f,p.y*f));ctx.stroke();ctx.restore()});
         (ann.covers||[]).forEach(c=>{if(!c.open){ctx.save();ctx.fillStyle=c.color;roundRect(ctx,c.x*f,c.y*f,c.w*f,c.h*f,8*f);ctx.fill();ctx.restore()}});
-        (ann.notes||[]).forEach(n=>{if(!n.text)return;const nx=n.x*f,ny=n.y*f,nw=160*f,pad=8*f;ctx.font=(12*f)+'px sans-serif';const lines=wrapText(ctx,n.text,nw-pad*2);const nh=pad*2+lines.length*(15*f);ctx.save();ctx.fillStyle='#FFF0C9';ctx.shadowColor='rgba(0,0,0,.2)';ctx.shadowBlur=6*f;ctx.fillRect(nx,ny,nw,nh);ctx.restore();ctx.fillStyle='#4A4458';lines.forEach((ln,j)=>ctx.fillText(ln,nx+pad,ny+pad+(j+.8)*(15*f)))});
+        (ann.notes||[]).forEach(n=>{if(!n.text)return;const nx=n.x*f,ny=n.y*f,nw=160*f,pad=8*f;ctx.font=(12*f)+'px sans-serif';const lines=wrapText(ctx,richToPlain(n.text),nw-pad*2);const nh=pad*2+lines.length*(15*f);ctx.save();ctx.fillStyle='#FFF0C9';ctx.shadowColor='rgba(0,0,0,.2)';ctx.shadowBlur=6*f;ctx.fillRect(nx,ny,nw,nh);ctx.restore();ctx.fillStyle='#4A4458';lines.forEach((ln,j)=>ctx.fillText(ln,nx+pad,ny+pad+(j+.8)*(15*f)))});
       }
       const wOut=cv.width*.75/ES,hOut=cv.height*.75/ES;
       if(!out)out=new jsPDF({orientation:wOut>hOut?'l':'p',unit:'pt',format:[wOut,hOut]});else out.addPage([wOut,hOut],wOut>hOut?'l':'p');
