@@ -346,17 +346,7 @@ body.fullscreen #rd-bottom-show{display:none}
 .sp-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 12px}
 .sp-action-btn{width:100%;padding:12px;background:var(--lila);border:none;border-radius:12px;color:var(--ink);font-size:14px;font-weight:500;cursor:pointer}
 .sp-action-btn:active{opacity:.8}
-.sp-add-row{display:flex;gap:6px;padding:8px 10px;flex-shrink:0;border-bottom:1px solid var(--border);align-items:flex-start}
-.sp-add-row input,.sp-add-row textarea{flex:1;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);font-size:16px;padding:9px 10px;outline:none;user-select:text;-webkit-user-select:text;font-family:inherit;min-width:0;box-sizing:border-box}
-/* La fecha es corta (un año, una fecha): no necesita la mitad del panel.
-   El autor/evento es el campo largo y se lleva el espacio.
-   (El textarea no heredaba NINGÚN estilo porque la regla solo cubría `input`:
-   de ahí que la fecha saliera enorme y el autor diminuto.) */
-#tl-date{flex:0 0 92px;max-width:92px;text-align:center}
-#tl-author{flex:1 1 auto;resize:none;line-height:1.4;min-height:38px;max-height:110px;overflow-y:auto}
-#tl-add{align-self:stretch;min-height:38px}
 .side-panel input,.side-panel textarea{user-select:text;-webkit-user-select:text;font-size:16px}
-.sp-add-row button{padding:9px 12px;background:var(--rosa);border:none;border-radius:10px;color:var(--ink);font-size:14px;font-weight:600;cursor:pointer}
 
 /* notes panel */
 #notes-panel{position:fixed;right:-320px;top:0;width:300px;max-width:90vw;height:100%;height:100dvh;background:var(--card);border-left:1px solid var(--border);box-shadow:-6px 0 24px rgba(120,100,140,.14);z-index:600;display:flex;flex-direction:column;transition:right .26s cubic-bezier(.4,0,.2,1)}
@@ -535,16 +525,6 @@ body.fullscreen #rd-bottom-show{display:none}
 .thumb-act svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.6;
   stroke-linecap:round;stroke-linejoin:round}
 
-/* timeline */
-.tl-item{display:flex;gap:10px;padding-bottom:16px;position:relative}
-.tl-item:not(:last-child)::before{content:'';position:absolute;left:9px;top:22px;bottom:0;width:2px;background:var(--border)}
-.tl-dot{width:20px;height:20px;border-radius:50%;flex-shrink:0;margin-top:2px;border:2px solid #fff;box-shadow:0 0 0 2px var(--border)}
-.tl-content{flex:1;cursor:pointer}
-.tl-date{font-size:13px;font-weight:600;color:var(--ink)}
-.tl-author{font-size:12px;color:var(--ink2);margin-top:2px}
-.tl-src{font-size:11px;color:var(--ink3);margin-top:1px}
-.tl-del{background:none;border:none;font-size:16px;color:var(--ink3);cursor:pointer;padding:2px;flex-shrink:0;align-self:flex-start}
-
 /* glossary */
 .glos-letter{font-size:11px;font-weight:700;color:var(--ink2);letter-spacing:.1em;text-transform:uppercase;padding:10px 4px 4px;border-bottom:1px solid var(--border);margin-bottom:4px}
 .theme-hd{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:10px;margin:12px 0 8px}
@@ -691,10 +671,6 @@ body.fullscreen #fs-hint{display:block!important}
   cursor:pointer;padding:2px 7px;line-height:1;touch-action:manipulation}
 body.fullscreen #gid-bar{bottom:20px}
 
-/* ═══ TIMELINE (arreglado: no se corta el autor) ═══ */
-.tl-author{white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere}
-.tl-date{word-break:break-word}
-.tl-content{min-width:0}
 </style>
 </head>
 <body>
@@ -821,8 +797,8 @@ body.fullscreen #gid-bar{bottom:20px}
     <button class="tool-btn" id="tb-bookmarks" title="Marcadores de página">
       <svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
     </button>
-    <button class="tool-btn" id="tb-timeline" title="Línea de tiempo">
-      <svg viewBox="0 0 24 24"><line x1="2" y1="12" x2="22" y2="12"/><circle cx="6" cy="12" r="2.5"/><circle cx="12" cy="12" r="2.5"/><circle cx="18" cy="12" r="2.5"/><line x1="6" y1="9.5" x2="6" y2="7"/><line x1="12" y1="9.5" x2="12" y2="5"/><line x1="18" y1="9.5" x2="18" y2="8"/></svg>
+    <button class="tool-btn" id="tb-proc" title="Procesos y teorías">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="6" rx="1.5"/><rect x="14" y="3" width="7" height="6" rx="1.5"/><rect x="8.5" y="15" width="7" height="6" rx="1.5"/><path d="M6.5 9v3a3 3 0 003 3M17.5 9v3a3 3 0 01-3 3"/></svg>
     </button>
     <button class="tool-btn" id="tb-glossary" title="Glosario automático">
       <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
@@ -949,18 +925,13 @@ body.fullscreen #gid-bar{bottom:20px}
   <div id="thumbs-body" class="sp-body"></div>
 </div>
 
-<!-- timeline panel -->
-<div id="timeline-panel" class="side-panel">
+<!-- procesos y teorías panel (sustituye a la antigua línea de tiempo) -->
+<div id="proc-panel" class="side-panel">
   <div class="sp-top">
-    <span class="sp-title">Línea de tiempo</span>
-    <button class="sp-close" data-panel="timeline-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <span class="sp-title">🔁 Procesos y teorías</span>
+    <button class="sp-close" data-panel="proc-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
-  <div class="sp-add-row" id="tl-add-row">
-    <input id="tl-date" placeholder="Fecha / Año" type="text">
-    <textarea id="tl-author" placeholder="Autor o evento (Enter = salto de línea)" rows="1"></textarea>
-    <button id="tl-add">＋</button>
-  </div>
-  <div id="timeline-body" class="sp-body"></div>
+  <div id="proc-body" class="sp-body"></div>
 </div>
 
 <!-- glossary panel -->
@@ -1235,6 +1206,22 @@ body.fullscreen #gid-bar{bottom:20px}
     <div class="modal-btns">
       <button class="mbtn cancel" id="cmap-preview-close">Cerrar</button>
       <button class="mbtn ok" id="cmap-preview-open">Ver ficha completa</button>
+    </div>
+  </div>
+</div>
+
+<!-- modal de proceso/teoría: título + tema -->
+<div class="modal-bg hidden" id="modal-proc">
+  <div class="modal">
+    <h3>Proceso o teoría</h3>
+    <input id="proc-title-in" type="text" placeholder="Título (ej: Etapas del duelo — Kübler-Ross)" maxlength="150">
+    <div style="margin:0 0 12px">
+      <label style="display:block;font-size:12.5px;color:var(--ink2);margin-bottom:5px">Tema</label>
+      <select id="proc-theme-in" style="width:100%;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);font-size:15px;padding:11px;outline:none;font-family:inherit"></select>
+    </div>
+    <div class="modal-btns">
+      <button class="mbtn cancel" id="modal-proc-cancel">Cancelar</button>
+      <button class="mbtn ok" id="modal-proc-ok">Guardar</button>
     </div>
   </div>
 </div>
@@ -4023,7 +4010,7 @@ const notesPanel=document.getElementById('notes-panel');
    abrir un panel.
    ══════════════════════════════════════════════════════════════════ */
 const ALL_PANELS=['notes-panel','summary-panel','bookmarks-panel','thumbs-panel',
-                  'timeline-panel','glossary-panel','conclusions-panel','aclar-panel','resumen-panel','cmap-panel'];
+                  'proc-panel','glossary-panel','conclusions-panel','aclar-panel','resumen-panel','cmap-panel'];
 function closeAllPanels(except){
   ALL_PANELS.forEach(id=>{
     if(id===except)return;
@@ -4952,49 +4939,116 @@ async function renderThumbs(){
   });
 }
 
-/* ══ TIMELINE ══ */
-function tlKey(){return 'lp_tl_'+currentFileId}
-function loadTl(){try{return JSON.parse(localStorage.getItem(tlKey())||'[]')}catch(e){return[]}}
-function saveTl(arr){try{localStorage.setItem(tlKey(),JSON.stringify(arr))}catch(e){}}
+/* ══ PROCESOS Y TEORÍAS (sustituye a la antigua Línea de tiempo) ══
+   lp_tl_<id> (fechas/autor/evento) se queda intacta en el disco y en las
+   copias de seguridad, solo deja de tener panel: Elena no la usa (estudia
+   psicología, no historia) y pidió sustituirla por completo, pero los datos
+   no se tocan sin que lo pida explícitamente.
 
-document.getElementById('tb-timeline').onclick=()=>{renderTimeline();openPanel('timeline-panel')};
-document.querySelector('#timeline-panel .sp-close').onclick=()=>document.getElementById('timeline-panel').classList.remove('open');
-document.getElementById('tl-add').onclick=()=>{
-  const d=document.getElementById('tl-date').value.trim(),a=document.getElementById('tl-author').value.trim();
-  if(!d&&!a){showTip('Escribe al menos la fecha o el evento');return}
-  const tl=loadTl();tl.push({id:uid(),date:d,author:a,page:curPid(),color:curColor});saveTl(tl);
-  document.getElementById('tl-date').value='';
-  const ta=document.getElementById('tl-author');ta.value='';ta.style.height='auto';
-  renderTimeline();showTip('Añadido a la línea de tiempo',1400);
+   Diagramas de pasos por etapas para teorías/ciclos: cada paso guarda en
+   `from` de qué pasos anteriores recibe una flecha. Varias entradas en
+   `from` = convergencia (dos pasos alimentan a un tercero). Un `from` que
+   apunta a un paso que quedará DESPUÉS en el diagrama = ciclo: se detecta
+   en el algoritmo de colocación (pieza siguiente), no se prohíbe aquí. */
+function procKey(){return 'lp_proc_'+currentFileId}
+function loadProc(){try{return JSON.parse(localStorage.getItem(procKey())||'[]')}catch(e){return[]}}
+function saveProc(arr){try{localStorage.setItem(procKey(),JSON.stringify(arr))}catch(e){}}
+
+/* editor de proceso: título + tema (mismo select que usa askEmbedEdit) */
+let procEditRes=null;
+document.getElementById('modal-proc-cancel').onclick=()=>{document.getElementById('modal-proc').classList.add('hidden');procEditRes&&procEditRes(null)};
+document.getElementById('modal-proc-ok').onclick=()=>{
+  const t=document.getElementById('proc-title-in').value.trim();if(!t){showTip('Escribe un título');return}
+  const themeId=document.getElementById('proc-theme-in').value||null;
+  document.getElementById('modal-proc').classList.add('hidden');
+  procEditRes&&procEditRes({title:t,themeId});
 };
-/* Fecha: Enter añade. Autor/evento: Enter = salto de línea real (se conserva
-   al mostrarlo, gracias a white-space:pre-wrap en .tl-author). */
-document.getElementById('tl-date').addEventListener('keydown',e=>{
-  if(e.key==='Enter'){e.preventDefault();document.getElementById('tl-add').click()}
-});
-const tlAuthorEl=document.getElementById('tl-author');
-/* Enter = salto de linea (es una textarea); Ctrl/Cmd+Enter = anadir. */
-tlAuthorEl.addEventListener('keydown',e=>{
-  if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();document.getElementById('tl-add').click()}
-});
-tlAuthorEl.addEventListener('input',()=>{
-  tlAuthorEl.style.height='auto';
-  tlAuthorEl.style.height=Math.min(tlAuthorEl.scrollHeight,110)+'px';
-});
-addPanelSwipe('timeline-panel');
-function renderTimeline(){
-  const body=document.getElementById('timeline-body');body.innerHTML='';
-  const tl=loadTl().sort((a,b)=>String(a.date).localeCompare(String(b.date),undefined,{numeric:true}));
-  if(!tl.length){const em=document.createElement('div');em.className='np-empty';em.textContent='Añade fechas, autores y eventos para generar la línea de tiempo del documento.';body.appendChild(em);return}
-  tl.forEach(ev=>{
-    const item=document.createElement('div');item.className='tl-item';
-    item.innerHTML=`<div class="tl-dot" style="background:${ev.color||'#E3D0F5'}"></div><div class="tl-content"><div class="tl-date">${esc(ev.date||'—')}</div><div class="tl-author">${esc(ev.author||'')}</div><div class="tl-src">Pág. ${pageLabel(ev.page)}</div></div><button class="tl-del">×</button>`;
-    /* ev.page es un PID: hay que traducirlo a posicion antes de navegar. */
-    item.querySelector('.tl-content').onclick=()=>{goPage(posOfPid(ev.page));document.getElementById('timeline-panel').classList.remove('open')};
-    item.querySelector('.tl-del').onclick=()=>{const tl2=loadTl();const i=tl2.findIndex(x=>x.id===ev.id);if(i>-1)tl2.splice(i,1);saveTl(tl2);renderTimeline()};
-    body.appendChild(item);
-  });
+function askProc(title,themeId){return new Promise(r=>{
+  procEditRes=r;
+  document.getElementById('proc-title-in').value=title||'';
+  const sel=document.getElementById('proc-theme-in');sel.innerHTML='';
+  const optNone=document.createElement('option');optNone.value='';optNone.textContent='Sin tema';sel.appendChild(optNone);
+  loadThemes().sort((a,b)=>(a.num||0)-(b.num||0)).forEach(t=>{
+    const o=document.createElement('option');o.value=t.id;
+    o.textContent=(t.num?t.num+' · ':'')+(t.name||'Tema');sel.appendChild(o)});
+  sel.value=themeId||'';
+  document.getElementById('modal-proc').classList.remove('hidden');
+  setTimeout(()=>document.getElementById('proc-title-in').focus(),80);
+})}
+
+function refreshProcPanel(){
+  const body=document.getElementById('proc-body');body.innerHTML='';
+  const procs=loadProc();
+  const addBtn=document.createElement('button');addBtn.className='node-add-btn';addBtn.textContent='＋ Nuevo proceso';
+  addBtn.onclick=async()=>{
+    const d=await askProc('',null);if(!d)return;
+    procs.push({id:uid(),title:d.title,themeId:d.themeId,steps:[],open:true,created:Date.now()});
+    saveProc(procs);refreshProcPanel();showTip('Proceso creado',1400);
+  };
+  body.appendChild(addBtn);
+  if(!procs.length){
+    const em=document.createElement('div');em.className='np-empty';
+    em.textContent='Crea un proceso por cada teoría o ciclo por etapas: Piaget, el ciclo del duelo, un modelo de condicionamiento... Cada paso podrá recibir flechas de varios anteriores.';
+    body.appendChild(em);return;
+  }
+  procs.forEach(p=>body.appendChild(buildProcCard(p,procs)));
 }
+/* `procs` es siempre la misma referencia durante todo el render, igual que
+   `maps` en el mapa conceptual: guardar desde una tarjeta no pierde los
+   cambios de las demás. */
+function buildProcCard(proc,procs){
+  const card=document.createElement('div');card.className='cmap-card';
+  const hd=document.createElement('div');hd.className='cmap-hd';
+  const arrow=document.createElement('span');arrow.className='cmap-arrow'+(proc.open?' open':'');arrow.textContent='›';
+  const title=document.createElement('span');title.className='cmap-title';title.textContent=proc.title;
+  hd.append(arrow,title);
+  const th=proc.themeId?themeById(proc.themeId):null;
+  if(th){
+    const badge=document.createElement('span');badge.className='ent-theme-badge';
+    badge.style.marginBottom='0';badge.style.flexShrink='0';
+    badge.style.background=th.color;
+    badge.textContent=(th.num?th.num+' · ':'')+(th.name||'Tema');
+    hd.appendChild(badge);
+  }
+
+  const body=document.createElement('div');body.className='cmap-body-wrap'+(proc.open?' open':'');
+  if(!proc.steps.length){
+    const em=document.createElement('div');em.className='cmap-desc';em.style.color='var(--ink3)';
+    em.textContent='Sin pasos todavía.';
+    body.appendChild(em);
+  }
+
+  const acts=document.createElement('div');acts.className='cmap-acts';
+  const editBtn=document.createElement('button');editBtn.className='cmap-act-btn';editBtn.textContent='✎ Editar';
+  editBtn.onclick=async e=>{
+    e.stopPropagation();
+    const d=await askProc(proc.title,proc.themeId);if(!d)return;
+    proc.title=d.title;proc.themeId=d.themeId;
+    saveProc(procs);refreshProcPanel();
+  };
+  const delBtn=document.createElement('button');delBtn.className='cmap-act-btn del';delBtn.textContent='Eliminar';
+  delBtn.onclick=async e=>{
+    e.stopPropagation();
+    const ok=await askConfirm(`¿Eliminar el proceso "${proc.title}" y todos sus pasos?`);if(!ok)return;
+    const i=procs.indexOf(proc);if(i>-1)procs.splice(i,1);
+    saveProc(procs);refreshProcPanel();
+  };
+  acts.append(editBtn,delBtn);
+  body.appendChild(acts);
+  card.append(hd,body);
+
+  hd.onclick=()=>{
+    proc.open=!proc.open;
+    arrow.classList.toggle('open',proc.open);
+    body.classList.toggle('open',proc.open);
+    saveProc(procs);
+  };
+  return card;
+}
+
+document.getElementById('tb-proc').onclick=()=>{openPanel('proc-panel');refreshProcPanel()};
+document.querySelector('#proc-panel .sp-close').onclick=()=>document.getElementById('proc-panel').classList.remove('open');
+addPanelSwipe('proc-panel');
 
 /* ══ GLOSARIO · CONCLUSIONES ══ */
 function isDefColor(c){const defs=['#F9D5E5','#FF2D75','#DDA0A8','#F5C7D8'];return defs.some(d=>d.toLowerCase()===(c||'').toLowerCase())}
@@ -5547,7 +5601,7 @@ function openThemesMgr(kind){
    Al borrar un PDF hay que barrerlas: si no, quedan huerfanas para siempre y
    ademas un documento nuevo con el mismo id heredaria datos ajenos. */
 const DOC_KEY_PREFIXES=['lp_order_','lp_margin_','lp_nodes_','lp_embeds_','lp_bm_',
-  'lp_tl_','lp_themes_','lp_thememap_','lp_glos_','lp_conc_','lp_aclar_','lp_cmap_',
+  'lp_tl_','lp_proc_','lp_themes_','lp_thememap_','lp_glos_','lp_conc_','lp_aclar_','lp_cmap_',
   'lp_delents_glos_','lp_delents_conc_','lp_delents_aclar_'];
 function purgeDocData(fileId){
   if(!fileId)return;
@@ -6500,6 +6554,7 @@ const MODAL_OK={
   'modal-subnode':'modal-subnode-ok',    // Anadir
   'modal-cmap':'modal-cmap-ok',          // Guardar
   'modal-cmap-preview':'cmap-preview-open', // Ver ficha completa
+  'modal-proc':'modal-proc-ok',          // Guardar
   'modal-bookmark':'modal-bookmark-ok',  // Guardar
   'modal-name':'modal-name-ok',          // Guardar
   'modal-confirm':'modal-confirm-ok',    // Eliminar (es la accion que se pidio)
@@ -6519,6 +6574,7 @@ const MODAL_CANCEL={
   'modal-cmap':'modal-cmap-cancel',
   'modal-cmap-link':'modal-cmap-link-cancel',
   'modal-cmap-preview':'cmap-preview-close',
+  'modal-proc':'modal-proc-cancel',
   'modal-bookmark':'modal-bookmark-cancel',
   'modal-name':'modal-name-cancel',
   'modal-confirm':'modal-confirm-cancel',
