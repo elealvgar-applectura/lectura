@@ -1267,7 +1267,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v73'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v74'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -4095,8 +4095,23 @@ function renderEmbeds(){
     const wrap=pagesInner.querySelector(`[data-page="${emb.page}"]`);if(!wrap)return;
     const nl=wrap.querySelector('.note-layer');if(!nl)return;
     const data=resolveEmbed(emb);if(!data)return;
-    nl.appendChild(buildEmbedCard(emb,data,nl));
+    const card=buildEmbedCard(emb,data,nl);
+    nl.appendChild(card);
+    /* tarjetas guardadas antes de poner topes pueden salirse de la página y
+       dejar el asa de ampliar fuera de la vista: las encajamos al mostrarlas.
+       Solo se ajusta lo que se ve; el tamaño guardado no se toca hasta que el
+       usuario mueva o redimensione la tarjeta a propósito. */
+    fitEmbedCard(card,nl);
   });
+}
+/* encaja una tarjeta dentro de los límites de la página (sin guardar nada) */
+function fitEmbedCard(card,nl){
+  const lw=nl.clientWidth,lh=nl.clientHeight;
+  if(!lw||!lh)return;
+  if(card.offsetWidth>lw)card.style.width=lw+'px';
+  if(card.offsetHeight>lh&&card.style.height)card.style.height=lh+'px';
+  if(card.offsetLeft+card.offsetWidth>lw)card.style.left=Math.max(0,lw-card.offsetWidth)+'px';
+  if(card.offsetTop+card.offsetHeight>lh)card.style.top=Math.max(0,lh-card.offsetHeight)+'px';
 }
 function buildEmbedCard(emb,data,nl){
   const card=document.createElement('div');card.className='emb-card'+(emb.mini?' mini':'');
@@ -4153,24 +4168,38 @@ function buildEmbedCard(emb,data,nl){
     const arr=loadEmbeds().filter(z=>z.id!==emb.id);saveEmbeds(arr);card.remove();
   });
 
-  /* arrastrar la tarjeta por la cabecera */
+  /* arrastrar la tarjeta: por la cabecera y también por los huecos vacíos del
+     cuerpo. Antes solo se movía por la cabecera; si una tarjeta era más grande
+     que la página, el asa de la esquina quedaba fuera y no había forma de
+     reducirla. Solo arrancan el arrastre los huecos vacíos (el propio body, la
+     fila de botones o el marco de la tarjeta), nunca el texto ni los botones,
+     para no estorbar al leer ni al pulsar "Ir a pág.". */
   let dox,doy,dragging=false;
-  hd.addEventListener('pointerdown',e=>{
-    if(e.target===arrow||e.target===del)return;
-    dragging=true;hd.setPointerCapture(e.pointerId);
-    const nr=card.getBoundingClientRect();
-    dox=e.clientX-nr.left;doy=e.clientY-nr.top;
-    e.preventDefault();
-  },{passive:false});
-  hd.addEventListener('pointermove',e=>{
-    if(!dragging)return;e.preventDefault();
-    const lr=nl.getBoundingClientRect();
-    const nx=e.clientX-lr.left-dox,ny=e.clientY-lr.top-doy;
-    card.style.left=Math.max(0,nx)+'px';card.style.top=Math.max(0,ny)+'px';
-    emb.x=nx/scale;emb.y=ny/scale;
-  },{passive:false});
-  hd.addEventListener('pointerup',()=>{if(dragging){dragging=false;const arr=loadEmbeds();const x=arr.find(z=>z.id===emb.id);if(x){x.x=emb.x;x.y=emb.y}saveEmbeds(arr)}});
-  hd.addEventListener('pointercancel',()=>{dragging=false});
+  const dragFrom=(el,ok)=>{
+    el.addEventListener('pointerdown',e=>{
+      if(!ok(e))return;
+      dragging=true;el.setPointerCapture(e.pointerId);
+      const nr=card.getBoundingClientRect();
+      dox=e.clientX-nr.left;doy=e.clientY-nr.top;
+      e.preventDefault();
+    },{passive:false});
+    el.addEventListener('pointermove',e=>{
+      if(!dragging)return;e.preventDefault();
+      const lr=nl.getBoundingClientRect(),cr=card.getBoundingClientRect();
+      /* no dejamos que la tarjeta se salga de la página: así el asa de ampliar
+         de la esquina inferior derecha siempre queda alcanzable */
+      const maxX=Math.max(0,lr.width-cr.width),maxY=Math.max(0,lr.height-cr.height);
+      const nx=Math.min(maxX,Math.max(0,e.clientX-lr.left-dox));
+      const ny=Math.min(maxY,Math.max(0,e.clientY-lr.top-doy));
+      card.style.left=nx+'px';card.style.top=ny+'px';
+      emb.x=nx/scale;emb.y=ny/scale;
+    },{passive:false});
+    el.addEventListener('pointerup',()=>{if(dragging){dragging=false;const arr=loadEmbeds();const x=arr.find(z=>z.id===emb.id);if(x){x.x=emb.x;x.y=emb.y}saveEmbeds(arr)}});
+    el.addEventListener('pointercancel',()=>{dragging=false});
+  };
+  dragFrom(hd,e=>e.target!==arrow&&e.target!==del);
+  dragFrom(body,e=>e.target===body||e.target===acts);
+  dragFrom(card,e=>e.target===card);
 
   /* asa de redimensión libre (esquina inferior derecha); persiste al soltar */
   const rz=document.createElement('div');rz.className='emb-resize';rz.title='Ampliar';
@@ -4178,7 +4207,12 @@ function buildEmbedCard(emb,data,nl){
   rz.addEventListener('pointerdown',e=>{e.stopPropagation();e.preventDefault();rzing=true;rz.setPointerCapture(e.pointerId);
     rx=e.clientX;ry=e.clientY;const r=card.getBoundingClientRect();rw=r.width;rh=r.height},{passive:false});
   rz.addEventListener('pointermove',e=>{if(!rzing)return;e.preventDefault();e.stopPropagation();
-    const nw=Math.max(150,rw+(e.clientX-rx)),nh=Math.max(70,rh+(e.clientY-ry));
+    /* tope: que no crezca más allá del borde de la página, para que el asa
+       nunca se quede fuera de la vista */
+    const lr=nl.getBoundingClientRect();
+    const maxW=Math.max(150,lr.width-card.offsetLeft),maxH=Math.max(70,lr.height-card.offsetTop);
+    const nw=Math.min(maxW,Math.max(150,rw+(e.clientX-rx)));
+    const nh=Math.min(maxH,Math.max(70,rh+(e.clientY-ry)));
     card.style.width=nw+'px';card.style.height=nh+'px';emb.w=nw/scale;emb.h=nh/scale},{passive:false});
   rz.addEventListener('pointerup',e=>{if(!rzing)return;rzing=false;e.stopPropagation();
     const arr=loadEmbeds();const x=arr.find(z=>z.id===emb.id);if(x){x.w=emb.w;x.h=emb.h}saveEmbeds(arr)});
