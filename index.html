@@ -444,6 +444,16 @@ body.fullscreen #rd-bottom-show{display:none}
 .cmap-link{color:#3a7afe;text-decoration:underline;text-decoration-style:dotted;cursor:pointer}
 .cmap-link:active{opacity:.6}
 #cmap-link-btn{font-size:12.5px}
+/* mapa conceptual plasmado en la página: mismo árbol, solo lectura */
+.cmap-ro-item{margin:2px 0}
+.cmap-ro-hd{display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer}
+.cmap-ro-arrow{font-size:11px;color:var(--ink3);transition:transform .18s;flex-shrink:0}
+.cmap-ro-arrow.open{transform:rotate(90deg)}
+.cmap-ro-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.cmap-ro-title{font-size:12.5px;font-weight:700;color:var(--ink)}
+.cmap-ro-body{display:none;padding-left:16px;border-left:1.5px solid var(--border);margin-left:3px}
+.cmap-ro-body.open{display:block}
+.cmap-ro-body .cmap-desc{margin:2px 0 4px}
 /* node anchors on PDF */
 .node-anchor{position:absolute;left:4px;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--ink);cursor:pointer;border:2px solid #fff;box-shadow:0 2px 8px rgba(120,100,140,.3);z-index:10;pointer-events:all;transition:transform .1s;touch-action:manipulation}
 .node-anchor:active{transform:scale(.88)}
@@ -4249,6 +4259,12 @@ function resolveEmbed(emb){
       children:(n.children||[]).map(c=>({title:c.title,body:c.body})),
       goPage:(n.pages||[])[0]};
   }
+  if(emb.kind==='cmap'){
+    const found=findCmapNode(emb.refId);
+    if(!found)return null;
+    return{ic:'🗺️',color:cmapLevelDot(found.node.level),title:found.node.title,
+      cmapNode:found.node,cmapMaps:found.maps,goPage:found.node.page};
+  }
   const ent=loadEnts(emb.kind).find(x=>x.gid===emb.refId||x.id===emb.refId);
   if(!ent)return null;
   return{ic:emb.kind==='glos'?'📖':'💡',color:ENT_KINDS[emb.kind].dot,
@@ -4301,15 +4317,23 @@ function buildEmbedCard(emb,data,nl){
   hd.append(arrow,ic,title,del);
 
   const body=document.createElement('div');body.className='emb-body'+(emb.mini?'':' open');
-  if(data.text){const t=document.createElement('div');t.className='emb-text rich-content';t.innerHTML=richHTML(data.text);body.appendChild(t)}
-  if(data.children&&data.children.length){
-    const sub=document.createElement('div');sub.className='emb-sub';
-    data.children.forEach(ch=>{
-      const si=document.createElement('div');si.className='emb-sub-item';
-      si.innerHTML=`<div class="emb-sub-t">${esc(ch.title||'')}</div>${ch.body?`<div class="emb-sub-d rich-content">${richHTML(ch.body)}</div>`:''}`;
-      sub.appendChild(si);
-    });
-    body.appendChild(sub);
+  if(emb.kind==='cmap'){
+    /* el mapa conceptual se pinta como árbol completo, plegable, en modo
+       solo lectura (sin editar/subnivel/eliminar aquí: eso se hace desde el
+       panel). Los enlaces .cmap-link funcionan igual: el clic se resuelve
+       con el mismo delegado a nivel de documento de la pieza anterior. */
+    body.appendChild(buildCmapReadonlyNode(data.cmapNode,data.cmapMaps));
+  }else{
+    if(data.text){const t=document.createElement('div');t.className='emb-text rich-content';t.innerHTML=richHTML(data.text);body.appendChild(t)}
+    if(data.children&&data.children.length){
+      const sub=document.createElement('div');sub.className='emb-sub';
+      data.children.forEach(ch=>{
+        const si=document.createElement('div');si.className='emb-sub-item';
+        si.innerHTML=`<div class="emb-sub-t">${esc(ch.title||'')}</div>${ch.body?`<div class="emb-sub-d rich-content">${richHTML(ch.body)}</div>`:''}`;
+        sub.appendChild(si);
+      });
+      body.appendChild(sub);
+    }
   }
   const acts=document.createElement('div');acts.className='emb-acts';
   if(data.goPage){
@@ -5894,6 +5918,46 @@ function cmapNextLevel(level){
 }
 function cmapLevelDot(level){return(CMAP_LEVEL_META[level]&&CMAP_LEVEL_META[level].dot)||'#C9C3D6'}
 
+/* busca un nodo por id en TODOS los mapas/temas del documento. Devuelve
+   también `maps` (el array raíz completo) para poder guardar cambios de
+   plegado desde la tarjeta plasmada, igual que hace el panel. */
+function findCmapNode(id){
+  const maps=loadCmap();
+  let found=null;
+  const walk=n=>{if(found)return;if(n.id===id){found=n;return}(n.children||[]).forEach(walk)};
+  maps.forEach(walk);
+  return found?{node:found,maps}:null;
+}
+/* versión de solo lectura del árbol, para la tarjeta plasmada en la página:
+   sin editar/subnivel/eliminar, pero SÍ pliega/despliega (comparte el mismo
+   node.fold que el panel) y los .cmap-link siguen siendo clicables (delegado
+   a nivel de documento, ya cableado en la pieza de hipervínculos). */
+function buildCmapReadonlyNode(node,maps){
+  const wrap=document.createElement('div');wrap.className='cmap-ro-item';
+  const hd=document.createElement('div');hd.className='cmap-ro-hd';
+  const arrow=document.createElement('span');arrow.className='cmap-ro-arrow'+(node.fold?'':' open');arrow.textContent='›';
+  const dot=document.createElement('span');dot.className='cmap-ro-dot';dot.style.background=cmapLevelDot(node.level);
+  const title=document.createElement('span');title.className='cmap-ro-title';title.textContent=node.title;
+  hd.append(arrow,dot,title);
+
+  const body=document.createElement('div');body.className='cmap-ro-body'+(node.fold?'':' open');
+  if(node.desc&&String(node.desc).trim()){
+    const d=document.createElement('div');d.className='cmap-desc rich-content';d.innerHTML=richHTML(node.desc);
+    body.appendChild(d);
+  }
+  (node.children||[]).forEach(ch=>body.appendChild(buildCmapReadonlyNode(ch,maps)));
+
+  wrap.append(hd,body);
+  hd.onclick=e=>{
+    e.stopPropagation();
+    node.fold=!node.fold;
+    arrow.classList.toggle('open',!node.fold);
+    body.classList.toggle('open',!node.fold);
+    saveCmap(maps);
+  };
+  return wrap;
+}
+
 /* Recorre TODO el árbol de un mapa aplicando fn a cada nodo (usado por
    "Desplegar/Plegar todo" y por las anclas de página). */
 function cmapWalk(node,fn){fn(node);(node.children||[]).forEach(ch=>cmapWalk(ch,fn))}
@@ -5955,7 +6019,13 @@ function buildCmapEl(node,siblings,maps){
     const i=siblings.indexOf(node);if(i>-1)siblings.splice(i,1);
     saveCmap(maps);refreshCmapPanel();renderPageAnchors();
   };
-  acts.append(goBtn,editBtn,subBtn,delBtn);
+  const embBtn=document.createElement('button');embBtn.className='cmap-act-btn sub';embBtn.textContent='📌 Plasmar';
+  embBtn.onclick=e=>{
+    e.stopPropagation();
+    addEmbed('cmap',node.id,curPid());
+    document.getElementById('cmap-panel').classList.remove('open');
+  };
+  acts.append(goBtn,editBtn,subBtn,embBtn,delBtn);
   body.appendChild(acts);
   card.append(hd,body);
 
