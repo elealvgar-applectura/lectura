@@ -328,12 +328,15 @@ body.fullscreen #rd-bottom-show{display:none}
    CIERRE: antes se escondía con `right:-340px`, un número atado al ancho
    fijo. Con el ancho variable eso ya no vale, así que se desliza con
    transform: funciona sea cual sea el ancho. */
-.side-panel,#notes-panel{position:fixed;right:0;top:0;
-  width:clamp(320px,44vw,760px);max-width:94vw;
+/* Todos los paneles llevan la clase .side-panel (incluido #notes-panel, que
+   antes se estilaba por su id: con un selector de id ganaba a .floating por
+   especificidad y era el único que no podía verse en ventana). */
+.side-panel{position:fixed;right:0;top:0;
+  width:clamp(320px,38vw,720px);max-width:94vw;
   height:100%;height:100dvh;background:var(--card);border-left:1px solid var(--border);
   box-shadow:-6px 0 24px rgba(120,100,140,.14);z-index:600;display:flex;flex-direction:column;
   transform:translateX(101%);transition:transform .26s cubic-bezier(.4,0,.2,1)}
-.side-panel.open,#notes-panel.open{transform:translateX(0)}
+.side-panel.open{transform:translateX(0)}
 .sp-top{display:flex;align-items:center;gap:8px;padding:0 12px;height:54px;border-bottom:1px solid var(--border);flex-shrink:0}
 .sp-title{font-size:15px;font-weight:600;color:var(--ink);flex:1}
 .sp-themes{width:34px;height:34px;border:none;background:transparent;cursor:pointer;border-radius:10px;
@@ -496,22 +499,23 @@ body.fullscreen #rd-bottom-show{display:none}
 .proc-box{position:absolute;background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:7px 9px;box-shadow:0 1px 4px rgba(120,100,140,.1);display:flex;align-items:center;box-sizing:border-box}
 .proc-box-title{font-size:12px;font-weight:600;color:var(--ink);line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
 .proc-embed-diagram{width:100%;height:100%;overflow:auto;-webkit-overflow-scrolling:touch}
-/* modo ventana: SOLO el panel del mapa conceptual puede salir del borde y
-   ponerse centrado/movible (decisión explícita: el resto de paneles se
-   quedan siempre acoplados). El selector por id (#cmap-panel.floating) tiene
-   más peso que .side-panel.open, así que gana sin tocar esa regla común. */
-#cmap-panel.floating{
+/* ═══ MODO VENTANA ═══
+   TODOS los paneles pueden salir del borde y verse como ventana centrada,
+   movible y redimensionable (antes era solo el mapa conceptual). Va DESPUÉS
+   de la regla .open a propósito: las dos tienen la misma especificidad, así
+   que gana la última, y en modo ventana debe mandar ésta. */
+.side-panel.floating{
   right:auto;left:50%;top:50%;
   transform:translate(-50%,-50%);
-  width:440px;max-width:92vw;height:72vh;max-height:90vh;
+  width:min(1100px,88vw);max-width:96vw;height:82vh;max-height:92vh;
   border-radius:16px;border:1px solid var(--border);
   box-shadow:0 12px 48px rgba(120,100,140,.35);
   transition:none;
 }
-#cmap-panel.floating .sp-top{cursor:grab;touch-action:none;user-select:none}
-#cmap-panel.floating .sp-top:active{cursor:grabbing}
-#cmap-win-resize{position:absolute;right:2px;bottom:2px;width:22px;height:22px;cursor:nwse-resize;touch-action:none;display:none;background:linear-gradient(135deg,transparent 50%,rgba(120,100,140,.4) 50%);border-bottom-right-radius:14px;z-index:5}
-#cmap-panel.floating #cmap-win-resize{display:block}
+.side-panel.floating .sp-top{cursor:grab;touch-action:none;user-select:none}
+.side-panel.floating .sp-top:active{cursor:grabbing}
+.panel-win-resize{position:absolute;right:2px;bottom:2px;width:22px;height:22px;cursor:nwse-resize;touch-action:none;display:none;background:linear-gradient(135deg,transparent 50%,rgba(120,100,140,.4) 50%);border-bottom-right-radius:14px;z-index:5}
+.side-panel.floating .panel-win-resize{display:block}
 /* node anchors on PDF */
 .node-anchor{position:absolute;left:4px;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--ink);cursor:pointer;border:2px solid #fff;box-shadow:0 2px 8px rgba(120,100,140,.3);z-index:10;pointer-events:all;transition:transform .1s;touch-action:manipulation}
 .node-anchor:active{transform:scale(.88)}
@@ -922,7 +926,7 @@ body.fullscreen #gid-bar{bottom:20px}
 </div>
 
 <!-- concept nodes panel -->
-<div id="notes-panel">
+<div id="notes-panel" class="side-panel">
   <div id="notes-panel-top">
     <span style="flex:1;font-size:15px;font-weight:600;color:var(--ink)">Nodos conceptuales</span>
     <button id="notes-panel-close"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
@@ -1033,10 +1037,8 @@ body.fullscreen #gid-bar{bottom:20px}
   </div>
   <div id="cmap-toolrow" style="display:flex;gap:6px;padding:0 12px 8px;flex-shrink:0">
     <button id="cmap-toggle-all" class="nd-btn" title="Desplegar todo"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 9.5 12 15l5.5-5.5"/></svg></button>
-    <button id="cmap-toggle-win" class="nd-btn" title="Ver en ventana movible"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4.5H4.5V9M15 4.5H19.5V9M9 19.5H4.5V15M15 19.5H19.5V15"/></svg></button>
   </div>
   <div id="cmap-body" class="sp-body"></div>
-  <div id="cmap-win-resize"></div>
 </div>
 
 <!-- resumen (subrayados) panel -->
@@ -1478,7 +1480,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v81'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v82'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -4139,8 +4141,7 @@ const ALL_PANELS=['notes-panel','summary-panel','bookmarks-panel','thumbs-panel'
 function closeAllPanels(except){
   ALL_PANELS.forEach(id=>{
     if(id===except)return;
-    const el=document.getElementById(id);
-    if(el)el.classList.remove('open');
+    closePanel(id);
   });
 }
 function openPanel(id){
@@ -4149,6 +4150,110 @@ function openPanel(id){
   if(el)el.classList.add('open');
   return el;
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   MODO VENTANA (todos los paneles)
+   Cualquier panel puede verse acoplado al borde (por defecto) o como una
+   ventana centrada, movible y redimensionable, para leerlo en grande. Antes
+   esto existía solo en el mapa conceptual; ahora es común, con el mismo
+   comportamiento y la misma posición guardada por panel.
+   ══════════════════════════════════════════════════════════════════ */
+function loadPanelWins(){try{return JSON.parse(localStorage.getItem('lp_panelwin')||'{}')}catch(e){return{}}}
+function savePanelWin(id,rect){
+  try{const all=loadPanelWins();all[id]=rect;localStorage.setItem('lp_panelwin',JSON.stringify(all))}catch(e){}
+}
+/* Cierra del todo: quita también el modo ventana y limpia los estilos que
+   dejó el arrastre. Sin esto el panel se reabría "acoplado" pero seguía
+   dibujado como caja flotante en mitad de la pantalla. */
+function closePanel(id){
+  const p=typeof id==='string'?document.getElementById(id):id;
+  if(!p)return;
+  p.classList.remove('open','floating');
+  p.style.left='';p.style.top='';p.style.width='';p.style.height='';p.style.transform='';
+  const btn=p.querySelector('.panel-win-btn');
+  if(btn){btn.innerHTML=svg('winExpand');btn.title='Ver en ventana grande'}
+}
+function togglePanelWindow(p){
+  const floating=p.classList.toggle('floating');
+  const btn=p.querySelector('.panel-win-btn');
+  if(btn){
+    btn.innerHTML=svg(floating?'winDock':'winExpand');
+    btn.title=floating?'Volver a acoplar al lado':'Ver en ventana grande';
+  }
+  /* al acoplar se limpia todo; al abrir en ventana se recupera el tamaño y
+     sitio que dejó la última vez, o lo centra el CSS si es la primera */
+  p.style.transform='';p.style.left='';p.style.top='';p.style.width='';p.style.height='';
+  if(floating){
+    const saved=loadPanelWins()[p.id];
+    if(saved){
+      p.style.transform='none';
+      p.style.left=saved.x+'px';p.style.top=saved.y+'px';
+      p.style.width=saved.w+'px';p.style.height=saved.h+'px';
+    }
+  }
+}
+/* Prepara UN panel: botón de ventana en la cabecera, asa de redimensión,
+   arrastre por la cabecera y cierre que limpia el modo ventana. */
+function setupPanelWindow(id){
+  const p=document.getElementById(id);if(!p)return;
+  const top=p.querySelector('.sp-top,#notes-panel-top');if(!top)return;
+
+  const btn=document.createElement('button');
+  btn.className='nd-btn panel-win-btn';btn.title='Ver en ventana grande';
+  btn.innerHTML=svg('winExpand');
+  btn.onclick=e=>{e.stopPropagation();togglePanelWindow(p)};
+  const closeBtn=top.querySelector('.sp-close,#notes-panel-close');
+  if(closeBtn)top.insertBefore(btn,closeBtn); else top.appendChild(btn);
+
+  const rz=document.createElement('div');rz.className='panel-win-resize';
+  p.appendChild(rz);
+
+  /* el aspa cierra del todo (y saca el modo ventana) */
+  if(closeBtn)closeBtn.onclick=e=>{e.stopPropagation();closePanel(p)};
+
+  /* ARRASTRE por la cabecera. stopPropagation para que el gesto de
+     "deslizar para cerrar" (addPanelSwipe, que escucha en el panel entero)
+     no confunda el arrastre con un cierre a medias. */
+  let drag=null;
+  top.addEventListener('pointerdown',e=>{
+    if(!p.classList.contains('floating'))return;
+    if(e.target.closest('button'))return;
+    e.stopPropagation();
+    const r=p.getBoundingClientRect();
+    drag={sx:e.clientX,sy:e.clientY,startLeft:r.left,startTop:r.top};
+    p.style.transform='none';p.style.left=r.left+'px';p.style.top=r.top+'px';
+    e.preventDefault();
+  });
+  document.addEventListener('pointermove',e=>{
+    if(!drag)return;
+    p.style.left=Math.max(0,Math.min(innerWidth-60,drag.startLeft+(e.clientX-drag.sx)))+'px';
+    p.style.top =Math.max(0,Math.min(innerHeight-40,drag.startTop +(e.clientY-drag.sy)))+'px';
+  });
+  document.addEventListener('pointerup',()=>{
+    if(!drag)return;drag=null;
+    const r=p.getBoundingClientRect();
+    savePanelWin(p.id,{x:r.left,y:r.top,w:r.width,h:r.height});
+  });
+
+  /* REDIMENSIÓN por el asa de la esquina */
+  let rs=null;
+  rz.addEventListener('pointerdown',e=>{
+    e.stopPropagation();
+    const r=p.getBoundingClientRect();
+    rs={sx:e.clientX,sy:e.clientY,startW:r.width,startH:r.height};
+    e.preventDefault();
+  });
+  document.addEventListener('pointermove',e=>{
+    if(!rs)return;
+    p.style.width =Math.max(300,Math.min(innerWidth-20, rs.startW+(e.clientX-rs.sx)))+'px';
+    p.style.height=Math.max(220,Math.min(innerHeight-20,rs.startH+(e.clientY-rs.sy)))+'px';
+  });
+  document.addEventListener('pointerup',()=>{
+    if(!rs)return;rs=null;
+    const r=p.getBoundingClientRect();
+    savePanelWin(p.id,{x:r.left,y:r.top,w:r.width,h:r.height});
+  });
+}
 const npNotesBody=document.getElementById('np-notes-body');
 const npNodesBody=document.getElementById('np-nodes-body');
 let npCurTab='nodes';
@@ -4156,9 +4261,9 @@ let npCurTab='nodes';
 document.getElementById('tb-notes-panel').onclick=()=>{
   openPanel('notes-panel');refreshNodesPanel();
 };
-document.getElementById('notes-panel-close').onclick=()=>notesPanel.classList.remove('open');
+document.getElementById('notes-panel-close').onclick=()=>closePanel(notesPanel);
 let npSwX=null;notesPanel.addEventListener('pointerdown',e=>{npSwX=e.clientX},{passive:true});
-notesPanel.addEventListener('pointerup',e=>{if(npSwX!==null&&e.clientX-npSwX>60)notesPanel.classList.remove('open');npSwX=null},{passive:true});
+notesPanel.addEventListener('pointerup',e=>{if(npSwX!==null&&e.clientX-npSwX>60)closePanel(notesPanel);npSwX=null},{passive:true});
 
 function refreshNotesPanel(){
   /* las notas ahora tienen su propia pestaña (Resumen). Esta función se
@@ -4260,7 +4365,7 @@ function buildNodeEl(node,nodes){
   const nodePages=()=>[...new Set(node.pages||[])]
       .filter(pg=>posOfPid(pg)>0)
       .sort((a,b)=>posOfPid(a)-posOfPid(b));
-  const goTo=pg=>{goPage(posOfPid(pg));notesPanel.classList.remove('open');
+  const goTo=pg=>{goPage(posOfPid(pg));closePanel(notesPanel);
     setTimeout(()=>{const w=pagesInner.querySelector(`[data-page="${pg}"]`);
       if(w){w.style.outline='3px solid '+(node.color||'#E3D0F5');setTimeout(()=>w.style.outline='',1400)}},420);
   };
@@ -4309,7 +4414,7 @@ function buildNodeEl(node,nodes){
       const r=e.currentTarget.getBoundingClientRect();
       showCtx(r.left-150,r.bottom+6,[
         {icon:'jump',label:'Ir a la página',action:doGo},
-        {icon:'pin', label:'Plasmar en la página',action:()=>{addEmbed('node',node.id,curPid());notesPanel.classList.remove('open')}},
+        {icon:'pin', label:'Plasmar en la página',action:()=>{addEmbed('node',node.id,curPid());closePanel(notesPanel)}},
         {icon:'plusFile',label:'Vincular a otra página',action:doAddPage},
         {icon:'trash',label:'Eliminar',danger:true,action:async()=>{
           const ok=await askConfirm(`¿Eliminar "${node.title}"?`);if(!ok)return;
@@ -4659,7 +4764,7 @@ function renderNodeAnchors(){renderPageAnchors()}
 /* ══ SUMMARY PANEL ══ */
 let summaryTab='notes';
 document.getElementById('tb-summary').onclick=()=>{renderSummary(summaryTab);openPanel('summary-panel')};
-document.querySelector('#summary-panel .sp-close').onclick=()=>document.getElementById('summary-panel').classList.remove('open');
+document.querySelector('#summary-panel .sp-close').onclick=()=>closePanel('summary-panel');
 document.querySelectorAll('#summary-panel .sp-tab').forEach(t=>t.addEventListener('click',()=>{
   document.querySelectorAll('#summary-panel .sp-tab').forEach(x=>x.classList.remove('on'));t.classList.add('on');
   summaryTab=t.dataset.stab;renderSummary(summaryTab);
@@ -4749,7 +4854,7 @@ function renderSummary(tab){
     };
     acts.append(
       mkN2('jump','Ir a la página',()=>{
-        goPage(posOfPid(pg));document.getElementById('summary-panel').classList.remove('open');
+        goPage(posOfPid(pg));closePanel('summary-panel');
         setTimeout(()=>{
           const w=pagesInner.querySelector(`[data-page="${pg}"]`);
           const el=w?.querySelector(`.note-layer [data-nid="${n.id}"]`);
@@ -4982,7 +5087,7 @@ async function renderResumen(){
       const tx=document.createElement('div');tx.className='res-hl-tx';tx.textContent=b.text;
       const pg=document.createElement('div');pg.className='res-hl-pg';pg.textContent='p.'+pageLabel(b.pg);
       d.append(sw,tx,pg);
-      d.onclick=()=>{goPage(posOfPid(b.pg));document.getElementById('resumen-panel').classList.remove('open')};
+      d.onclick=()=>{goPage(posOfPid(b.pg));closePanel('resumen-panel')};
       body.appendChild(d);
     }
   });
@@ -5020,7 +5125,7 @@ function exportResumenText(){
 }
 
 document.getElementById('tb-resumen').onclick=()=>{openPanel('resumen-panel');renderResumen()};
-document.querySelector('#resumen-panel .sp-close').onclick=()=>document.getElementById('resumen-panel').classList.remove('open');
+document.querySelector('#resumen-panel .sp-close').onclick=()=>closePanel('resumen-panel');
 document.getElementById('resumen-refresh').onclick=()=>renderResumen();
 document.getElementById('resumen-export').onclick=()=>exportResumenText();
 addPanelSwipe('resumen-panel');
@@ -5036,7 +5141,7 @@ document.getElementById('modal-bookmark-ok').onclick=()=>{const v=document.getEl
 function askBmName(pg){return new Promise(r=>{bmModalRes=r;document.getElementById('bookmark-pg-label').textContent=pg;document.getElementById('bookmark-name-in').value='';document.getElementById('modal-bookmark').classList.remove('hidden');setTimeout(()=>document.getElementById('bookmark-name-in').focus(),80)})}
 
 document.getElementById('tb-bookmarks').onclick=()=>{renderBookmarks();openPanel('bookmarks-panel')};
-document.querySelector('#bookmarks-panel .sp-close').onclick=()=>document.getElementById('bookmarks-panel').classList.remove('open');
+document.querySelector('#bookmarks-panel .sp-close').onclick=()=>closePanel('bookmarks-panel');
 addPanelSwipe('bookmarks-panel');
 
 function renderBookmarks(){
@@ -5050,7 +5155,7 @@ function renderBookmarks(){
   bms.forEach(bm=>{
     const item=document.createElement('div');item.className='bm-item';
     item.innerHTML=`<div class="bm-dot" style="background:${bm.color}"></div><div class="bm-info"><div class="bm-name">${esc(bm.name)}</div><div class="bm-pg">Página ${bm.page}</div></div><button class="bm-del">×</button>`;
-    item.addEventListener('click',e=>{if(e.target.classList.contains('bm-del')){const i=bms.indexOf(bm);if(i>-1)bms.splice(i,1);saveBms(bms);renderBookmarks();renderBmAnchors();return}goPage(posOfPid(bm.page));document.getElementById("bookmarks-panel").classList.remove('open')});
+    item.addEventListener('click',e=>{if(e.target.classList.contains('bm-del')){const i=bms.indexOf(bm);if(i>-1)bms.splice(i,1);saveBms(bms);renderBookmarks();renderBmAnchors();return}goPage(posOfPid(bm.page));closePanel('bookmarks-panel')});
     body.appendChild(item);
   });
 }
@@ -5071,7 +5176,7 @@ function renderBmAnchors(){
 
 /* ══ THUMBNAILS ══ */
 document.getElementById('tb-thumbs').onclick=()=>{renderThumbs();openPanel('thumbs-panel')};
-document.querySelector('#thumbs-panel .sp-close').onclick=()=>document.getElementById('thumbs-panel').classList.remove('open');
+document.querySelector('#thumbs-panel .sp-close').onclick=()=>closePanel('thumbs-panel');
 addPanelSwipe('thumbs-panel');
 async function renderThumbs(){
   const body=document.getElementById('thumbs-body');body.innerHTML='';if(!currentFileId)return;
@@ -5100,7 +5205,7 @@ async function renderThumbs(){
     const acts=document.createElement('div');acts.className='thumb-acts';
     acts.append(bmBtn,insBtn,delBtn);
     item.append(cvEl,info,acts);body.appendChild(item);
-    item.addEventListener('click',e=>{if(e.target.closest('.thumb-act'))return;goPage(pos);document.getElementById('thumbs-panel').classList.remove('open')});
+    item.addEventListener('click',e=>{if(e.target.closest('.thumb-act'))return;goPage(pos);closePanel('thumbs-panel')});
     // render thumbnail async
     (async()=>{
       try{
@@ -5229,7 +5334,7 @@ function buildProcCard(proc,procs){
     }),
     mkP('pin','Plasmar en la página',()=>{
       addEmbed('proc',proc.id,curPid());
-      document.getElementById('proc-panel').classList.remove('open');
+      closePanel('proc-panel');
     }),
     mkP('trash','Eliminar',async()=>{
       const ok=await askConfirm(`¿Eliminar el proceso "${proc.title}" y todos sus pasos?`);if(!ok)return;
@@ -5339,7 +5444,7 @@ function askProcStep(proc,step){return new Promise(r=>{
 })}
 
 document.getElementById('tb-proc').onclick=()=>{openPanel('proc-panel');refreshProcPanel()};
-document.querySelector('#proc-panel .sp-close').onclick=()=>document.getElementById('proc-panel').classList.remove('open');
+document.querySelector('#proc-panel .sp-close').onclick=()=>closePanel('proc-panel');
 addPanelSwipe('proc-panel');
 
 /* ══ AUTO-COLOCACIÓN POR CAPAS (función pura, como cmapInsert) ══
@@ -5648,7 +5753,7 @@ function buildAclarCard(a){
     mkA('jump','Ir a la página',()=>{
       if(posOfPid(a.page)<=0){showTip('Esta aclaración no está en ninguna página');return}
       goPage(posOfPid(a.page));
-      document.getElementById('aclar-panel').classList.remove('open');
+      closePanel('aclar-panel');
       setTimeout(()=>{const w=pagesInner.querySelector(`[data-page="${a.page}"]`);
         if(w){w.style.outline='3px solid '+(a.color||'#00C2AE');setTimeout(()=>w.style.outline='',1400)}},420);
     }),
@@ -6419,7 +6524,7 @@ function buildEntCard(kind,g){
   };
   const entGo=pg=>{
     goPage(posOfPid(pg));
-    document.getElementById(kind==='glos'?'glossary-panel':'conclusions-panel').classList.remove('open');
+    closePanel(kind==='glos'?'glossary-panel':'conclusions-panel');
     setTimeout(()=>{const w=pagesInner.querySelector(`[data-page="${pg}"]`);
       if(w){w.style.outline='3px solid '+(g.color||K.dot);setTimeout(()=>w.style.outline='',1400)}},420);
   };
@@ -6469,7 +6574,7 @@ function buildEntCard(kind,g){
              las entradas automáticas se reconstruyen: si guardáramos el id, el
              embed quedaría huérfano y la tarjeta desaparecería al plasmar otra. */
           addEmbed(kind,g.gid||g.id,curPid());
-          document.getElementById(kind==='glos'?'glossary-panel':'conclusions-panel').classList.remove('open');
+          closePanel(kind==='glos'?'glossary-panel':'conclusions-panel');
         }},
         {icon:'trash',label:'Eliminar',danger:true,action:async()=>{
           const ok=await askConfirm(`¿Eliminar "${g.title}" de ${K.label}?`);if(!ok)return;
@@ -6524,7 +6629,7 @@ document.getElementById('tb-glossary').onclick=async()=>{
   openPanel('glossary-panel');
   await autoUpdateEnts('glos');renderEnts('glos');
 };
-document.querySelector('#glossary-panel .sp-close').onclick=()=>document.getElementById('glossary-panel').classList.remove('open');
+document.querySelector('#glossary-panel .sp-close').onclick=()=>closePanel('glossary-panel');
 document.getElementById('glossary-export').onclick=()=>exportEnts('glos');
 addPanelSwipe('glossary-panel');
 
@@ -6533,12 +6638,12 @@ document.getElementById('tb-conclusions').onclick=async()=>{
   openPanel('conclusions-panel');
   await autoUpdateEnts('conc');renderEnts('conc');
 };
-document.querySelector('#conclusions-panel .sp-close').onclick=()=>document.getElementById('conclusions-panel').classList.remove('open');
+document.querySelector('#conclusions-panel .sp-close').onclick=()=>closePanel('conclusions-panel');
 document.getElementById('conclusions-export').onclick=()=>exportEnts('conc');
 addPanelSwipe('conclusions-panel');
 /* ── Aclaraciones ── */
 document.getElementById('tb-aclar').onclick=()=>{openPanel('aclar-panel');refreshAclarPanel()};
-document.querySelector('#aclar-panel .sp-close').onclick=()=>document.getElementById('aclar-panel').classList.remove('open');
+document.querySelector('#aclar-panel .sp-close').onclick=()=>closePanel('aclar-panel');
 document.querySelectorAll('#aclar-panel .sp-themes').forEach(b=>b.onclick=()=>openThemesMgr('glos'));
 document.getElementById('aclar-export').onclick=()=>exportAclars();
 addPanelSwipe('aclar-panel');
@@ -6668,7 +6773,7 @@ function buildCmapEl(node,siblings,maps){
   };
   const doGo=()=>{
     if(!node.page){showTip('Este nodo no tiene página anclada');return}
-    goPage(posOfPid(node.page));closeCmapPanel();
+    goPage(posOfPid(node.page));closePanel('cmap-panel');
     setTimeout(()=>{const w=pagesInner.querySelector(`[data-page="${node.page}"]`);
       if(w){w.style.outline='3px solid '+cmapLevelDot(node.level);setTimeout(()=>w.style.outline='',1400)}},420);
   };
@@ -6680,7 +6785,7 @@ function buildCmapEl(node,siblings,maps){
       const r=e.currentTarget.getBoundingClientRect();
       showCtx(r.left-150,r.bottom+6,[
         {icon:'jump',    label:'Ir a la página',      action:doGo},
-        {icon:'pin',     label:'Plasmar en la página',action:()=>{addEmbed('cmap',node.id,curPid());closeCmapPanel()}},
+        {icon:'pin',     label:'Plasmar en la página',action:()=>{addEmbed('cmap',node.id,curPid());closePanel('cmap-panel')}},
         {icon:'chevUp',  label:'Subir',               action:after(()=>cmapMove(maps,node,-1))},
         {icon:'chevDown',label:'Bajar',               action:after(()=>cmapMove(maps,node,1))},
         {icon:'indent',  label:'Meter dentro del de arriba',action:after(()=>cmapIndent(maps,node))},
@@ -6754,92 +6859,7 @@ document.getElementById('cmap-toggle-all').onclick=()=>{
 };
 
 document.getElementById('tb-cmap').onclick=()=>{openPanel('cmap-panel');refreshCmapPanel()};
-/* al cerrar hay que sacar TAMBIÉN el modo ventana y limpiar estilos inline:
-   si no, la próxima vez el panel se abría acoplado pero seguía siendo la
-   caja flotante en pantalla (bug del cierre reportado). */
-function closeCmapPanel(){
-  const p=document.getElementById('cmap-panel');
-  p.classList.remove('open','floating');
-  p.style.left='';p.style.top='';p.style.width='';p.style.height='';p.style.transform='';
-  document.getElementById('cmap-toggle-win').innerHTML=svg('winExpand');
-  document.getElementById('cmap-toggle-win').title='Ver en ventana movible';
-}
-document.querySelector('#cmap-panel .sp-close').onclick=closeCmapPanel;
 addPanelSwipe('cmap-panel');
-
-/* ══ MODO VENTANA (SOLO este panel, decisión explícita de Elena) ══
-   Los demás paneles (glosario, notas, marcadores...) siguen siendo barras
-   fijas acopladas al borde derecho: esto no toca esa mecánica común, solo
-   añade una clase .floating que gana por especificidad de id en #cmap-panel. */
-const cmapPanelEl=document.getElementById('cmap-panel');
-function loadCmapWin(){try{return JSON.parse(localStorage.getItem('lp_cmapwin')||'null')}catch(e){return null}}
-function saveCmapWin(r){try{localStorage.setItem('lp_cmapwin',JSON.stringify(r))}catch(e){}}
-function cmapWinSaveRect(){
-  const r=cmapPanelEl.getBoundingClientRect();
-  saveCmapWin({x:r.left,y:r.top,w:r.width,h:r.height});
-}
-document.getElementById('cmap-toggle-win').onclick=()=>{
-  const floating=cmapPanelEl.classList.toggle('floating');
-  /* solo el icono: el texto largo ("⤡ Acoplar") desbordaba el botón y se
-     salía del recuadro. La explicación va en el title. */
-  const winBtn=document.getElementById('cmap-toggle-win');
-  winBtn.innerHTML=svg(floating?'winDock':'winExpand');
-  winBtn.title=floating?'Volver a acoplar el panel':'Ver en ventana movible';
-  if(floating){
-    const saved=loadCmapWin();
-    if(saved){
-      cmapPanelEl.style.transform='none';
-      cmapPanelEl.style.left=saved.x+'px';cmapPanelEl.style.top=saved.y+'px';
-      cmapPanelEl.style.width=saved.w+'px';cmapPanelEl.style.height=saved.h+'px';
-    }else{
-      /* sin posición guardada: que la centre el propio CSS de .floating */
-      cmapPanelEl.style.transform='';cmapPanelEl.style.left='';cmapPanelEl.style.top='';
-      cmapPanelEl.style.width='';cmapPanelEl.style.height='';
-    }
-  }else{
-    cmapPanelEl.style.transform='';cmapPanelEl.style.left='';cmapPanelEl.style.top='';
-    cmapPanelEl.style.width='';cmapPanelEl.style.height='';
-  }
-};
-
-/* arrastre por la cabecera. stopPropagation en el pointerdown para que el
-   gesto de "deslizar para cerrar" (addPanelSwipe, escucha en el panel
-   entero) no interprete el arrastre como un cierre a mitad de camino. */
-let cmapDrag=null;
-document.querySelector('#cmap-panel .sp-top').addEventListener('pointerdown',e=>{
-  if(!cmapPanelEl.classList.contains('floating'))return;
-  if(e.target.closest('.sp-close'))return;
-  e.stopPropagation();
-  const r=cmapPanelEl.getBoundingClientRect();
-  cmapDrag={sx:e.clientX,sy:e.clientY,startLeft:r.left,startTop:r.top};
-  cmapPanelEl.style.transform='none';
-  cmapPanelEl.style.left=r.left+'px';cmapPanelEl.style.top=r.top+'px';
-  e.preventDefault();
-});
-document.addEventListener('pointermove',e=>{
-  if(!cmapDrag)return;
-  const nx=cmapDrag.startLeft+(e.clientX-cmapDrag.sx);
-  const ny=cmapDrag.startTop+(e.clientY-cmapDrag.sy);
-  cmapPanelEl.style.left=Math.max(0,Math.min(window.innerWidth-60,nx))+'px';
-  cmapPanelEl.style.top=Math.max(0,Math.min(window.innerHeight-40,ny))+'px';
-});
-document.addEventListener('pointerup',()=>{if(cmapDrag){cmapDrag=null;cmapWinSaveRect()}});
-
-/* redimensionar por el asa de la esquina inferior-derecha */
-let cmapResize=null;
-document.getElementById('cmap-win-resize').addEventListener('pointerdown',e=>{
-  e.stopPropagation();
-  const r=cmapPanelEl.getBoundingClientRect();
-  cmapResize={sx:e.clientX,sy:e.clientY,startW:r.width,startH:r.height};
-  e.preventDefault();
-});
-document.addEventListener('pointermove',e=>{
-  if(!cmapResize)return;
-  const nw=Math.max(300,Math.min(window.innerWidth-20,cmapResize.startW+(e.clientX-cmapResize.sx)));
-  const nh=Math.max(220,Math.min(window.innerHeight-20,cmapResize.startH+(e.clientY-cmapResize.sy)));
-  cmapPanelEl.style.width=nw+'px';cmapPanelEl.style.height=nh+'px';
-});
-document.addEventListener('pointerup',()=>{if(cmapResize){cmapResize=null;cmapWinSaveRect()}});
 
 /* ══ MAPA CONCEPTUAL: hipervínculos a definición/conclusión/aclaración ══
    Busca la ficha real a partir de {kind,ref} guardado en el span. Cada tipo
@@ -7085,7 +7105,7 @@ function addPanelSwipe(id){
     if(e.target.closest('input,textarea,button')){sx=null;return}
     sx=e.clientX;
   },{passive:true});
-  panel.addEventListener('pointerup',e=>{if(sx!==null&&e.clientX-sx>60)panel.classList.remove('open');sx=null},{passive:true});
+  panel.addEventListener('pointerup',e=>{if(sx!==null&&e.clientX-sx>60)closePanel(panel);sx=null},{passive:true});
 }
 
 /* ══ SAVE ══ */
@@ -7317,11 +7337,10 @@ window.addEventListener('keydown',e=>{
     const p=currentPanel();
     if(p){
       e.preventDefault();e.stopPropagation();
-      /* el mapa conceptual puede estar en modo ventana: cerrarlo con
+      /* cualquier panel puede estar en modo ventana: cerrarlo con
          classList.remove('open') a secas dejaba la caja flotante colgada en
-         pantalla con sus estilos inline. Tiene su propio cierre. */
-      if(p.id==='cmap-panel')closeCmapPanel();
-      else p.classList.remove('open');
+         pantalla con sus estilos inline. closePanel limpia todo. */
+      closePanel(p);
       return;
     }
   }
@@ -8747,6 +8766,13 @@ updateSyncUI();
     console.warn('[LecturaPDF] Este navegador no soporta Service Workers.');
   }
 })();
+
+/* Modo ventana en TODOS los paneles. Va aquí, al final, a propósito: cada
+   panel cablea su propia aspa (.sp-close) más arriba, y setupPanelWindow
+   tiene que sobrescribir ese cierre por el que además saca el modo ventana.
+   Si se llamara antes, esos cableados lo pisarían y el aspa dejaría la
+   ventana colgada. */
+ALL_PANELS.forEach(setupPanelWindow);
 </script>
 </body>
 </html>
