@@ -431,6 +431,14 @@ body.fullscreen #rd-bottom-show{display:none}
 .cmap-act-btn.sub{background:var(--mante)}
 .cmap-act-btn.del{background:rgba(229,139,139,.2);color:var(--danger)}
 .cmap-act-btn:active{opacity:.8}
+/* botones de acción como ICONO pequeño: antes el texto ("📌 Plasmar",
+   "✎ Editar"…) pesaba visualmente más que el propio título del nodo. */
+.ic-btn{width:30px;height:30px;padding:0;border:none;border-radius:8px;background:var(--bg2);color:var(--ink2);font-size:14px;line-height:1;cursor:pointer;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;font-family:inherit}
+.ic-btn:active{opacity:.7}
+.ic-btn.go{background:var(--lila);color:var(--ink)}
+.ic-btn.sub{background:var(--mante);color:var(--ink)}
+.ic-btn.del{background:transparent;color:var(--danger)}
+.cmap-acts{gap:5px}
 .cmap-link{color:#3a7afe;text-decoration:underline;text-decoration-style:dotted;cursor:pointer}
 .cmap-link:active{opacity:.6}
 #cmap-link-btn{font-size:12.5px}
@@ -990,8 +998,8 @@ body.fullscreen #gid-bar{bottom:20px}
     <button class="sp-close" data-panel="cmap-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <div id="cmap-toolrow" style="display:flex;gap:6px;padding:0 12px 8px;flex-shrink:0">
-    <button id="cmap-toggle-all" class="sp-action-btn" style="flex:1">▾ Desplegar todo</button>
-    <button id="cmap-toggle-win" class="sp-action-btn" style="flex:0 0 auto" title="El mapa conceptual puede verse en una ventana centrada y movible, a diferencia del resto de paneles">⤢ Ventana</button>
+    <button id="cmap-toggle-all" class="ic-btn" title="Desplegar todo">▾</button>
+    <button id="cmap-toggle-win" class="ic-btn" title="Ver en ventana movible">⤢</button>
   </div>
   <div id="cmap-body" class="sp-body"></div>
   <div id="cmap-win-resize"></div>
@@ -5643,15 +5651,38 @@ async function createCmapNodeFromGid(gid,level){
   const pids=new Set();
   for(const slot of pageOrder){const ann=annotations[slot.pid];if(ann&&(ann.highlights||[]).some(h=>h.gid===gid))pids.add(slot.pid)}
   await Promise.all([...pids].map(pid=>ensurePageText(pid).catch(()=>{})));
-  const anc=aclarAnchorForGid(gid);
-  if(!anc||!anc.ref){showTip('No se pudo anclar el mapa conceptual');return}
+
+  /* UN TRAZO = UN NODO. Antes se fundía todo el grupo en un solo nodo (como
+     hacen las definiciones, donde una definición larga ocupa varios
+     renglones). Aquí es al revés: si subraya 4 epígrafes seguidos con el
+     mismo color quiere 4 epígrafes, no uno con los cuatro títulos pegados.
+     Recorremos cada banda por orden de lectura y creamos un nodo por cada
+     una. Ojo: un título que ocupe dos renglones y se subraye en dos trazos
+     saldrá como dos nodos; se arregla juntándolo en un trazo o editando. */
+  const bands=[];
+  for(const slot of pageOrder){
+    const ann=annotations[slot.pid];if(!ann)continue;
+    (ann.highlights||[]).forEach(h=>{if(h.gid===gid)bands.push({pid:slot.pid,h})});
+  }
+  if(!bands.length){showTip('No se pudo anclar el mapa conceptual');return}
+  bands.sort((a,b)=>posOfPid(a.pid)-posOfPid(b.pid)||a.h.y-b.h.y||a.h.x-b.h.x);
+
   const maps=loadCmap();
-  const node=cmapInsert(maps,level,anc.ref,anc.pid);
-  if(!node)return;                       // sin título general previo: avisado por cmapInsert
+  let n=0;
+  for(const b of bands){
+    const txt=(getHlText(b.pid,b.h)||'').replace(/\s+/g,' ').trim();
+    if(!txt)continue;                    // trazo sin texto (escaneado): se salta
+    const node=cmapInsert(maps,level,txt,b.pid);
+    if(!node)return;                     // sin título general previo: avisado por cmapInsert
+    n++;
+  }
+  if(!n){showTip('No se pudo leer el texto subrayado');return}
   saveCmap(maps);
-  showTip((CMAP_LEVEL_META[level]&&CMAP_LEVEL_META[level].label||'Nodo')+' añadido al mapa',1600);
+  const lbl=(CMAP_LEVEL_META[level]&&CMAP_LEVEL_META[level].label)||'Nodo';
+  showTip(n===1?lbl+' añadido al mapa':n+' añadidos al mapa',1600);
   scheduleAnchors();
   refreshCmapPanelIfOpen();
+  renderPageAnchors();
 }
 
 /* modal de la aclaración: tema + texto con formato.
@@ -6418,7 +6449,7 @@ function buildCmapEl(node,siblings,maps){
   body.appendChild(childWrap);
 
   const acts=document.createElement('div');acts.className='cmap-acts';
-  const goBtn=document.createElement('button');goBtn.className='cmap-act-btn go';goBtn.textContent='→ Ir';
+  const goBtn=document.createElement('button');goBtn.className='ic-btn go';goBtn.textContent='→';goBtn.title='Ir a la página';
   goBtn.onclick=e=>{
     e.stopPropagation();
     if(!node.page){showTip('Este nodo no tiene página anclada');return}
@@ -6426,29 +6457,29 @@ function buildCmapEl(node,siblings,maps){
     setTimeout(()=>{const w=pagesInner.querySelector(`[data-page="${node.page}"]`);
       if(w){w.style.outline='3px solid '+cmapLevelDot(node.level);setTimeout(()=>w.style.outline='',1400)}},420);
   };
-  const editBtn=document.createElement('button');editBtn.className='cmap-act-btn';editBtn.textContent='✎ Editar';
+  const editBtn=document.createElement('button');editBtn.className='ic-btn';editBtn.textContent='✎';editBtn.title='Editar';
   editBtn.onclick=async e=>{
     e.stopPropagation();
     const d=await askCmapNode(node.title,node.desc||'');if(!d)return;
     node.title=d.title;node.desc=d.desc;
-    saveCmap(maps);refreshCmapPanel();showTip('Actualizado',1200);
+    saveCmap(maps);refreshCmapPanel();renderPageAnchors();showTip('Actualizado',1200);
   };
-  const subBtn=document.createElement('button');subBtn.className='cmap-act-btn sub';subBtn.textContent='＋ Subnivel';
+  const subBtn=document.createElement('button');subBtn.className='ic-btn sub';subBtn.textContent='＋';subBtn.title='Añadir subnivel';
   subBtn.onclick=async e=>{
     e.stopPropagation();
     const d=await askCmapNode('','');if(!d)return;
     const child=newCmapNode(cmapNextLevel(node.level),d.title,node.page);child.desc=d.desc;
     node.children.push(child);
-    saveCmap(maps);refreshCmapPanel();
+    saveCmap(maps);refreshCmapPanel();renderPageAnchors();
   };
-  const delBtn=document.createElement('button');delBtn.className='cmap-act-btn del';delBtn.textContent='Eliminar';
+  const delBtn=document.createElement('button');delBtn.className='ic-btn del';delBtn.textContent='🗑';delBtn.title='Eliminar';
   delBtn.onclick=async e=>{
     e.stopPropagation();
     const ok=await askConfirm(`¿Eliminar "${node.title}" y todo lo que cuelga de él?`);if(!ok)return;
     const i=siblings.indexOf(node);if(i>-1)siblings.splice(i,1);
     saveCmap(maps);refreshCmapPanel();renderPageAnchors();
   };
-  const embBtn=document.createElement('button');embBtn.className='cmap-act-btn sub';embBtn.textContent='📌 Plasmar';
+  const embBtn=document.createElement('button');embBtn.className='ic-btn sub';embBtn.textContent='📌';embBtn.title='Plasmar en la página';
   embBtn.onclick=e=>{
     e.stopPropagation();
     addEmbed('cmap',node.id,curPid());
@@ -6503,7 +6534,17 @@ document.getElementById('cmap-toggle-all').onclick=()=>{
 };
 
 document.getElementById('tb-cmap').onclick=()=>{openPanel('cmap-panel');refreshCmapPanel()};
-document.querySelector('#cmap-panel .sp-close').onclick=()=>document.getElementById('cmap-panel').classList.remove('open');
+/* al cerrar hay que sacar TAMBIÉN el modo ventana y limpiar estilos inline:
+   si no, la próxima vez el panel se abría acoplado pero seguía siendo la
+   caja flotante en pantalla (bug del cierre reportado). */
+function closeCmapPanel(){
+  const p=document.getElementById('cmap-panel');
+  p.classList.remove('open','floating');
+  p.style.left='';p.style.top='';p.style.width='';p.style.height='';p.style.transform='';
+  document.getElementById('cmap-toggle-win').textContent='⤢';
+  document.getElementById('cmap-toggle-win').title='Ver en ventana movible';
+}
+document.querySelector('#cmap-panel .sp-close').onclick=closeCmapPanel;
 addPanelSwipe('cmap-panel');
 
 /* ══ MODO VENTANA (SOLO este panel, decisión explícita de Elena) ══
