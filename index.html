@@ -439,6 +439,9 @@ body.fullscreen #rd-bottom-show{display:none}
 .ic-btn.sub{background:var(--mante);color:var(--ink)}
 .ic-btn.del{background:transparent;color:var(--danger)}
 .cmap-acts{gap:5px}
+/* el selector de vincular se abre DESDE otro cuadro: tiene que pintarse por
+   encima de él, esté donde esté en el HTML */
+#modal-cmap-link{z-index:920}
 .cmap-link{color:#3a7afe;text-decoration:underline;text-decoration-style:dotted;cursor:pointer}
 .cmap-link:active{opacity:.6}
 #cmap-link-btn{font-size:12.5px}
@@ -1096,6 +1099,7 @@ body.fullscreen #gid-bar{bottom:20px}
       <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
       <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
       <button type="button" data-cmd="removeFormat" title="Quitar el formato">✕fmt</button>
+      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración">🔗</button>
     </div>
     <div id="emb-edit-text" class="rich-ed rich-content" contenteditable="true" data-ph="Texto / definición / conclusión (con formato, sin límite)"></div>
     <div class="modal-btns">
@@ -1120,6 +1124,7 @@ body.fullscreen #gid-bar{bottom:20px}
       <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
       <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
       <button type="button" data-cmd="removeFormat" title="Quitar el formato">✕fmt</button>
+      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración">🔗</button>
     </div>
     <div id="node-body-in" class="rich-ed rich-content" contenteditable="true" data-ph="Descripción / resumen (con formato, todo lo que quieras)"></div>
     <div style="font-size:13px;color:var(--ink2);margin-bottom:12px">Se ancla a la página <span id="node-pg-label">1</span></div>
@@ -1146,6 +1151,7 @@ body.fullscreen #gid-bar{bottom:20px}
       <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
       <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
       <button type="button" data-cmd="removeFormat" title="Quitar el formato">✕fmt</button>
+      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración">🔗</button>
     </div>
     <div id="subnode-body-in" class="rich-ed rich-content" contenteditable="true" data-ph="Explicación (con formato, todo lo que quieras)"></div>
     <div class="modal-btns">
@@ -1172,6 +1178,7 @@ body.fullscreen #gid-bar{bottom:20px}
       <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
       <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
       <button type="button" data-cmd="removeFormat" title="Quitar el formato">✕fmt</button>
+      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración">🔗</button>
     </div>
     <div id="aclar-text-in" class="rich-ed rich-content" contenteditable="true" data-ph="Escribe la aclaración o información más profunda (con formato, sin límite)"></div>
     <div class="modal-btns">
@@ -1197,7 +1204,7 @@ body.fullscreen #gid-bar{bottom:20px}
       <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
       <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
       <button type="button" data-cmd="removeFormat" title="Quitar el formato">✕fmt</button>
-      <button type="button" id="cmap-link-btn" title="Selecciona texto y pulsa aquí para vincularlo con una definición, conclusión o aclaración">🔗 Vincular</button>
+      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración">🔗</button>
     </div>
     <div id="cmap-body-in" class="rich-ed rich-content" contenteditable="true" data-ph="Descripción o definición clave (opcional, con formato)"></div>
     <div class="modal-btns">
@@ -1262,6 +1269,7 @@ body.fullscreen #gid-bar{bottom:20px}
       <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
       <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
       <button type="button" data-cmd="removeFormat" title="Quitar el formato">✕fmt</button>
+      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración">🔗</button>
     </div>
     <div id="proc-step-body-in" class="rich-ed rich-content" contenteditable="true" data-ph="Descripción del paso (opcional, con formato)"></div>
     <div style="margin:0 0 12px">
@@ -1441,7 +1449,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v78'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v79'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -1779,6 +1787,12 @@ function wireRichToolbar(tb,ed){
     const cmd=btn.getAttribute('data-cmd'),val=btn.getAttribute('data-val');
     if(btn.tagName==='INPUT'){
       btn.addEventListener('input',()=>{ed.focus();run(cmd,btn.value)});
+    }else if(cmd==='richLink'){
+      /* vincular con una ficha: no es un execCommand, pide la ficha antes.
+         OJO: aquí NO se hace ed.focus() antes, porque eso destruiría la
+         selección que justamente hay que envolver. */
+      btn.addEventListener('pointerdown',e=>e.preventDefault());
+      btn.addEventListener('click',e=>{e.preventDefault();insertRichLink(ed)});
     }else{
       btn.addEventListener('pointerdown',e=>e.preventDefault());   // no perder la selección al tocar el botón
       btn.addEventListener('click',e=>{e.preventDefault();ed.focus();run(cmd,val)});
@@ -5755,7 +5769,8 @@ function renderAclar(nl,a,num){
     +'<button type="button" data-cmd="underline"><u>U</u></button>'
     +'<button type="button" data-cmd="insertUnorderedList">•</button>'
     +'<button type="button" data-cmd="insertOrderedList">1.</button>'
-    +'<input type="color" data-cmd="foreColor" value="#c0392b">';
+    +'<input type="color" data-cmd="foreColor" value="#c0392b">'
+    +'<button type="button" data-cmd="richLink" title="Vincular con una ficha">🔗</button>';
   const ed=document.createElement('div');ed.className='aclar-ed rich-content';ed.contentEditable='true';
   ed.setAttribute('data-ph','Escribe la aclaración…');ed.innerHTML=richHTML(a.text||'');
   ed.addEventListener('pointerdown',e=>e.stopPropagation());
@@ -6723,13 +6738,12 @@ function askCmapLink(){
     mCmapLink.classList.remove('hidden');
   });
 }
-/* botón "🔗 Vincular" de la barra de formato del mapa: envuelve el texto
-   seleccionado en un span clicable. No es un data-cmd porque no es un
-   execCommand simple: primero hay que preguntar QUÉ ficha se vincula. */
-document.getElementById('cmap-link-btn').addEventListener('pointerdown',e=>e.preventDefault());
-document.getElementById('cmap-link-btn').addEventListener('click',async e=>{
-  e.preventDefault();
-  const ed=document.getElementById('cmap-body-in');
+/* Envuelve el texto seleccionado de `ed` en un enlace a una ficha. Lo usa el
+   botón 🔗 de CUALQUIER barra de formato (ver wireRichToolbar): glosario,
+   conclusiones, nodos, aclaraciones, mapa conceptual y procesos.
+   No puede ser un data-cmd normal porque no es un execCommand directo:
+   primero hay que preguntar QUÉ ficha se vincula. */
+async function insertRichLink(ed){
   const sel=window.getSelection();
   if(!sel||sel.isCollapsed||!ed.contains(sel.anchorNode)){
     showTip('Selecciona primero el texto que quieres vincular');return;
@@ -6743,7 +6757,7 @@ document.getElementById('cmap-link-btn').addEventListener('click',async e=>{
   const text=sel.toString()||target.title;
   document.execCommand('insertHTML',false,
     `<span class="cmap-link" data-kind="${target.kind}" data-ref="${esc(target.id)}">${esc(text)}</span>`);
-});
+}
 /* ══ FULLSCREEN ══ */
 let fullscreenOn=false;
 const fsHint=document.getElementById('fs-hint');
@@ -7024,7 +7038,17 @@ const MODAL_CANCEL={
 
 function topModal(){
   const open=[...document.querySelectorAll('.modal-bg:not(.hidden)')];
-  return open.length?open[open.length-1]:null;
+  if(!open.length)return null;
+  /* El de arriba es el de mayor z-index; a igualdad, el último del HTML.
+     Hacía falta porque hay modales que se abren DESDE otro (el selector de
+     vincular) y no siempre están después en el documento: con solo el orden
+     del HTML, Escape/Enter iban al de debajo y el de arriba quedaba tapado. */
+  let best=open[0],bestZ=-Infinity;
+  open.forEach(m=>{
+    const z=parseInt(getComputedStyle(m).zIndex,10)||0;
+    if(z>=bestZ){bestZ=z;best=m}
+  });
+  return best;
 }
 function clickIfEnabled(id){
   const b=id&&document.getElementById(id);
