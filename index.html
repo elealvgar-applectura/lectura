@@ -454,6 +454,22 @@ body.fullscreen #rd-bottom-show{display:none}
 .cmap-ro-body{display:none;padding-left:16px;border-left:1.5px solid var(--border);margin-left:3px}
 .cmap-ro-body.open{display:block}
 .cmap-ro-body .cmap-desc{margin:2px 0 4px}
+/* modo ventana: SOLO el panel del mapa conceptual puede salir del borde y
+   ponerse centrado/movible (decisión explícita: el resto de paneles se
+   quedan siempre acoplados). El selector por id (#cmap-panel.floating) tiene
+   más peso que .side-panel.open, así que gana sin tocar esa regla común. */
+#cmap-panel.floating{
+  right:auto;left:50%;top:50%;
+  transform:translate(-50%,-50%);
+  width:440px;max-width:92vw;height:72vh;max-height:90vh;
+  border-radius:16px;border:1px solid var(--border);
+  box-shadow:0 12px 48px rgba(120,100,140,.35);
+  transition:none;
+}
+#cmap-panel.floating .sp-top{cursor:grab;touch-action:none;user-select:none}
+#cmap-panel.floating .sp-top:active{cursor:grabbing}
+#cmap-win-resize{position:absolute;right:2px;bottom:2px;width:22px;height:22px;cursor:nwse-resize;touch-action:none;display:none;background:linear-gradient(135deg,transparent 50%,rgba(120,100,140,.4) 50%);border-bottom-right-radius:14px;z-index:5}
+#cmap-panel.floating #cmap-win-resize{display:block}
 /* node anchors on PDF */
 .node-anchor{position:absolute;left:4px;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--ink);cursor:pointer;border:2px solid #fff;box-shadow:0 2px 8px rgba(120,100,140,.3);z-index:10;pointer-events:all;transition:transform .1s;touch-action:manipulation}
 .node-anchor:active{transform:scale(.88)}
@@ -994,8 +1010,10 @@ body.fullscreen #gid-bar{bottom:20px}
   </div>
   <div id="cmap-toolrow" style="display:flex;gap:6px;padding:0 12px 8px;flex-shrink:0">
     <button id="cmap-toggle-all" class="sp-action-btn" style="flex:1">▾ Desplegar todo</button>
+    <button id="cmap-toggle-win" class="sp-action-btn" style="flex:0 0 auto" title="El mapa conceptual puede verse en una ventana centrada y movible, a diferencia del resto de paneles">⤢ Ventana</button>
   </div>
   <div id="cmap-body" class="sp-body"></div>
+  <div id="cmap-win-resize"></div>
 </div>
 
 <!-- resumen (subrayados) panel -->
@@ -6076,6 +6094,76 @@ document.getElementById('cmap-toggle-all').onclick=()=>{
 document.getElementById('tb-cmap').onclick=()=>{openPanel('cmap-panel');refreshCmapPanel()};
 document.querySelector('#cmap-panel .sp-close').onclick=()=>document.getElementById('cmap-panel').classList.remove('open');
 addPanelSwipe('cmap-panel');
+
+/* ══ MODO VENTANA (SOLO este panel, decisión explícita de Elena) ══
+   Los demás paneles (glosario, notas, marcadores...) siguen siendo barras
+   fijas acopladas al borde derecho: esto no toca esa mecánica común, solo
+   añade una clase .floating que gana por especificidad de id en #cmap-panel. */
+const cmapPanelEl=document.getElementById('cmap-panel');
+function loadCmapWin(){try{return JSON.parse(localStorage.getItem('lp_cmapwin')||'null')}catch(e){return null}}
+function saveCmapWin(r){try{localStorage.setItem('lp_cmapwin',JSON.stringify(r))}catch(e){}}
+function cmapWinSaveRect(){
+  const r=cmapPanelEl.getBoundingClientRect();
+  saveCmapWin({x:r.left,y:r.top,w:r.width,h:r.height});
+}
+document.getElementById('cmap-toggle-win').onclick=()=>{
+  const floating=cmapPanelEl.classList.toggle('floating');
+  document.getElementById('cmap-toggle-win').textContent=floating?'⤡ Acoplar':'⤢ Ventana';
+  if(floating){
+    const saved=loadCmapWin();
+    if(saved){
+      cmapPanelEl.style.transform='none';
+      cmapPanelEl.style.left=saved.x+'px';cmapPanelEl.style.top=saved.y+'px';
+      cmapPanelEl.style.width=saved.w+'px';cmapPanelEl.style.height=saved.h+'px';
+    }else{
+      /* sin posición guardada: que la centre el propio CSS de .floating */
+      cmapPanelEl.style.transform='';cmapPanelEl.style.left='';cmapPanelEl.style.top='';
+      cmapPanelEl.style.width='';cmapPanelEl.style.height='';
+    }
+  }else{
+    cmapPanelEl.style.transform='';cmapPanelEl.style.left='';cmapPanelEl.style.top='';
+    cmapPanelEl.style.width='';cmapPanelEl.style.height='';
+  }
+};
+
+/* arrastre por la cabecera. stopPropagation en el pointerdown para que el
+   gesto de "deslizar para cerrar" (addPanelSwipe, escucha en el panel
+   entero) no interprete el arrastre como un cierre a mitad de camino. */
+let cmapDrag=null;
+document.querySelector('#cmap-panel .sp-top').addEventListener('pointerdown',e=>{
+  if(!cmapPanelEl.classList.contains('floating'))return;
+  if(e.target.closest('.sp-close'))return;
+  e.stopPropagation();
+  const r=cmapPanelEl.getBoundingClientRect();
+  cmapDrag={sx:e.clientX,sy:e.clientY,startLeft:r.left,startTop:r.top};
+  cmapPanelEl.style.transform='none';
+  cmapPanelEl.style.left=r.left+'px';cmapPanelEl.style.top=r.top+'px';
+  e.preventDefault();
+});
+document.addEventListener('pointermove',e=>{
+  if(!cmapDrag)return;
+  const nx=cmapDrag.startLeft+(e.clientX-cmapDrag.sx);
+  const ny=cmapDrag.startTop+(e.clientY-cmapDrag.sy);
+  cmapPanelEl.style.left=Math.max(0,Math.min(window.innerWidth-60,nx))+'px';
+  cmapPanelEl.style.top=Math.max(0,Math.min(window.innerHeight-40,ny))+'px';
+});
+document.addEventListener('pointerup',()=>{if(cmapDrag){cmapDrag=null;cmapWinSaveRect()}});
+
+/* redimensionar por el asa de la esquina inferior-derecha */
+let cmapResize=null;
+document.getElementById('cmap-win-resize').addEventListener('pointerdown',e=>{
+  e.stopPropagation();
+  const r=cmapPanelEl.getBoundingClientRect();
+  cmapResize={sx:e.clientX,sy:e.clientY,startW:r.width,startH:r.height};
+  e.preventDefault();
+});
+document.addEventListener('pointermove',e=>{
+  if(!cmapResize)return;
+  const nw=Math.max(300,Math.min(window.innerWidth-20,cmapResize.startW+(e.clientX-cmapResize.sx)));
+  const nh=Math.max(220,Math.min(window.innerHeight-20,cmapResize.startH+(e.clientY-cmapResize.sy)));
+  cmapPanelEl.style.width=nw+'px';cmapPanelEl.style.height=nh+'px';
+});
+document.addEventListener('pointerup',()=>{if(cmapResize){cmapResize=null;cmapWinSaveRect()}});
 
 /* ══ MAPA CONCEPTUAL: hipervínculos a definición/conclusión/aclaración ══
    Busca la ficha real a partir de {kind,ref} guardado en el span. Cada tipo
