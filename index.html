@@ -1564,7 +1564,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v91'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v92'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2835,7 +2835,12 @@ async function runExport(){
        páginas, márgenes, embeds…). Hasta ahora esos datos NO iban en la copia:
        solo vivían en el aparato y en la nube. Las copias antiguas (ver 4) no
        traían el campo `ls` y se siguen importando sin problema. */
-    const meta={app:'LecturaPDF',ver:5,exported:Date.now(),folders,annotations,files:[]};
+    /* ver:6 → añade `globals` (paletas propias, calibrado, gestos, modo oscuro)
+       y, por documento, `lastpage`. Eran los ultimos datos que se quedaban
+       fuera de la copia. Las copias ver:5 y ver:4 se siguen importando igual:
+       simplemente no traen estos campos y se omiten. */
+    const meta={app:'LecturaPDF',ver:6,exported:Date.now(),folders,annotations,
+                globals:collectGlobalData(),files:[]};
 
     for(let i=0;i<files.length;i++){
       const f=files[i];
@@ -2848,7 +2853,12 @@ async function runExport(){
       zip.add('pdfs/'+entry,f.data);
       meta.files.push({id:f.id,hash:f.hash||null,folderId:f.folderId,name:f.name,
                        size:f.size,added:f.added,file:entry,
-                       ls:collectDocData(f.id).ls});
+                       ls:collectDocData(f.id).ls,
+                       /* lp_lastpage_ va aparte y NO en DOC_KEY_PREFIXES: si
+                          estuviera ahi, cada vez que pasas de pagina se
+                          marcaria el documento como pendiente de subir y la
+                          sincronizacion no pararia de trabajar al leer. */
+                       lastpage:localStorage.getItem('lp_lastpage_'+f.id)});
     }
     /* Los metadatos y anotaciones caben de sobra en un JSON pequeño */
     zip.add('lecturapdf.json',new TextEncoder().encode(JSON.stringify(meta)));
@@ -2931,6 +2941,11 @@ document.getElementById('backup-input').addEventListener('change',async e=>{
            Solo las copias nuevas (ver 5) traen jf[i].ls; las antiguas no y se
            omite sin más. applyDocData escribe SIN marcar cambios de sync. */
         if(jf[i].ls)applyDocData(jf[i].id,{ls:jf[i].ls});
+        /* La pagina por la que ibas (solo copias ver:6). Se escribe sin pasar
+           por el envoltorio, igual que applyDocData. */
+        if(jf[i].lastpage!=null){
+          try{Storage.prototype.setItem.call(localStorage,'lp_lastpage_'+jf[i].id,jf[i].lastpage)}catch(e){}
+        }
         okCount++;
       }catch(err){
         console.error('[import] falló:',jf[i].name,err);
@@ -2940,6 +2955,9 @@ document.getElementById('backup-input').addEventListener('change',async e=>{
       if(jf[i].data)jf[i].data=null;      // libera el base64 ya usado
     }
     for(const a of json.annotations||[])await dbPut('annotations',a);
+    /* Ajustes del aparato (paletas propias, calibrado, gestos…). Solo copias
+       ver:6. En "fusionar" no pisa lo que ya tengas configurado aqui. */
+    applyGlobalData(json.globals,mode==='replace');
 
     pb.style.width='100%';
     if(failed.length){
@@ -6962,6 +6980,29 @@ function openThemesMgr(kind){
 const DOC_KEY_PREFIXES=['lp_order_','lp_margin_','lp_nodes_','lp_embeds_','lp_bm_',
   'lp_tl_','lp_proc_','lp_themes_','lp_thememap_','lp_glos_','lp_conc_','lp_aclar_','lp_cmap_',
   'lp_delents_glos_','lp_delents_conc_','lp_delents_aclar_'];
+/* Claves de localStorage que NO pertenecen a un documento sino al APARATO:
+   paletas de colores propias, calibrado de herramientas, gestos, modo oscuro…
+   No se sincronizan (cada aparato tiene las suyas) pero SI deben ir en la copia
+   de seguridad: hasta ver:5 se quedaban fuera y al restaurar en un iPad nuevo
+   las paletas que te habias creado desaparecian sin decir nada. */
+const GLOBAL_KEYS=['lp_custompals','lp_toolcfg','lp_color','lp_boldstrength',
+  'lp_boldbycolor','lp_bartab','lp_panelwin','lp_dark','lp_gest','lp_bottommin'];
+function collectGlobalData(){
+  const out={};
+  GLOBAL_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)out[k]=v});
+  return out;
+}
+/* Al restaurar: en "reemplazar" se pisan todas; en "fusionar" solo se escriben
+   las que este aparato NO tenga todavia, para no borrar ajustes en uso. */
+function applyGlobalData(globals,replace){
+  if(!globals)return;
+  const raw=Storage.prototype.setItem.bind(localStorage);
+  GLOBAL_KEYS.forEach(k=>{
+    if(globals[k]==null)return;
+    if(!replace&&localStorage.getItem(k)!==null)return;
+    try{raw(k,globals[k])}catch(e){}
+  });
+}
 function purgeDocData(fileId){
   if(!fileId)return;
   try{
