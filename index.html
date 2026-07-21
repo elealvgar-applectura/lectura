@@ -1531,7 +1531,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v85'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v86'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2245,15 +2245,37 @@ function renderPalBuilder(){
   CATEGORY_LABELS.forEach(lbl=>{
     const role=CATEGORY_ROLE[lbl];
     const row=document.createElement('div');
-    row.style.cssText='display:flex;align-items:center;gap:10px;padding:6px 2px';
+    row.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 2px;flex-wrap:wrap';
+
     const col=document.createElement('input');
     col.type='color';col.value=palBuildDraft[lbl];
     col.style.cssText='width:38px;height:34px;border:none;border-radius:8px;background:none;padding:0;flex-shrink:0;cursor:pointer';
-    col.oninput=()=>{palBuildDraft[lbl]=col.value.toUpperCase()};
+
+    /* CÓDIGO # POR CATEGORÍA: la rueda de color no permite clavar un tono
+       exacto (el de otro cuaderno, el de otra app…). Con el código escrito
+       sí. Los dos campos van sincronizados: tocar la rueda escribe el
+       código, y escribir un código válido mueve la rueda. */
+    const hex=document.createElement('input');
+    hex.type='text';hex.value=palBuildDraft[lbl];
+    hex.maxLength=7;hex.placeholder='#RRGGBB';
+    hex.setAttribute('autocapitalize','off');hex.setAttribute('autocorrect','off');hex.spellcheck=false;
+    hex.style.cssText='width:88px;flex-shrink:0;background:var(--bg2);border:none;border-radius:8px;color:var(--ink);font-size:13px;padding:8px 9px;outline:none;font-family:ui-monospace,monospace;text-transform:uppercase';
+
+    const aplicar=v=>{palBuildDraft[lbl]=v.toUpperCase();col.value=v;hex.style.color='var(--ink)'};
+    col.oninput=()=>{hex.value=col.value.toUpperCase();aplicar(col.value)};
+    hex.oninput=()=>{
+      let v=hex.value.trim();
+      if(v&&!v.startsWith('#')){v='#'+v;hex.value=v}
+      if(/^#[0-9a-fA-F]{6}$/.test(v))aplicar(v);
+      else hex.style.color='var(--danger)';   // aviso mientras esté a medias
+    };
+    /* al salir del campo, si quedó a medias se recupera el color válido */
+    hex.onblur=()=>{hex.value=palBuildDraft[lbl];hex.style.color='var(--ink)'};
+
     const name=document.createElement('span');
-    name.style.cssText='flex:1;font-size:13.5px;color:var(--ink)';
+    name.style.cssText='flex:1;min-width:110px;font-size:13.5px;color:var(--ink)';
     name.textContent=lbl;
-    row.append(col,name);
+    row.append(col,hex,name);
     if(role){
       const tag=document.createElement('span');
       tag.style.cssText='font-size:10.5px;font-weight:700;color:var(--ink2);background:var(--bg2);border-radius:8px;padding:3px 7px;flex-shrink:0';
