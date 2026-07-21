@@ -1672,7 +1672,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v97'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v98'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2636,6 +2636,18 @@ function saveSrs(m){try{localStorage.setItem(srsKey(),JSON.stringify(m))}catch(e
    dentro de la propia ficha. Mismo criterio que buildEntCard. */
 function entThemeId(g){return g.auto?(loadThemeMap()[g.gid]||null):(g.themeId||null)}
 
+/* Las aclaraciones no viven en ENT_KINDS (no son "fichas automáticas": son
+   siempre manuales, ancladas a un punto del PDF), pero para el repaso valen
+   igual que una definición o una conclusión. Las adaptamos a la misma forma
+   {id,title,body,themeId} sin tocar loadAclars/saveAclars ni su panel propio. */
+function loadAclarsAsEnts(){
+  return loadAclars().map(a=>({
+    id:a.id, title:a.ref||firstWords(a.text,4), body:a.text,
+    themeId:a.themeId||null, auto:false, gid:a.gid
+  }));
+}
+function reviewEntsOf(kind){return kind==='aclar'?loadAclarsAsEnts():loadEnts(kind)}
+
 /* Estado del repaso en curso. Solo vive mientras dura la sesion. */
 let rvCola=[], rvActual=null, rvHechas=0, rvTotal=0, rvKind='ambas', rvTheme='__all__';
 
@@ -2643,9 +2655,9 @@ let rvCola=[], rvActual=null, rvHechas=0, rvTotal=0, rvKind='ambas', rvTheme='__
    cuenta como pendiente. */
 function reviewDue(){
   const srs=loadSrs(), ahora=Date.now(), out=[];
-  const kinds = rvKind==='ambas' ? ['glos','conc'] : [rvKind];
+  const kinds = rvKind==='ambas' ? ['glos','conc','aclar'] : [rvKind];
   kinds.forEach(k=>{
-    loadEnts(k).forEach(g=>{
+    reviewEntsOf(k).forEach(g=>{
       if(!g.body||!String(g.body).trim())return;          // sin respuesta que preguntar
       if(rvTheme!=='__all__'&&entThemeId(g)!==(rvTheme==='__none__'?null:rvTheme))return;
       const st=srs[g.id];
@@ -2684,7 +2696,7 @@ function renderReviewPanel(){
   const f=document.createElement('div');f.className='rv-filters';
   const lk=document.createElement('label');lk.textContent='QUÉ REPASAR';
   const sk=document.createElement('select');
-  [['ambas','Definiciones y conclusiones'],['glos','Solo definiciones'],['conc','Solo conclusiones']]
+  [['ambas','Todo'],['glos','Solo definiciones'],['conc','Solo conclusiones'],['aclar','Solo aclaraciones']]
     .forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;sk.appendChild(o)});
   sk.value=rvKind;sk.onchange=()=>{rvKind=sk.value;renderReviewPanel()};
   const lt=document.createElement('label');lt.textContent='TEMA';
@@ -2702,7 +2714,7 @@ function renderReviewPanel(){
 
   if(!pend.length){
     const em=document.createElement('div');em.className='empty-msg';
-    const hay=loadEnts('glos').length+loadEnts('conc').length;
+    const hay=loadEnts('glos').length+loadEnts('conc').length+loadAclars().length;
     em.textContent=hay
       ? 'Nada pendiente ahora mismo. Vuelve mañana: las fichas van reapareciendo poco a poco.'
       : 'Todavía no hay fichas. Subraya con un color de "Definiciones" o "Conclusiones" y pulsa ✓ Cerrar.';
@@ -2739,7 +2751,7 @@ function nextCard(){
   const g=rvActual.ent;
   const th=entThemeId(g)?themeById(entThemeId(g)):null;
   const badge=document.getElementById('rv-badge');
-  const tipo=rvActual.kind==='glos'?'Definición':'Conclusión';
+  const tipo=rvActual.kind==='glos'?'Definición':rvActual.kind==='conc'?'Conclusión':'Aclaración';
   if(th){badge.className='rv-badge';badge.style.background=th.color;
          badge.textContent=tipo+' · '+(th.num?th.num+' · ':'')+(th.name||'Tema')}
   else{badge.className='rv-badge none';badge.style.background='';badge.textContent=tipo+' · Sin tema'}
