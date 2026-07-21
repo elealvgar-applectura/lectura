@@ -336,7 +336,14 @@ body.fullscreen #rd-bottom-show{display:none}
   width:clamp(320px,38vw,720px);max-width:94vw;
   height:100%;height:100dvh;background:var(--card);border-left:1px solid var(--border);
   box-shadow:-6px 0 24px rgba(120,100,140,.14);z-index:600;display:flex;flex-direction:column;
-  transform:translateX(101%);transition:transform .26s cubic-bezier(.4,0,.2,1)}
+  /* LA FRANJA OSCURA DEL BORDE DERECHO ERA ESTO: con translateX(101%) el
+     panel quedaba solo unos pocos píxeles fuera de la pantalla, pero su
+     SOMBRA se proyecta 30px hacia la izquierda (-6px de desplazamiento +
+     24px de difuminado), así que seguía cayendo dentro de la vista. Y con
+     diez paneles cerrados, sus diez sombras se sumaban en la misma franja:
+     de ahí que se viera como una mancha y no como una sombra suave.
+     Se aparta lo suficiente para que la sombra quede fuera del todo. */
+  transform:translateX(calc(100% + 40px));transition:transform .26s cubic-bezier(.4,0,.2,1)}
 .side-panel.open{transform:translateX(0)}
 .sp-top{display:flex;align-items:center;gap:8px;padding:0 12px;height:54px;border-bottom:1px solid var(--border);flex-shrink:0}
 .sp-title{font-size:15px;font-weight:600;color:var(--ink);flex:1}
@@ -1524,7 +1531,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v84'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v85'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -5640,7 +5647,37 @@ async function renderThumbs(){
       }catch(e){}
     })();
   });
+
+  /* SITUARSE SIEMPRE EN LA PÁGINA ACTUAL.
+     Antes solo se le ponía el recuadro de "actual" (.cur-page) pero la lista
+     se quedaba arriba del todo: en un documento de 200 páginas, abrir la
+     vista estando en la 65 mostraba la 1 y había que buscar a mano. Ahora la
+     lista se desplaza para dejarla centrada.
+     Se ajusta el scroll a mano en vez de usar scrollIntoView porque el panel
+     se abre con una animación y scrollIntoView, mientras el panel aún se está
+     deslizando, arrastra también la página de detrás. */
+  const cur=body.querySelector('.thumb-item.cur-page');
+  clearTimeout(thumbsCenterTimer);        // ver nota abajo
+  if(cur){
+    const centrar=()=>{
+      /* Si esta miniatura ya no está en pantalla es que hubo otro repintado
+         después: no tocar nada. SIN ESTA COMPROBACIÓN pasaba justo el fallo
+         que se veía ("pocas veces me sitúa en la página actual"): al abrir la
+         vista dos veces seguidas, el temporizador de la apertura ANTERIOR
+         llegaba tarde, encontraba su miniatura ya eliminada (offsetTop 0) y
+         devolvía la lista al principio, pisando el centrado bueno. */
+      if(!body.contains(cur))return;
+      const destino=cur.offsetTop-(body.clientHeight/2)+(cur.offsetHeight/2);
+      body.scrollTop=Math.max(0,destino);
+    };
+    centrar();
+    /* y otra vez cuando termina de abrirse el panel: hasta entonces
+       clientHeight puede no ser el definitivo */
+    requestAnimationFrame(centrar);
+    thumbsCenterTimer=setTimeout(centrar,300);
+  }
 }
+let thumbsCenterTimer=null;
 
 /* ══ PROCESOS Y TEORÍAS (sustituye a la antigua Línea de tiempo) ══
    lp_tl_<id> (fechas/autor/evento) se queda intacta en el disco y en las
