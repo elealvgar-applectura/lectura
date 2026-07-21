@@ -1185,6 +1185,10 @@ body.fullscreen #gid-bar{bottom:20px}
       <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.4 13.6a3.4 3.4 0 0 0 5 .3l2.4-2.4a3.4 3.4 0 0 0-4.8-4.8l-1.4 1.4"/><path d="M13.6 10.4a3.4 3.4 0 0 0-5-.3l-2.4 2.4a3.4 3.4 0 0 0 4.8 4.8l1.4-1.4"/></svg></button>
     </div>
     <div id="node-body-in" class="rich-ed rich-content" contenteditable="true" data-ph="Descripción / resumen (con formato, todo lo que quieras)"></div>
+    <div style="margin:0 0 12px">
+      <label style="display:block;font-size:12.5px;color:var(--ink2);margin-bottom:5px">Tema</label>
+      <select id="node-theme-in" style="width:100%;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);font-size:15px;padding:11px;outline:none;font-family:inherit"></select>
+    </div>
     <div style="font-size:13px;color:var(--ink2);margin-bottom:12px">Se ancla a la página <span id="node-pg-label">1</span></div>
     <div class="modal-btns">
       <button class="mbtn cancel" id="modal-node-cancel">Cancelar</button>
@@ -4341,22 +4345,35 @@ wireRichToolbar(document.getElementById('subnode-body-tb'),document.getElementBy
 document.getElementById('modal-node-cancel').onclick=()=>{document.getElementById('modal-node').classList.add('hidden');nodeAddRes&&nodeAddRes(null)};
 document.getElementById('modal-node-ok').onclick=()=>{
   const t=document.getElementById('node-title-in').value.trim();if(!t){showTip('Escribe un título');return}
-  document.getElementById('modal-node').classList.add('hidden');nodeAddRes&&nodeAddRes({title:t,body:getRich(document.getElementById('node-body-in'))});
+  const themeId=document.getElementById('node-theme-in').value||null;
+  document.getElementById('modal-node').classList.add('hidden');
+  nodeAddRes&&nodeAddRes({title:t,body:getRich(document.getElementById('node-body-in')),themeId});
 };
+/* rellena el selector de tema del modal de nodo */
+function fillNodeThemeSelect(themeId){
+  const sel=document.getElementById('node-theme-in');sel.innerHTML='';
+  const optNone=document.createElement('option');optNone.value='';optNone.textContent='Sin tema';sel.appendChild(optNone);
+  loadThemes().sort((a,b)=>(a.num||0)-(b.num||0)).forEach(t=>{
+    const o=document.createElement('option');o.value=t.id;
+    o.textContent=(t.num?t.num+' · ':'')+(t.name||'Tema');sel.appendChild(o);
+  });
+  sel.value=themeId||'';
+}
 document.getElementById('modal-subnode-cancel').onclick=()=>{document.getElementById('modal-subnode').classList.add('hidden');nodeSubRes&&nodeSubRes(null)};
 document.getElementById('modal-subnode-ok').onclick=()=>{
   const t=document.getElementById('subnode-title-in').value.trim();if(!t){showTip('Escribe un subtítulo');return}
   document.getElementById('modal-subnode').classList.add('hidden');nodeSubRes&&nodeSubRes({title:t,body:getRich(document.getElementById('subnode-body-in'))});
 };
-function askNode(pg){return new Promise(r=>{nodeAddRes=r;document.getElementById('node-pg-label').textContent=pg;document.getElementById('node-title-in').value='';setRich(document.getElementById('node-body-in'),'');document.getElementById('modal-node').classList.remove('hidden');setTimeout(()=>document.getElementById('node-title-in').focus(),80)})}
+function askNode(pg){return new Promise(r=>{nodeAddRes=r;document.getElementById('node-pg-label').textContent=pg;document.getElementById('node-title-in').value='';setRich(document.getElementById('node-body-in'),'');fillNodeThemeSelect(null);document.getElementById('modal-node').classList.remove('hidden');setTimeout(()=>document.getElementById('node-title-in').focus(),80)})}
 function askSubNode(){return new Promise(r=>{nodeSubRes=r;document.getElementById('subnode-title-in').value='';setRich(document.getElementById('subnode-body-in'),'');document.getElementById('modal-subnode').classList.remove('hidden');setTimeout(()=>document.getElementById('subnode-title-in').focus(),80)})}
 /* mismos modales, pero precargados con el contenido actual → EDICIÓN */
-function askNodeEdit(title,body){return new Promise(r=>{
+function askNodeEdit(title,body,themeId){return new Promise(r=>{
   nodeAddRes=r;
   document.getElementById('node-pg-label').textContent=curPage;
 
   document.getElementById('node-title-in').value=title||'';
   setRich(document.getElementById('node-body-in'),body||'');
+  fillNodeThemeSelect(themeId);
   document.getElementById('modal-node').classList.remove('hidden');
   setTimeout(()=>document.getElementById('node-title-in').focus(),80);
 })}
@@ -4368,18 +4385,50 @@ function askSubNodeEdit(title,body){return new Promise(r=>{
   setTimeout(()=>document.getElementById('subnode-title-in').focus(),80);
 })}
 
-function refreshNodesPanel(){
+/* misma arquitectura que glosario/aclaraciones: parte fija (botón añadir +
+   buscador, nunca se destruyen) + lista agrupada por tema, plegable. */
+function ensureNodesStatic(){
+  if(document.getElementById('nodes-ent-static'))return;
   npNodesBody.innerHTML='';
-  const nodes=loadNodes();
+  const wrap=document.createElement('div');wrap.id='nodes-ent-static';
+
   const addBtn=document.createElement('button');addBtn.className='node-add-btn';
   setIconLabel(addBtn,'plus','Nuevo nodo en página '+curPage);
-  addBtn.onclick=async()=>{const d=await askNode(curPage);if(!d)return;nodes.push({id:uid(),title:d.title,body:d.body,pages:[curPid()],color:curColor,children:[],created:Date.now()});saveNodes(nodes);refreshNodesPanel();renderNodeAnchors();showTip('Nodo creado',1400)};
-  npNodesBody.appendChild(addBtn);
-  if(!nodes.length){const em=document.createElement('div');em.className='np-empty';em.textContent='Crea nodos conceptuales anclados al PDF.\nCada nodo puede tener subniveles de profundidad.';npNodesBody.appendChild(em);return}
+  addBtn.onclick=async()=>{
+    const d=await askNode(curPage);if(!d)return;
+    const nodes=loadNodes();
+    nodes.push({id:uid(),title:d.title,body:d.body,themeId:d.themeId||null,pages:[curPid()],color:curColor,children:[],created:Date.now()});
+    saveNodes(nodes);renderNodesList();renderNodeAnchors();showTip('Nodo creado',1400);
+  };
+  wrap.appendChild(addBtn);
 
   /* buscador por palabra clave. Busca también dentro de los subniveles, para
      encontrar un nodo por algo escrito en su profundidad. */
-  npNodesBody.appendChild(buildPanelSearch('node',refreshNodesPanel,'Buscar en nodos…'));
+  wrap.appendChild(buildPanelSearch('node',renderNodesList,'Buscar en nodos…'));
+
+  const toggleAllBtn=document.createElement('button');
+  toggleAllBtn.className='sp-action-btn';toggleAllBtn.style.cssText='margin-bottom:10px;font-size:13px;padding:8px';
+  toggleAllBtn.textContent='Desplegar todos los temas';
+  toggleAllBtn.onclick=()=>{
+    const opening=toggleAllBtn.dataset.open!=='1';
+    toggleAllBtn.dataset.open=opening?'1':'0';
+    toggleAllBtn.textContent=opening?'Plegar todos los temas':'Desplegar todos los temas';
+    loadThemes().concat([{id:''}]).forEach(t=>{themeGroupOpen['node:'+t.id]=opening});
+    renderNodesList();
+  };
+  wrap.appendChild(toggleAllBtn);
+
+  npNodesBody.appendChild(wrap);
+  const list=document.createElement('div');list.id='nodes-ent-list';
+  npNodesBody.appendChild(list);
+}
+function refreshNodesPanel(){ensureNodesStatic();renderNodesList()}
+function renderNodesList(){
+  const body=document.getElementById('nodes-ent-list');if(!body)return;
+  body.innerHTML='';
+  const nodes=loadNodes();
+  if(!nodes.length){const em=document.createElement('div');em.className='np-empty';em.textContent='Crea nodos conceptuales anclados al PDF.\nCada nodo puede tener subniveles de profundidad.';body.appendChild(em);return}
+
   const qN=panelSearch.node;
   let vis=nodes;
   if(qN.trim()){
@@ -4388,10 +4437,43 @@ function refreshNodesPanel(){
     if(!vis.length){
       const em=document.createElement('div');em.className='np-empty';
       em.textContent='Ningún nodo coincide con "'+qN.trim()+'".';
-      npNodesBody.appendChild(em);return;
+      body.appendChild(em);return;
     }
   }
-  vis.slice().sort((a,b)=>(a.pages[0]||0)-(b.pages[0]||0)).forEach(node=>npNodesBody.appendChild(buildNodeEl(node,nodes)));
+
+  /* agrupado por tema, plegable, plegado por defecto — igual que
+     glosario/conclusiones/aclaraciones. */
+  const themes=loadThemes().sort((a,b)=>(a.num||0)-(b.num||0));
+  const byTheme=new Map();themes.forEach(t=>byTheme.set(t.id,[]));
+  const noTheme=[];
+  vis.forEach(n=>{if(n.themeId&&byTheme.has(n.themeId))byTheme.get(n.themeId).push(n);else noTheme.push(n)});
+
+  const searching=!!qN.trim();
+  const renderGroup=(arr,theme)=>{
+    if(!arr.length)return;
+    const sorted=[...arr].sort((a,b)=>(a.pages[0]||0)-(b.pages[0]||0));
+    const key='node:'+(theme?theme.id:'');
+    const isOpen=searching||!!themeGroupOpen[key];
+    const hd=document.createElement('div');hd.className='theme-hd theme-hd-toggle';
+    hd.style.background=theme?theme.color:'var(--bg2)';
+    const arrow=document.createElement('span');arrow.className='theme-grp-arrow'+(isOpen?' open':'');arrow.innerHTML=svg('chevRight');
+    hd.appendChild(arrow);
+    if(theme)hd.insertAdjacentHTML('beforeend',`<span class="theme-hd-num">${theme.num}</span><span class="theme-hd-name">${esc(theme.name)}</span>`);
+    else hd.insertAdjacentHTML('beforeend',`<span class="theme-hd-name" style="color:var(--ink3)">Sin tema</span>`);
+    hd.insertAdjacentHTML('beforeend',`<span class="theme-hd-cnt">${sorted.length}</span>`);
+    body.appendChild(hd);
+    const grp=document.createElement('div');grp.className='theme-grp-body'+(isOpen?' open':'');
+    sorted.forEach(node=>grp.appendChild(buildNodeEl(node,nodes)));
+    body.appendChild(grp);
+    hd.onclick=()=>{
+      if(searching)return;
+      themeGroupOpen[key]=!themeGroupOpen[key];
+      arrow.classList.toggle('open',themeGroupOpen[key]);
+      grp.classList.toggle('open',themeGroupOpen[key]);
+    };
+  };
+  themes.forEach(t=>renderGroup(byTheme.get(t.id),t));
+  renderGroup(noTheme,null);
 }
 
 function buildNodeEl(node,nodes){
@@ -4447,9 +4529,9 @@ function buildNodeEl(node,nodes){
     })));
   };
   const doEdit=async()=>{
-    const d=await askNodeEdit(node.title,node.body||'');
+    const d=await askNodeEdit(node.title,node.body||'',node.themeId||null);
     if(!d)return;
-    node.title=d.title;node.body=d.body;
+    node.title=d.title;node.body=d.body;node.themeId=d.themeId||null;
     saveNodes(nodes);refreshNodesPanel();renderNodeAnchors();showTip('Nodo actualizado',1200);
   };
   const doSub=async()=>{
@@ -4977,7 +5059,14 @@ function renderSummary(tab){
   cnt.textContent=notes.length+(notes.length===1?' nota':' notas');
   body.appendChild(cnt);
 
-  notes.forEach(({n,pg})=>{
+  /* agrupado por tema, plegable y plegado por defecto, igual que el resto
+     de herramientas. Las notas viejas no tienen themeId: van a "Sin tema". */
+  const themes=loadThemes().sort((a,b)=>(a.num||0)-(b.num||0));
+  const byTheme=new Map();themes.forEach(t=>byTheme.set(t.id,[]));
+  const noTheme=[];
+  notes.forEach(nn=>{if(nn.n.themeId&&byTheme.has(nn.n.themeId))byTheme.get(nn.n.themeId).push(nn);else noTheme.push(nn)});
+
+  const renderNoteCard=({n,pg})=>{
     const card=document.createElement('div');card.className='ent-card';
     const hd=document.createElement('div');hd.className='ent-hd';
     const arrow=document.createElement('span');arrow.className='ent-arrow';arrow.textContent='›';
@@ -5009,11 +5098,12 @@ function renderSummary(tab){
             setTimeout(()=>el.style.outline='',1600)}
         },430);
       }),
-      /* EDITAR la nota desde el panel (antes solo se podía en la propia página) */
+      /* EDITAR la nota desde el panel (antes solo se podía en la propia página).
+         Ahora también se le puede asignar un tema, para agruparla. */
       mkN2('pencil','Editar',async()=>{
-        const d=await askEmbedEdit(n.title||'',n.text||'',{showTheme:false});
+        const d=await askEmbedEdit(n.title||'',n.text||'',{showTheme:true,themeId:n.themeId||null});
         if(!d)return;
-        n.title=d.title;n.text=d.text;      // n es la referencia real de ann.notes
+        n.title=d.title;n.text=d.text;n.themeId=d.themeId||null;   // n es la referencia real de ann.notes
         scheduleSave();renderSummary(tab);forceNoteLayerRefresh(pg);
       }),
       mkN2('trash','Eliminar',async()=>{
@@ -5026,8 +5116,33 @@ function renderSummary(tab){
     hd.appendChild(acts);
     card.append(hd,bd);
     hd.onclick=()=>{const o=bd.classList.toggle('open');arrow.classList.toggle('open',o)};
-    body.appendChild(card);
-  });
+    return card;
+  };
+
+  /* agrupado por tema, plegable, plegado por defecto */
+  const renderGroup=(arr,theme)=>{
+    if(!arr.length)return;
+    const key='notes:'+(theme?theme.id:'');
+    const isOpen=!!themeGroupOpen[key];
+    const hd=document.createElement('div');hd.className='theme-hd theme-hd-toggle';
+    hd.style.background=theme?theme.color:'var(--bg2)';
+    const arrow=document.createElement('span');arrow.className='theme-grp-arrow'+(isOpen?' open':'');arrow.innerHTML=svg('chevRight');
+    hd.appendChild(arrow);
+    if(theme)hd.insertAdjacentHTML('beforeend',`<span class="theme-hd-num">${theme.num}</span><span class="theme-hd-name">${esc(theme.name)}</span>`);
+    else hd.insertAdjacentHTML('beforeend',`<span class="theme-hd-name" style="color:var(--ink3)">Sin tema</span>`);
+    hd.insertAdjacentHTML('beforeend',`<span class="theme-hd-cnt">${arr.length}</span>`);
+    body.appendChild(hd);
+    const grp=document.createElement('div');grp.className='theme-grp-body'+(isOpen?' open':'');
+    arr.forEach(nn=>grp.appendChild(renderNoteCard(nn)));
+    body.appendChild(grp);
+    hd.onclick=()=>{
+      themeGroupOpen[key]=!themeGroupOpen[key];
+      arrow.classList.toggle('open',themeGroupOpen[key]);
+      grp.classList.toggle('open',themeGroupOpen[key]);
+    };
+  };
+  themes.forEach(t=>renderGroup(byTheme.get(t.id),t));
+  renderGroup(noTheme,null);
 }
 
 function exportSummaryText(tab){
@@ -5417,7 +5532,37 @@ function refreshProcPanel(){
     em.textContent='Crea un proceso por cada teoría o ciclo por etapas: Piaget, el ciclo del duelo, un modelo de condicionamiento... Cada paso podrá recibir flechas de varios anteriores.';
     body.appendChild(em);return;
   }
-  procs.forEach(p=>body.appendChild(buildProcCard(p,procs)));
+
+  /* agrupado por tema, plegable, plegado por defecto — igual que el resto
+     de herramientas. Cada proceso ya elige tema al crearse. */
+  const themes=loadThemes().sort((a,b)=>(a.num||0)-(b.num||0));
+  const byTheme=new Map();themes.forEach(t=>byTheme.set(t.id,[]));
+  const noTheme=[];
+  procs.forEach(p=>{if(p.themeId&&byTheme.has(p.themeId))byTheme.get(p.themeId).push(p);else noTheme.push(p)});
+
+  const renderGroup=(arr,theme)=>{
+    if(!arr.length)return;
+    const key='proc:'+(theme?theme.id:'');
+    const isOpen=!!themeGroupOpen[key];
+    const hd=document.createElement('div');hd.className='theme-hd theme-hd-toggle';
+    hd.style.background=theme?theme.color:'var(--bg2)';
+    const arrow=document.createElement('span');arrow.className='theme-grp-arrow'+(isOpen?' open':'');arrow.innerHTML=svg('chevRight');
+    hd.appendChild(arrow);
+    if(theme)hd.insertAdjacentHTML('beforeend',`<span class="theme-hd-num">${theme.num}</span><span class="theme-hd-name">${esc(theme.name)}</span>`);
+    else hd.insertAdjacentHTML('beforeend',`<span class="theme-hd-name" style="color:var(--ink3)">Sin tema</span>`);
+    hd.insertAdjacentHTML('beforeend',`<span class="theme-hd-cnt">${arr.length}</span>`);
+    body.appendChild(hd);
+    const grp=document.createElement('div');grp.className='theme-grp-body'+(isOpen?' open':'');
+    arr.forEach(p=>grp.appendChild(buildProcCard(p,procs)));
+    body.appendChild(grp);
+    hd.onclick=()=>{
+      themeGroupOpen[key]=!themeGroupOpen[key];
+      arrow.classList.toggle('open',themeGroupOpen[key]);
+      grp.classList.toggle('open',themeGroupOpen[key]);
+    };
+  };
+  themes.forEach(t=>renderGroup(byTheme.get(t.id),t));
+  renderGroup(noTheme,null);
 }
 /* `procs` es siempre la misma referencia durante todo el render, igual que
    `maps` en el mapa conceptual: guardar desde una tarjeta no pierde los
@@ -7198,49 +7343,76 @@ document.addEventListener('click',e=>{
 let cmapLinkRes=null;
 const mCmapLink=document.getElementById('modal-cmap-link');
 document.getElementById('modal-cmap-link-cancel').onclick=()=>{mCmapLink.classList.add('hidden');cmapLinkRes&&cmapLinkRes(null)};
+/* icono pequeño según el tipo de ficha, dentro de la lista agrupada por tema */
+const LINK_KIND_ICON={glos:'file',conc:'heartMind',aclar:'eye'};
 function askCmapLink(){
   return new Promise(res=>{
     cmapLinkRes=res;
-    const groups=[
-      {kind:'glos', label:'Definiciones', items:loadEnts('glos').map(it=>({id:it.gid||it.id,title:it.title,body:it.body}))},
-      {kind:'conc', label:'Conclusiones', items:loadEnts('conc').map(it=>({id:it.gid||it.id,title:it.title,body:it.body}))},
-      {kind:'aclar',label:'Aclaraciones', items:loadAclars().map(it=>({id:it.id,title:it.ref||'Aclaración',body:it.text}))}
+    /* AGRUPADO POR TEMA (antes era por tipo de ficha): "Tema 3" reúne sus
+       definiciones, conclusiones y aclaraciones juntas; se toca para
+       desplegar. Sin tema, al final. Plegado por defecto. */
+    const all=[
+      ...loadEnts('glos').map(it=>({kind:'glos',id:it.gid||it.id,title:it.title,body:it.body,themeId:it.themeId||null})),
+      ...loadEnts('conc').map(it=>({kind:'conc',id:it.gid||it.id,title:it.title,body:it.body,themeId:it.themeId||null})),
+      ...loadAclars().map(it=>({kind:'aclar',id:it.id,title:it.ref||'Aclaración',body:it.text,themeId:it.themeId||null}))
     ];
-    const hayAlgo=groups.some(g=>g.items.length);
+    const hayAlgo=all.length>0;
     const inp=document.getElementById('cmap-link-search');
     const list=document.getElementById('cmap-link-list');
 
-    /* con muchas fichas, encontrar la que se quiere vincular a base de
-       scroll es inviable: el buscador filtra los tres grupos a la vez */
     const pinta=()=>{
       list.innerHTML='';
       const q=inp.value;
-      let any=false;
-      groups.forEach(g=>{
-        const items=q.trim()?g.items.filter(it=>panelMatch(q,it.title,it.body)):g.items;
-        if(!items.length)return;
-        any=true;
-        const h=document.createElement('div');
-        /* flex-shrink:0 — la lista es un contenedor flex en columna: sin esto,
-           con varias fichas los elementos se encogían de alto y el texto
-           quedaba cortado por la mitad (ilegible). */
-        h.style.cssText='flex:0 0 auto;font-size:11.5px;font-weight:700;color:var(--ink3);margin:8px 2px 2px;text-transform:uppercase;letter-spacing:.04em';
-        h.textContent=g.label;list.appendChild(h);
-        items.forEach(it=>{
-          const b=document.createElement('button');
-          b.style.cssText='flex:0 0 auto;display:block;width:100%;min-height:38px;text-align:left;padding:9px 10px;border:none;border-radius:9px;background:var(--bg2);color:var(--ink);font-family:inherit;font-size:13.5px;line-height:1.35;cursor:pointer;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
-          b.textContent=it.title||'(sin título)';
-          b.onclick=()=>{mCmapLink.classList.add('hidden');cmapLinkRes&&cmapLinkRes({kind:g.kind,id:it.id,title:it.title||''})};
-          list.appendChild(b);
-        });
-      });
-      if(!any){
+      const items=q.trim()?all.filter(it=>panelMatch(q,it.title,it.body)):all;
+      if(!items.length){
         const em=document.createElement('div');
         em.style.cssText='text-align:center;color:var(--ink3);font-size:13px;padding:20px 10px';
         em.textContent=hayAlgo?('Nada coincide con "'+q.trim()+'".')
           :'Aún no tienes definiciones, conclusiones ni aclaraciones en este documento.';
         list.appendChild(em);
+        return;
       }
+      const themes=loadThemes().sort((a,b)=>(a.num||0)-(b.num||0));
+      const byTheme=new Map();themes.forEach(t=>byTheme.set(t.id,[]));
+      const noTheme=[];
+      items.forEach(it=>{if(it.themeId&&byTheme.has(it.themeId))byTheme.get(it.themeId).push(it);else noTheme.push(it)});
+
+      const searching=!!q.trim();
+      const renderGroup=(arr,theme)=>{
+        if(!arr.length)return;
+        const key='link:'+(theme?theme.id:'');
+        const isOpen=searching||!!themeGroupOpen[key];
+        const hd=document.createElement('div');hd.className='theme-hd theme-hd-toggle';
+        hd.style.cssText+=';flex:0 0 auto';
+        hd.style.background=theme?theme.color:'var(--bg2)';
+        const arrow=document.createElement('span');arrow.className='theme-grp-arrow'+(isOpen?' open':'');arrow.innerHTML=svg('chevRight');
+        hd.appendChild(arrow);
+        if(theme)hd.insertAdjacentHTML('beforeend',`<span class="theme-hd-num">${theme.num}</span><span class="theme-hd-name">${esc(theme.name)}</span>`);
+        else hd.insertAdjacentHTML('beforeend',`<span class="theme-hd-name" style="color:var(--ink3)">Sin tema</span>`);
+        hd.insertAdjacentHTML('beforeend',`<span class="theme-hd-cnt">${arr.length}</span>`);
+        list.appendChild(hd);
+
+        const grp=document.createElement('div');grp.className='theme-grp-body'+(isOpen?' open':'');grp.style.flex='0 0 auto';
+        arr.forEach(it=>{
+          const b=document.createElement('button');
+          b.style.cssText='flex:0 0 auto;display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:9px 10px;border:none;border-radius:9px;background:var(--bg2);color:var(--ink);font-family:inherit;font-size:13.5px;line-height:1.35;cursor:pointer;margin-bottom:2px;overflow:hidden';
+          const ic=document.createElement('span');ic.style.cssText='flex-shrink:0;display:inline-flex;color:var(--ink3)';ic.innerHTML=svg(LINK_KIND_ICON[it.kind]);
+          const tx=document.createElement('span');tx.style.cssText='overflow:hidden;text-overflow:ellipsis;white-space:nowrap';tx.textContent=it.title||'(sin título)';
+          b.append(ic,tx);
+          b.onclick=()=>{mCmapLink.classList.add('hidden');cmapLinkRes&&cmapLinkRes({kind:it.kind,id:it.id,title:it.title||''})};
+          grp.appendChild(b);
+        });
+        list.appendChild(grp);
+
+        hd.onclick=()=>{
+          if(searching)return;
+          themeGroupOpen[key]=!themeGroupOpen[key];
+          arrow.classList.toggle('open',themeGroupOpen[key]);
+          grp.classList.toggle('open',themeGroupOpen[key]);
+        };
+      };
+      themes.forEach(t=>renderGroup(byTheme.get(t.id),t));
+      renderGroup(noTheme,null);
     };
     inp.value='';inp.oninput=pinta;
     inp.style.display=hayAlgo?'':'none';
