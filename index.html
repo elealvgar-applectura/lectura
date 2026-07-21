@@ -596,7 +596,15 @@ body.fullscreen #rd-bottom-show{display:none}
 .theme-hd{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:10px;margin:12px 0 8px}
 .theme-hd-num{background:rgba(0,0,0,.14);color:var(--ink);font-size:12px;font-weight:800;min-width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .theme-hd-name{flex:1;font-size:14px;font-weight:700;color:var(--ink)}
-.theme-hd-cnt{font-size:12px;font-weight:700;color:var(--ink2);background:rgba(255,255,255,.5);border-radius:10px;padding:2px 8px}
+.theme-hd-cnt{font-size:12px;font-weight:700;color:var(--ink2);background:rgba(255,255,255,.5);border-radius:10px;padding:2px 8px;flex-shrink:0}
+/* cabeceras de tema PLEGABLES: por defecto todo cerrado, se toca para ver.
+   Mismo lenguaje visual que ya había, solo se le añade la flecha y el
+   plegado del contenido. */
+.theme-hd-toggle{cursor:pointer;user-select:none}
+.theme-grp-arrow{flex-shrink:0;display:inline-flex;color:var(--ink);transition:transform .18s;opacity:.6}
+.theme-grp-arrow.open{transform:rotate(90deg)}
+.theme-grp-body{display:none;padding-left:2px}
+.theme-grp-body.open{display:block}
 .glos-item{padding:8px 4px;border-bottom:1px solid var(--border);font-size:13.5px;color:var(--ink);display:flex;align-items:center;gap:8px;cursor:pointer}
 .glos-item:active{background:var(--bg2)}
 .glos-dot{width:9px;height:9px;background:var(--rosa);border-radius:50%;flex-shrink:0}
@@ -5808,40 +5816,47 @@ function loadAclars(){try{return JSON.parse(localStorage.getItem(aclarKey())||'[
 function saveAclars(arr){try{localStorage.setItem(aclarKey(),JSON.stringify(arr))}catch(e){}}
 /* rellena/borra un campo de UNA aclaración por id (persistente) */
 function patchAclar(id,fields){const arr=loadAclars();const x=arr.find(z=>z.id===id);if(x){Object.assign(x,fields);saveAclars(arr)}}
-const entThemeFilterAclar={v:'__all__'};   // filtro por tema del panel de aclaraciones
 function refreshAclarPanelIfOpen(){const p=document.getElementById('aclar-panel');if(p&&p.classList.contains('open'))refreshAclarPanel()}
 
 /* panel de Aclaraciones: agrupadas por tema, con editar / borrar / ir / exportar */
-function refreshAclarPanel(){
+/* misma arquitectura que glosario/conclusiones: parte fija (buscador,
+   nunca se destruye) + lista que se repinta agrupada por tema y plegable */
+function ensureAclarStatic(){
   const body=document.getElementById('aclar-body');if(!body)return;
+  if(document.getElementById('aclar-ent-static'))return;
   body.innerHTML='';
-  let flt=entThemeFilterAclar.v;
-  if(flt!=='__all__'&&flt!==''&&!themeById(flt)){flt='__all__';entThemeFilterAclar.v='__all__'}
+  const wrap=document.createElement('div');wrap.id='aclar-ent-static';
+  wrap.appendChild(buildPanelSearch('aclar',()=>renderAclarList(),'Buscar en aclaraciones…'));
 
-  /* desplegable de tema (mismo estilo que glosario/conclusiones), aquí solo filtra */
-  const themesM=loadThemes().sort((a,b)=>(a.num||0)-(b.num||0));
-  const sel=document.createElement('select');sel.className='glos-manual-add-theme';
-  const oAll=document.createElement('option');oAll.value='__all__';oAll.textContent='TODO';sel.appendChild(oAll);
-  const oNone=document.createElement('option');oNone.value='';oNone.textContent='Sin tema';sel.appendChild(oNone);
-  themesM.forEach(t=>{const o=document.createElement('option');o.value=t.id;o.textContent=(t.num?t.num+' · ':'')+(t.name||'Tema');sel.appendChild(o)});
-  sel.value=flt;
-  sel.onchange=()=>{entThemeFilterAclar.v=sel.value;refreshAclarPanel()};
-  body.appendChild(sel);
+  const toggleAllBtn=document.createElement('button');
+  toggleAllBtn.className='sp-action-btn';toggleAllBtn.style.cssText='margin-bottom:10px;font-size:13px;padding:8px';
+  toggleAllBtn.textContent='Desplegar todos los temas';
+  toggleAllBtn.onclick=()=>{
+    const opening=toggleAllBtn.dataset.open!=='1';
+    toggleAllBtn.dataset.open=opening?'1':'0';
+    toggleAllBtn.textContent=opening?'Plegar todos los temas':'Desplegar todos los temas';
+    loadThemes().concat([{id:''}]).forEach(t=>{themeGroupOpen['aclar:'+t.id]=opening});
+    renderAclarList();
+  };
+  wrap.appendChild(toggleAllBtn);
+
+  body.appendChild(wrap);
+  const list=document.createElement('div');list.id='aclar-ent-list';
+  body.appendChild(list);
+}
+function refreshAclarPanel(){ensureAclarStatic();renderAclarList()}
+function renderAclarList(){
+  const body=document.getElementById('aclar-ent-list');if(!body)return;
+  body.innerHTML='';
 
   let items=loadAclars();
-  if(flt!=='__all__')items=items.filter(a=>((a.themeId||'')===flt));
-
-  /* buscador por palabra clave: busca en la referencia subrayada y en el texto */
-  body.appendChild(buildPanelSearch('aclar',refreshAclarPanel,'Buscar en aclaraciones…'));
   const qA=panelSearch.aclar;
   if(qA.trim())items=items.filter(a=>panelMatch(qA,a.ref,a.text));
 
   if(!items.length){
     const em=document.createElement('div');em.className='np-empty';
-    if(qA.trim()){em.textContent='Nada coincide con "'+qA.trim()+'".';body.appendChild(em);return}
-    em.textContent= flt==='__all__'
-      ? 'Subraya con el color "Aclaraciones" y pulsa ✓ Cerrar para escribir aquí la aclaración.'
-      : (flt===''?'No hay aclaraciones sin tema.':'No hay aclaraciones en este tema.');
+    em.textContent = qA.trim() ? 'Nada coincide con "'+qA.trim()+'".'
+      : 'Subraya con el color "Aclaraciones" y pulsa ✓ Cerrar para escribir aquí la aclaración.';
     body.appendChild(em);return;
   }
 
@@ -5854,16 +5869,33 @@ function refreshAclarPanel(){
   const noTheme=[];
   items.forEach(a=>{if(a.themeId&&byTheme.has(a.themeId))byTheme.get(a.themeId).push(a);else noTheme.push(a)});
 
+  const searching=!!qA.trim();
   const renderGroup=(list,theme)=>{
     if(!list.length)return;
     const sorted=[...list].sort((a,b)=>posOfPid(a.page)-posOfPid(b.page));
-    const th=document.createElement('div');th.className='theme-hd';
-    if(theme){th.style.background=theme.color;
-      th.innerHTML=`<span class="theme-hd-num">${theme.num}</span><span class="theme-hd-name">${esc(theme.name)}</span><span class="theme-hd-cnt">${sorted.length}</span>`;
-    }else{th.style.background='var(--bg2)';
-      th.innerHTML=`<span class="theme-hd-name" style="color:var(--ink3)">Sin tema</span><span class="theme-hd-cnt">${sorted.length}</span>`;}
+    const key='aclar:'+(theme?theme.id:'');
+    const isOpen=searching||!!themeGroupOpen[key];
+
+    const th=document.createElement('div');th.className='theme-hd theme-hd-toggle';
+    th.style.background=theme?theme.color:'var(--bg2)';
+    const arrow=document.createElement('span');arrow.className='theme-grp-arrow'+(isOpen?' open':'');
+    arrow.innerHTML=svg('chevRight');
+    th.appendChild(arrow);
+    if(theme)th.insertAdjacentHTML('beforeend',`<span class="theme-hd-num">${theme.num}</span><span class="theme-hd-name">${esc(theme.name)}</span>`);
+    else th.insertAdjacentHTML('beforeend',`<span class="theme-hd-name" style="color:var(--ink3)">Sin tema</span>`);
+    th.insertAdjacentHTML('beforeend',`<span class="theme-hd-cnt">${sorted.length}</span>`);
     body.appendChild(th);
-    sorted.forEach(a=>body.appendChild(buildAclarCard(a)));
+
+    const grp=document.createElement('div');grp.className='theme-grp-body'+(isOpen?' open':'');
+    sorted.forEach(a=>grp.appendChild(buildAclarCard(a)));
+    body.appendChild(grp);
+
+    th.onclick=()=>{
+      if(searching)return;
+      themeGroupOpen[key]=!themeGroupOpen[key];
+      arrow.classList.toggle('open',themeGroupOpen[key]);
+      grp.classList.toggle('open',themeGroupOpen[key]);
+    };
   };
   themes.forEach(t=>renderGroup(byTheme.get(t.id),t));
   renderGroup(noTheme,null);
@@ -6404,8 +6436,13 @@ function renderThemesMgr(){
     num.title='Número del tema (ordena la lista)';
     num.onchange=()=>{
       const a=loadThemes();const it=a.find(x=>x.id===t.id);
-      if(it){it.num=parseInt(num.value,10)||1;saveThemes(a)}
-      renderThemesMgr();refreshEntPanels();
+      if(it){it.num=parseInt(num.value,10)||1;saveThemes(a);t.num=it.num}
+      /* NO repintar la lista entera aquí: si el usuario ya había pasado a
+         tocar el campo del nombre (o cualquier otro), reconstruir todo le
+         robaba el foco a mitad de escribir (el mismo fallo que el buscador:
+         no se puede editar el segundo campo sin volver a pinchar). El orden
+         se reordena solo la próxima vez que se abra el gestor. */
+      refreshEntPanels();
     };
 
     const name=document.createElement('input');
@@ -6597,59 +6634,88 @@ async function autoUpdateEnts(kind){
 /* Filtro por tema del panel. Es el MISMO desplegable de arriba: además de
    asignar el tema al insertar manualmente, filtra el listado por tema.
    '__all__' = TODO (ver todo). Se recuerda por tipo (glosario / conclusiones). */
-const entThemeFilter={glos:'__all__',conc:'__all__'};
+/* estado de plegado de cada grupo de tema: 'panelKey:themeId' → bool.
+   En memoria (no se guarda): al reabrir el panel todo vuelve a estar
+   plegado, tal como se pidió. */
+const themeGroupOpen={};
 
-function renderEnts(kind){
+/* construye UNA VEZ la parte fija del panel (añadir manual + buscador): si
+   se reconstruyera en cada tecla, como antes, el campo de búsqueda se
+   destruía y recreaba en cada pulsación y perdía el foco — había que
+   volver a pinchar para escribir la letra siguiente. Ahora solo se
+   reconstruye la LISTA de abajo. */
+function ensureEntStatic(kind){
   const K=ENT_KINDS[kind];
   const body=document.getElementById(kind==='glos'?'glossary-body':'conclusions-body');
+  if(document.getElementById(kind+'-ent-static'))return;
+  body.innerHTML='';
+  const wrap=document.createElement('div');wrap.id=kind+'-ent-static';
+
+  const addRow=document.createElement('div');addRow.className='glos-manual-add';
+  const inp=document.createElement('input');inp.placeholder='Añadir entrada manual';
+  const themeSel=document.createElement('select');themeSel.className='glos-manual-add-theme';
+  themeSel.style.cssText='width:auto;flex:0 0 120px;margin-bottom:0';
+  const btn=document.createElement('button');btn.textContent='＋';
+  const add=()=>{
+    const t=inp.value.trim();if(!t)return;
+    const a=loadEnts(kind);
+    a.push({id:uid(),title:firstWords(t,K.words),body:t,page:curPid(),color:K.dot,manual:true,themeId:themeSel.value||null});
+    saveEnts(kind,a);inp.value='';renderEntsList(kind);renderPageAnchors();
+  };
+  btn.onclick=add;inp.addEventListener('keydown',e=>{if(e.key==='Enter')add()});
+  addRow.append(inp,themeSel,btn);
+  wrap.appendChild(addRow);
+
+  wrap.appendChild(buildPanelSearch(kind,()=>renderEntsList(kind),'Buscar en '+K.label.toLowerCase()+'…'));
+
+  const toggleAllBtn=document.createElement('button');
+  toggleAllBtn.className='sp-action-btn';toggleAllBtn.style.cssText='margin-bottom:10px;font-size:13px;padding:8px';
+  toggleAllBtn.textContent='Desplegar todos los temas';
+  toggleAllBtn.onclick=()=>{
+    const opening=toggleAllBtn.dataset.open!=='1';
+    toggleAllBtn.dataset.open=opening?'1':'0';
+    toggleAllBtn.textContent=opening?'Plegar todos los temas':'Desplegar todos los temas';
+    loadThemes().concat([{id:''}]).forEach(t=>{themeGroupOpen[kind+':'+t.id]=opening});
+    renderEntsList(kind);
+  };
+  wrap.appendChild(toggleAllBtn);
+
+  body.appendChild(wrap);
+  const list=document.createElement('div');list.id=kind+'-ent-list';
+  body.appendChild(list);
+}
+/* repuebla el selector de tema de la fila "añadir manual" (los temas pueden
+   cambiar mientras el panel está abierto, p.ej. desde el gestor) */
+function refreshEntAddThemeSelect(kind){
+  const sel=document.querySelector('#'+kind+'-ent-static .glos-manual-add-theme');
+  if(!sel)return;
+  const cur=sel.value;
+  sel.innerHTML='';
+  const optNone=document.createElement('option');optNone.value='';optNone.textContent='Sin tema';sel.appendChild(optNone);
+  loadThemes().sort((a,b)=>(a.num||0)-(b.num||0)).forEach(t=>{
+    const o=document.createElement('option');o.value=t.id;
+    o.textContent=(t.num?t.num+' · ':'')+(t.name||'Tema');sel.appendChild(o);
+  });
+  if([...sel.options].some(o=>o.value===cur))sel.value=cur;
+}
+
+function renderEnts(kind){ensureEntStatic(kind);refreshEntAddThemeSelect(kind);renderEntsList(kind)}
+
+function renderEntsList(kind){
+  const K=ENT_KINDS[kind];
+  const body=document.getElementById(kind+'-ent-list');
+  if(!body)return;
   body.innerHTML='';
 
-  /* Si el tema elegido en el filtro fue borrado, se vuelve a TODO. */
-  let flt=entThemeFilter[kind];
-  if(flt!=='__all__'&&flt!==''&&!themeById(flt)){flt='__all__';entThemeFilter[kind]='__all__'}
-
-  /* Tras autoUpdateEnts tanto las manuales como las automáticas llevan themeId
-     (a las automáticas se lo copia autoUpdateEnts desde el mapa de temas), así
-     que se puede filtrar por g.themeId de forma uniforme. '' = sin tema. */
   let items=loadEnts(kind);
-  if(flt!=='__all__')items=items.filter(g=>((g.themeId||'')===flt));
 
-  /* Desplegable de Tema: hace DOS cosas → filtra el listado por tema y, al
-     añadir una entrada manual, le asigna ese tema. TODO / Sin tema = sin tema. */
-  {
-    const themesM=loadThemes().sort((a,b)=>(a.num||0)-(b.num||0));
-    const sel=document.createElement('select');sel.className='glos-manual-add-theme';
-    const optAll=document.createElement('option');optAll.value='__all__';optAll.textContent='TODO';sel.appendChild(optAll);
-    const optNone=document.createElement('option');optNone.value='';optNone.textContent='Sin tema';sel.appendChild(optNone);
-    themesM.forEach(t=>{const o=document.createElement('option');o.value=t.id;
-      o.textContent=(t.num?t.num+' · ':'')+(t.name||'Tema');sel.appendChild(o)});
-    sel.value=flt;
-    sel.onchange=()=>{entThemeFilter[kind]=sel.value;renderEnts(kind)};
-    body.appendChild(sel);
-
-    const addRow=document.createElement('div');addRow.className='glos-manual-add';
-    const inp=document.createElement('input');inp.placeholder='Añadir entrada manual';
-    const btn=document.createElement('button');btn.textContent='＋';
-    const add=()=>{const t=inp.value.trim();if(!t)return;
-      const newTid=(flt&&flt!=='__all__')?flt:null;   // TODO / Sin tema → entrada sin tema
-      const a=loadEnts(kind);
-      a.push({id:uid(),title:firstWords(t,K.words),body:t,page:curPid(),color:K.dot,manual:true,themeId:newTid});
-      saveEnts(kind,a);inp.value='';renderEnts(kind);renderPageAnchors()};
-    btn.onclick=add;inp.addEventListener('keydown',e=>{if(e.key==='Enter')add()});
-    addRow.append(inp,btn);body.appendChild(addRow);
-  }
-
-  /* buscador por palabra clave (además del filtro por tema) */
-  body.appendChild(buildPanelSearch(kind,()=>renderEnts(kind),'Buscar en '+K.label.toLowerCase()+'…'));
+  /* buscador por palabra clave */
   const q=panelSearch[kind];
   if(q.trim())items=items.filter(g=>panelMatch(q,g.title,g.body));
 
   if(!items.length){
     const em=document.createElement('div');em.className='np-empty';
-    em.textContent = q.trim() ? 'Nada coincide con "'+q.trim()+'".'
-                   : flt==='__all__' ? K.empty
-                   : flt==='' ? 'No hay entradas sin tema.'
-                   : 'No hay entradas en este tema.';
+    em.textContent = q.trim() ? 'Nada coincide con "'+q.trim()+'".' : K.empty;
     body.appendChild(em);return;
   }
 
@@ -6659,36 +6725,55 @@ function renderEnts(kind){
 
   /* agrupar por tema. Los temas se muestran ordenados por número; las entradas
      sin tema van al final en un grupo "Sin tema". Dentro de cada tema: glosario
-     alfabético, conclusiones por página. */
+     alfabético, conclusiones por página. CADA GRUPO ES PLEGABLE, plegado por
+     defecto: con muchas fichas, verlas todas de golpe era ilegible. Al buscar,
+     los grupos con resultados se despliegan solos (sin tocar lo que el
+     usuario tenía plegado/desplegado a propósito). */
   const themes=loadThemes().sort((a,b)=>(a.num||0)-(b.num||0));
   const byTheme=new Map();
   themes.forEach(t=>byTheme.set(t.id,[]));
   const noTheme=[];
   items.forEach(g=>{ if(g.themeId&&byTheme.has(g.themeId))byTheme.get(g.themeId).push(g); else noTheme.push(g); });
 
+  const searching=!!q.trim();
   const renderGroup=(list,theme)=>{
     if(!list.length)return;
     const sorted=[...list].sort((a,b)=>
       kind==='glos' ? a.title.localeCompare(b.title,'es',{sensitivity:'base'})
                     : (posOfPid(a.page)-posOfPid(b.page)));
+    const key=kind+':'+(theme?theme.id:'');
+    const isOpen=searching||!!themeGroupOpen[key];
+
+    const th=document.createElement('div');th.className='theme-hd theme-hd-toggle';
+    th.style.background=theme?theme.color:'var(--bg2)';
+    const arrow=document.createElement('span');arrow.className='theme-grp-arrow'+(isOpen?' open':'');
+    arrow.innerHTML=svg('chevRight');
+    th.appendChild(arrow);
     if(theme){
-      const th=document.createElement('div');th.className='theme-hd';
-      th.style.background=theme.color;
-      th.innerHTML=`<span class="theme-hd-num">${theme.num}</span><span class="theme-hd-name">${esc(theme.name)}</span><span class="theme-hd-cnt">${sorted.length}</span>`;
-      body.appendChild(th);
+      th.insertAdjacentHTML('beforeend',`<span class="theme-hd-num">${theme.num}</span><span class="theme-hd-name">${esc(theme.name)}</span>`);
     }else{
-      const th=document.createElement('div');th.className='theme-hd';th.style.background='var(--bg2)';
-      th.innerHTML=`<span class="theme-hd-name" style="color:var(--ink3)">Sin tema</span><span class="theme-hd-cnt">${sorted.length}</span>`;
-      body.appendChild(th);
+      th.insertAdjacentHTML('beforeend',`<span class="theme-hd-name" style="color:var(--ink3)">Sin tema</span>`);
     }
+    th.insertAdjacentHTML('beforeend',`<span class="theme-hd-cnt">${sorted.length}</span>`);
+    body.appendChild(th);
+
+    const grp=document.createElement('div');grp.className='theme-grp-body'+(isOpen?' open':'');
     let curLetter='';
     sorted.forEach(g=>{
       if(kind==='glos'){
         const L=(g.title[0]||'').toUpperCase();
-        if(L!==curLetter){curLetter=L;const lh=document.createElement('div');lh.className='glos-letter';lh.textContent=L;body.appendChild(lh)}
+        if(L!==curLetter){curLetter=L;const lh=document.createElement('div');lh.className='glos-letter';lh.textContent=L;grp.appendChild(lh)}
       }
-      body.appendChild(buildEntCard(kind,g));
+      grp.appendChild(buildEntCard(kind,g));
     });
+    body.appendChild(grp);
+
+    th.onclick=()=>{
+      if(searching)return;       // mientras se busca, se ve todo desplegado
+      themeGroupOpen[key]=!themeGroupOpen[key];
+      arrow.classList.toggle('open',themeGroupOpen[key]);
+      grp.classList.toggle('open',themeGroupOpen[key]);
+    };
   };
 
   themes.forEach(t=>renderGroup(byTheme.get(t.id),t));
