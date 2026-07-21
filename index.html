@@ -114,6 +114,15 @@ input,textarea{user-select:text!important;-webkit-user-select:text!important}
 .dashed-btn:active{transform:scale(.985)}
 .dashed-btn .ico{width:19px;height:19px;stroke-width:1.6}
 .empty-msg{text-align:center;color:var(--ink3);font-size:14px;padding:34px 20px;line-height:1.7}
+/* Aviso de copia de seguridad pendiente. Discreto pero visible: los apuntes
+   son irreemplazables y la copia depende de que te acuerdes de pulsarla. */
+.bk-warn{display:flex;align-items:center;gap:12px;margin:4px 0 14px;padding:13px 15px;
+  border-radius:14px;background:rgba(240,165,0,.13);border:1px solid rgba(240,165,0,.4);
+  font-size:14px;color:var(--ink);line-height:1.5}
+.bk-warn .bk-warn-txt{flex:1}
+.bk-warn button{border:none;border-radius:10px;padding:8px 13px;font-size:13px;font-weight:600;
+  cursor:pointer;background:rgba(240,165,0,.85);color:#3a2600;white-space:nowrap}
+.bk-warn .bk-warn-x{background:none;color:var(--ink3);font-size:20px;padding:4px 8px;line-height:1}
 #file-input,#backup-input{display:none}
 
 /* reader toolbar */
@@ -1564,7 +1573,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v94'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v95'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2492,6 +2501,7 @@ async function renderBrowser(){
     c.onclick=()=>{if(i<path.length-1){curFolder=f.id;renderBrowser()}};crumbsEl.appendChild(c);
   });
   browserContent.innerHTML='';
+  if(!curFolder)maybeWarnBackup();
   const fLabel=document.createElement('div');fLabel.className='section-label';fLabel.textContent='Carpetas';browserContent.appendChild(fLabel);
   const fGrid=document.createElement('div');fGrid.className='grid';
   folders.forEach(f=>fGrid.appendChild(folderCard(f)));
@@ -2506,6 +2516,38 @@ async function renderBrowser(){
   addD.onclick=()=>document.getElementById('file-input').click();dGrid.appendChild(addD);browserContent.appendChild(dGrid);
   if(!folders.length&&!files.length){const em=document.createElement('div');em.className='empty-msg';em.textContent='Aquí no hay nada todavía. Crea una carpeta o importa un PDF.';browserContent.appendChild(em)}
 }
+/* ══ AVISO DE COPIA DE SEGURIDAD ══
+   La copia completa es excelente pero depende de que te acuerdes de pulsarla,
+   y estos apuntes son de años. Si hace mas de 30 dias (o no se ha hecho
+   ninguna), se avisa en la biblioteca. "Ahora no" lo calla 7 dias; no se puede
+   desactivar del todo a proposito. Se calcula al vuelo: solo guarda la fecha. */
+const BK_AVISO_DIAS=30, BK_SNOOZE_DIAS=7;
+async function maybeWarnBackup(){
+  try{
+    const n=(await dbGetAll('files')).length;
+    if(!n)return;                                   // biblioteca vacia: nada que perder
+    const dia=86400000, ahora=Date.now();
+    const snooze=+(localStorage.getItem('lp_bkdismiss')||0);
+    if(ahora-snooze<BK_SNOOZE_DIAS*dia)return;
+    const last=+(localStorage.getItem('lp_lastbackup')||0);
+    const dias=last?Math.floor((ahora-last)/dia):null;
+    if(last&&dias<BK_AVISO_DIAS)return;
+    if(curFolder)return;                            // se salio de la raiz mientras cargaba
+    const box=document.createElement('div');box.className='bk-warn';
+    const txt=document.createElement('div');txt.className='bk-warn-txt';
+    txt.textContent=dias===null
+      ? 'Todavía no has hecho ninguna copia de seguridad. Tus apuntes solo están en este aparato.'
+      : `Hace ${dias} días que no haces una copia de seguridad.`;
+    const btn=document.createElement('button');btn.textContent='Hacer copia';
+    btn.onclick=()=>openBackupScreen();
+    const x=document.createElement('button');x.className='bk-warn-x';x.textContent='×';
+    x.title='Ahora no (vuelve a avisar en una semana)';
+    x.onclick=()=>{try{localStorage.setItem('lp_bkdismiss',String(Date.now()))}catch(e){}box.remove()};
+    box.append(txt,btn,x);
+    browserContent.prepend(box);
+  }catch(e){}
+}
+
 function folderCard(f){
   const card=document.createElement('div');card.className='card';
   card.innerHTML=`<div class="card-dot folder">${svg(folderIcon(f))}</div><div class="card-info"><div class="card-name">${esc(f.name)}</div><div class="card-meta" id="cnt-${f.id}">…</div></div><button class="card-menu"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>`;
@@ -2870,6 +2912,9 @@ async function runExport(){
     pb.style.width='100%';pt.textContent='✓ Exportado';
     ps.textContent=`${files.length} PDF${files.length!==1?'s':''} · ${fmtBytes(blob.size)}`;
     downloadBlob(blob,'LecturaPDF_backup_'+new Date().toISOString().slice(0,10)+'.zip');
+    /* Fecha de la ultima copia, para el aviso de la biblioteca. Se guarda solo
+       si la exportacion llego hasta aqui sin error. */
+    try{localStorage.setItem('lp_lastbackup',String(Date.now()));localStorage.removeItem('lp_bkdismiss')}catch(e){}
     showTip('Copia exportada. Guárdala en iCloud Drive',3000);
   }catch(err){
     console.error('[export]',err);
@@ -7003,7 +7048,8 @@ const DOC_KEY_PREFIXES=['lp_order_','lp_margin_','lp_nodes_','lp_embeds_','lp_bm
    de seguridad: hasta ver:5 se quedaban fuera y al restaurar en un iPad nuevo
    las paletas que te habias creado desaparecian sin decir nada. */
 const GLOBAL_KEYS=['lp_custompals','lp_toolcfg','lp_color','lp_boldstrength',
-  'lp_boldbycolor','lp_bartab','lp_panelwin','lp_dark','lp_gest','lp_bottommin'];
+  'lp_boldbycolor','lp_bartab','lp_panelwin','lp_dark','lp_gest','lp_bottommin',
+  'lp_lastbackup'];
 function collectGlobalData(){
   const out={};
   GLOBAL_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)out[k]=v});
