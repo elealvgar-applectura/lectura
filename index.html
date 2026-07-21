@@ -1564,7 +1564,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v89'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v90'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -3129,6 +3129,14 @@ const pencilBadge=document.getElementById('pencil-badge');
 function migrateAnn(data){const k=1/LEGACY;for(const num of Object.keys(data)){const a=data[num];if(!a)continue;(a.strokes||[]).forEach(s=>{s.size*=k;(s.points||[]).forEach(p=>{p.x*=k;p.y*=k})});(a.highlights||[]).forEach(h=>{h.x*=k;h.y*=k;h.w*=k;h.h*=k});(a.covers||[]).forEach(c=>{c.x*=k;c.y*=k;c.w*=k;c.h*=k});(a.notes||[]).forEach(n=>{n.x*=k;n.y*=k})}return data}
 
 async function openReader(fileId,fileName){
+  /* PRIMERO de todo: vaciar el guardado pendiente del documento ANTERIOR.
+     scheduleSave() deja un setTimeout de 700 ms. Si no se vacía aquí, ese
+     temporizador salta cuando currentFileId ya apunta al documento NUEVO y
+     hace dbPut(annotations viejas, id nuevo): machaca las anotaciones del
+     PDF que acabas de abrir. Y como saveAnn() termina en markDirty(), esa
+     mezcla se sube además a la nube y llega al iPad. Pasaba al volver atrás
+     y abrir otro PDF en menos de un segundo. Mismo patrón que pushCurrent(). */
+  if(saveTimer){clearTimeout(saveTimer);saveTimer=null;try{await saveAnn()}catch(e){}}
   currentFileId=fileId;currentFileName=fileName;setLoading('Abriendo PDF…');
   try{
     /* Antes de cargar nada: ¿la nube tiene una version mas nueva de este
