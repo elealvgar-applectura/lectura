@@ -329,6 +329,42 @@ body.fullscreen #rd-bottom-show{display:none}
 #loading-screen{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:var(--ink2);font-size:15px}
 .spinner{width:34px;height:34px;border:3px solid var(--bg2);border-top-color:var(--rosa);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+/* ══ REPASO CON TARJETAS ══
+   Pantalla completa a proposito: repasar es otra cosa que leer, y con el PDF
+   detras uno se distrae. Botones grandes (min 52px) para el dedo, no el lapiz. */
+#review-session{position:fixed;inset:0;z-index:900;background:var(--bg);display:flex;flex-direction:column}
+#review-session.hidden{display:none}
+.rv-top{display:flex;align-items:center;padding:14px 16px;flex-shrink:0;
+  font-size:13.5px;color:var(--ink3);font-variant-numeric:tabular-nums}
+.rv-top button{margin-left:auto;background:none;border:none;color:var(--ink2);
+  font-size:29px;line-height:1;cursor:pointer;padding:2px 10px}
+.rv-stage{flex:1;display:flex;align-items:center;justify-content:center;padding:8px 18px;overflow-y:auto}
+.rv-card{width:100%;max-width:640px;background:var(--card);border:1px solid var(--border);
+  border-radius:20px;box-shadow:var(--shadow);padding:28px 26px;text-align:center}
+.rv-badge{display:inline-block;font-size:11.5px;font-weight:600;padding:4px 11px;
+  border-radius:20px;color:#4A4458;margin-bottom:16px}
+.rv-badge.none{background:var(--bg2);color:var(--ink3)}
+.rv-title{font-size:26px;font-weight:700;color:var(--ink);line-height:1.35}
+.rv-answer{margin-top:22px;padding-top:20px;border-top:1px solid var(--border);
+  font-size:16px;color:var(--ink);line-height:1.65;text-align:left}
+.rv-answer.hidden{display:none}
+.rv-show{margin-top:24px;width:100%;min-height:52px;border:none;border-radius:14px;
+  background:var(--bg2);color:var(--ink);font-size:15.5px;font-weight:600;cursor:pointer}
+.rv-show.hidden{display:none}
+.rv-grades{display:flex;gap:9px;padding:12px 18px calc(16px + env(safe-area-inset-bottom));flex-shrink:0}
+.rv-grades.hidden{display:none}
+.rv-g{flex:1;min-height:56px;border:none;border-radius:15px;font-size:14.5px;
+  font-weight:650;cursor:pointer;color:#3d3550;padding:6px 4px}
+.rv-g0{background:#F3C9C9}.rv-g1{background:#FBE3B4}.rv-g2{background:#C4E7D4}
+/* Resumen del panel: cuantas tocan hoy */
+.rv-hero{text-align:center;padding:22px 16px 6px}
+.rv-hero-n{font-size:44px;font-weight:700;color:var(--ink);line-height:1}
+.rv-hero-l{font-size:13.5px;color:var(--ink3);margin-top:6px}
+.rv-filters{display:flex;flex-direction:column;gap:9px;padding:14px 12px 4px}
+.rv-filters label{font-size:11px;letter-spacing:.08em;color:var(--ink3);font-weight:600}
+.rv-filters select{width:100%;min-height:44px;border-radius:12px;border:1px solid var(--border);
+  background:var(--bg2);color:var(--ink);font-size:14.5px;padding:0 10px;font-family:var(--font)}
+
 /* ══ PROGRESO (estadísticas) ══
    Todo se calcula al vuelo desde annotations y las claves que ya existen:
    este panel NO guarda ningún dato nuevo. */
@@ -958,6 +994,9 @@ body.fullscreen #gid-bar{bottom:20px}
     <button class="tool-btn" id="tb-cmap" title="Mapa conceptual">
       <svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.6"/><circle cx="18" cy="6" r="2.6"/><circle cx="6" cy="18" r="2.6"/><circle cx="18" cy="18" r="2.6"/><path d="M8.3 7.3L15.7 15.7M15.7 8.3L8.3 15.7"/></svg>
     </button>
+    <button class="tool-btn" id="tb-review" title="Repasar con tarjetas">
+      <svg viewBox="0 0 24 24"><path d="M3 6.5A1.5 1.5 0 014.5 5H9a3 3 0 013 3v11a2.5 2.5 0 00-2.5-2.5H3z"/><path d="M21 6.5A1.5 1.5 0 0019.5 5H15a3 3 0 00-3 3v11a2.5 2.5 0 012.5-2.5H21z"/></svg>
+    </button>
     <button class="tool-btn" id="tb-stats" title="Progreso del documento">
       <svg viewBox="0 0 24 24"><line x1="3" y1="21" x2="21" y2="21"/><rect x="5" y="12" width="4" height="7" rx="1"/><rect x="11" y="7" width="4" height="12" rx="1"/><rect x="17" y="15" width="4" height="4" rx="1"/></svg>
     </button>
@@ -1154,6 +1193,39 @@ body.fullscreen #gid-bar{bottom:20px}
     <button class="sp-close" data-panel="stats-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <div id="stats-body" class="sp-body"></div>
+</div>
+
+<!-- repaso con tarjetas -->
+<div id="review-panel" class="side-panel">
+  <div class="sp-top">
+    <span class="sp-title">Repasar</span>
+    <button class="sp-close" data-panel="review-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div id="review-body" class="sp-body"></div>
+  <div style="padding:0 12px 12px;flex-shrink:0">
+    <button id="rv-start" class="sp-action-btn" style="width:100%">Empezar repaso</button>
+  </div>
+</div>
+
+<!-- pantalla de repaso (tarjeta a pantalla completa) -->
+<div id="review-session" class="hidden">
+  <div class="rv-top">
+    <span id="rv-progress"></span>
+    <button id="rv-exit" title="Salir del repaso">×</button>
+  </div>
+  <div class="rv-stage">
+    <div class="rv-card">
+      <div id="rv-badge" class="rv-badge"></div>
+      <div id="rv-title" class="rv-title"></div>
+      <div id="rv-answer" class="rv-answer rich-content hidden"></div>
+      <button id="rv-show" class="rv-show">Ver respuesta</button>
+    </div>
+  </div>
+  <div id="rv-grades" class="rv-grades hidden">
+    <button class="rv-g rv-g0" data-g="0">No me lo sé</button>
+    <button class="rv-g rv-g1" data-g="1">A medias</button>
+    <button class="rv-g rv-g2" data-g="2">Me lo sé</button>
+  </div>
 </div>
 
 <!-- barra de sesión de subrayado (definición / conclusión en curso) -->
@@ -1600,7 +1672,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v96'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v97'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2543,6 +2615,161 @@ async function renderBrowser(){
   addD.onclick=()=>document.getElementById('file-input').click();dGrid.appendChild(addD);browserContent.appendChild(dGrid);
   if(!folders.length&&!files.length){const em=document.createElement('div');em.className='empty-msg';em.textContent='Aquí no hay nada todavía. Crea una carpeta o importa un PDF.';browserContent.appendChild(em)}
 }
+/* ══════════════════════════════════════════════════════════════════
+   REPASO CON TARJETAS (repetición espaciada)
+   El glosario y las conclusiones YA son fichas con titulo, cuerpo y tema: esto
+   solo les pone encima un modo de preguntarselas. No crea ni modifica ninguna
+   ficha; lo unico que se guarda es, por ficha, en que nivel vas y cuando toca
+   volver a verla (lp_srs_<id>).
+
+   Los intervalos son los clasicos y deliberadamente simples: si te la sabes,
+   la siguiente vez tarda mas en aparecer. "A medias" no sube de nivel pero la
+   aparta un dia. "No me la se" la devuelve al nivel 0 y la repite en la misma
+   sesion, que es cuando de verdad se aprende.
+   ══════════════════════════════════════════════════════════════════ */
+const SRS_DIAS=[1,3,7,15,30];
+const DIA_MS=86400000;
+function srsKey(){return 'lp_srs_'+currentFileId}
+function loadSrs(){try{return JSON.parse(localStorage.getItem(srsKey())||'{}')}catch(e){return{}}}
+function saveSrs(m){try{localStorage.setItem(srsKey(),JSON.stringify(m))}catch(e){}}
+/* El tema de una ficha AUTOMATICA vive en el mapa gid→tema; el de una MANUAL
+   dentro de la propia ficha. Mismo criterio que buildEntCard. */
+function entThemeId(g){return g.auto?(loadThemeMap()[g.gid]||null):(g.themeId||null)}
+
+/* Estado del repaso en curso. Solo vive mientras dura la sesion. */
+let rvCola=[], rvActual=null, rvHechas=0, rvTotal=0, rvKind='ambas', rvTheme='__all__';
+
+/* Fichas que tocan hoy segun los filtros. Una ficha que nunca has repasado
+   cuenta como pendiente. */
+function reviewDue(){
+  const srs=loadSrs(), ahora=Date.now(), out=[];
+  const kinds = rvKind==='ambas' ? ['glos','conc'] : [rvKind];
+  kinds.forEach(k=>{
+    loadEnts(k).forEach(g=>{
+      if(!g.body||!String(g.body).trim())return;          // sin respuesta que preguntar
+      if(rvTheme!=='__all__'&&entThemeId(g)!==(rvTheme==='__none__'?null:rvTheme))return;
+      const st=srs[g.id];
+      if(st&&st.due>ahora)return;                          // todavia no toca
+      out.push({kind:k,ent:g});
+    });
+  });
+  return out;
+}
+function srsGrade(id,g){
+  const srs=loadSrs(), ahora=Date.now();
+  const st=srs[id]||{n:0};
+  if(g===2){                       // me lo se → sube de nivel y se aparta mas
+    const dias=SRS_DIAS[Math.min(st.n,SRS_DIAS.length-1)];
+    st.n=Math.min(st.n+1,SRS_DIAS.length);
+    st.due=ahora+dias*DIA_MS;
+  }else if(g===1){                 // a medias → mañana otra vez, sin subir
+    st.due=ahora+DIA_MS;
+  }else{                           // no me lo se → vuelta a empezar
+    st.n=0;st.due=ahora;
+  }
+  st.last=ahora;
+  srs[id]=st;saveSrs(srs);
+}
+
+function renderReviewPanel(){
+  const box=document.getElementById('review-body');if(!box)return;
+  box.innerHTML='';
+  const pend=reviewDue();
+  const hero=document.createElement('div');hero.className='rv-hero';
+  const n=document.createElement('div');n.className='rv-hero-n';n.textContent=pend.length;
+  const l=document.createElement('div');l.className='rv-hero-l';
+  l.textContent=pend.length===1?'ficha para repasar':'fichas para repasar';
+  hero.append(n,l);box.appendChild(hero);
+
+  const f=document.createElement('div');f.className='rv-filters';
+  const lk=document.createElement('label');lk.textContent='QUÉ REPASAR';
+  const sk=document.createElement('select');
+  [['ambas','Definiciones y conclusiones'],['glos','Solo definiciones'],['conc','Solo conclusiones']]
+    .forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;sk.appendChild(o)});
+  sk.value=rvKind;sk.onchange=()=>{rvKind=sk.value;renderReviewPanel()};
+  const lt=document.createElement('label');lt.textContent='TEMA';
+  const st=document.createElement('select');
+  const opts=[['__all__','Todos los temas']];
+  loadThemes().forEach(t=>opts.push([t.id,(t.num?t.num+'. ':'')+t.name]));
+  opts.push(['__none__','Sin tema']);
+  opts.forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;st.appendChild(o)});
+  st.value=rvTheme;st.onchange=()=>{rvTheme=st.value;renderReviewPanel()};
+  f.append(lk,sk,lt,st);box.appendChild(f);
+
+  const btn=document.getElementById('rv-start');
+  btn.disabled=!pend.length;
+  btn.style.opacity=pend.length?'1':'.45';
+
+  if(!pend.length){
+    const em=document.createElement('div');em.className='empty-msg';
+    const hay=loadEnts('glos').length+loadEnts('conc').length;
+    em.textContent=hay
+      ? 'Nada pendiente ahora mismo. Vuelve mañana: las fichas van reapareciendo poco a poco.'
+      : 'Todavía no hay fichas. Subraya con un color de "Definiciones" o "Conclusiones" y pulsa ✓ Cerrar.';
+    box.appendChild(em);
+  }
+}
+
+function startReview(){
+  const pend=reviewDue();
+  if(!pend.length){showTip('No hay nada pendiente de repasar');return}
+  /* Barajado (Fisher-Yates): repasar siempre en el mismo orden hace que
+     acabes memorizando la secuencia en vez del contenido. */
+  rvCola=pend.slice();
+  for(let i=rvCola.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[rvCola[i],rvCola[j]]=[rvCola[j],rvCola[i]]}
+  rvHechas=0;rvTotal=rvCola.length;
+  document.getElementById('review-session').classList.remove('hidden');
+  nextCard();
+}
+function nextCard(){
+  const ses=document.getElementById('review-session');
+  if(!rvCola.length){
+    /* Fin: un resumen corto y fuera. */
+    document.getElementById('rv-badge').className='rv-badge none';
+    document.getElementById('rv-badge').textContent='Sesión terminada';
+    document.getElementById('rv-title').textContent='¡Listo! '+rvTotal+(rvTotal===1?' ficha repasada':' fichas repasadas');
+    document.getElementById('rv-answer').classList.add('hidden');
+    document.getElementById('rv-show').classList.add('hidden');
+    document.getElementById('rv-grades').classList.add('hidden');
+    document.getElementById('rv-progress').textContent='';
+    setTimeout(()=>{endReview()},1700);
+    return;
+  }
+  rvActual=rvCola.shift();
+  const g=rvActual.ent;
+  const th=entThemeId(g)?themeById(entThemeId(g)):null;
+  const badge=document.getElementById('rv-badge');
+  const tipo=rvActual.kind==='glos'?'Definición':'Conclusión';
+  if(th){badge.className='rv-badge';badge.style.background=th.color;
+         badge.textContent=tipo+' · '+(th.num?th.num+' · ':'')+(th.name||'Tema')}
+  else{badge.className='rv-badge none';badge.style.background='';badge.textContent=tipo+' · Sin tema'}
+  document.getElementById('rv-title').textContent=g.title||'(sin título)';
+  const ans=document.getElementById('rv-answer');
+  ans.innerHTML=richHTML(g.body);ans.classList.add('hidden');
+  document.getElementById('rv-show').classList.remove('hidden');
+  document.getElementById('rv-grades').classList.add('hidden');
+  document.getElementById('rv-progress').textContent=(rvHechas+1)+' / '+rvTotal;
+}
+function showAnswer(){
+  document.getElementById('rv-answer').classList.remove('hidden');
+  document.getElementById('rv-show').classList.add('hidden');
+  document.getElementById('rv-grades').classList.remove('hidden');
+}
+function gradeCard(g){
+  if(!rvActual)return;
+  srsGrade(rvActual.ent.id,g);
+  /* "No me lo se" la devuelve al final de ESTA sesion: se aprende repitiendola
+     ahora, no dentro de una semana. No cuenta como hecha. */
+  if(g===0)rvCola.push(rvActual);
+  else rvHechas++;
+  nextCard();
+}
+function endReview(){
+  document.getElementById('review-session').classList.add('hidden');
+  rvCola=[];rvActual=null;
+  renderReviewPanel();
+}
+
 /* ══════════════════════════════════════════════════════════════════
    PROGRESO DEL DOCUMENTO
    Cuánto llevas trabajado: páginas tocadas, qué has ido creando y cómo se
@@ -4616,7 +4843,7 @@ const notesPanel=document.getElementById('notes-panel');
    ══════════════════════════════════════════════════════════════════ */
 const ALL_PANELS=['notes-panel','summary-panel','bookmarks-panel','thumbs-panel',
                   'proc-panel','glossary-panel','conclusions-panel','aclar-panel','resumen-panel','cmap-panel',
-                  'stats-panel'];
+                  'stats-panel','review-panel'];
 function closeAllPanels(except){
   ALL_PANELS.forEach(id=>{
     if(id===except)return;
@@ -7150,7 +7377,7 @@ function openThemesMgr(kind){
    ademas un documento nuevo con el mismo id heredaria datos ajenos. */
 const DOC_KEY_PREFIXES=['lp_order_','lp_margin_','lp_nodes_','lp_embeds_','lp_bm_',
   'lp_tl_','lp_proc_','lp_themes_','lp_thememap_','lp_glos_','lp_conc_','lp_aclar_','lp_cmap_',
-  'lp_delents_glos_','lp_delents_conc_','lp_delents_aclar_'];
+  'lp_delents_glos_','lp_delents_conc_','lp_delents_aclar_','lp_srs_'];
 /* Claves de localStorage que NO pertenecen a un documento sino al APARATO:
    paletas de colores propias, calibrado de herramientas, gestos, modo oscuro…
    No se sincronizan (cada aparato tiene las suyas) pero SI deben ir en la copia
@@ -7802,6 +8029,23 @@ document.getElementById('tb-cmap').onclick=()=>{openPanel('cmap-panel');refreshC
 /* Antes de contar, regeneramos las fichas automaticas igual que hacen sus
    propios paneles: si no, el progreso contaria las de la ultima vez que las
    miraste y no cuadraria con lo que ves en el documento. */
+document.getElementById('tb-review').onclick=async()=>{
+  openPanel('review-panel');
+  try{await autoUpdateEnts('glos');await autoUpdateEnts('conc')}catch(e){}
+  renderReviewPanel();
+};
+document.getElementById('rv-start').onclick=startReview;
+document.getElementById('rv-show').onclick=showAnswer;
+document.getElementById('rv-exit').onclick=endReview;
+document.querySelectorAll('.rv-g').forEach(b=>{
+  b.onclick=()=>gradeCard(+b.dataset.g);
+});
+/* Tocar la tarjeta tambien descubre la respuesta: en el iPad es mas comodo que
+   apuntar al boton. Solo antes de responder, para no dar un grado sin querer. */
+document.querySelector('#review-session .rv-card').addEventListener('click',e=>{
+  if(e.target.closest('.rv-g'))return;
+  if(document.getElementById('rv-answer').classList.contains('hidden'))showAnswer();
+});
 document.getElementById('tb-stats').onclick=async()=>{
   openPanel('stats-panel');
   try{await autoUpdateEnts('glos');await autoUpdateEnts('conc')}catch(e){}
@@ -8324,6 +8568,20 @@ window.addEventListener('keydown',e=>{
       clickIfEnabled('pal-close');return;
     }
     clickIfEnabled(MODAL_OK[m.id]);
+    return;
+  }
+
+  /* ═══ 1.5 REPASO EN CURSO ════════════════════════════════════════
+     Va despues de los modales (si hubiera uno encima, manda el modal) y antes
+     de todo lo demas, porque la tarjeta tapa la pantalla entera.
+     Enter descubre la respuesta; NO puntua: puntuar debe ser deliberado.
+     Escape sale del repaso (lo ya respondido queda guardado). */
+  const rvSes=document.getElementById('review-session');
+  if(rvSes&&!rvSes.classList.contains('hidden')&&!typing){
+    e.preventDefault();e.stopPropagation();
+    if(e.stopImmediatePropagation)e.stopImmediatePropagation();
+    if(k==='Escape')endReview();
+    else if(document.getElementById('rv-answer').classList.contains('hidden'))showAnswer();
     return;
   }
 
