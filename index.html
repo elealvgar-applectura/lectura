@@ -1564,7 +1564,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v90'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v91'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -7877,7 +7877,26 @@ function addPanelSwipe(id){
 function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(saveAnn,700)}
 async function saveAnn(){
   if(!currentFileId)return;
-  await dbPut('annotations',{id:currentFileId,data:annotations,v2:true});
+  /* ESTE dbPut es el que guarda TODO lo que dibujas. Antes iba sin try/catch
+     y se llamaba desde un setTimeout sin .catch(): si IndexedDB fallaba (disco
+     lleno, conexion caida tras un aviso de memoria de Safari) la promesa se
+     rechazaba en silencio, markDirty() no llegaba a ejecutarse — asi que el
+     vigilante de 8 s tampoco lo rescataba — y podias seguir dibujando media
+     hora creyendo que se guardaba. Ahora se reintenta una vez y, si tampoco,
+     se avisa EN PANTALLA: es preferible un aviso molesto a perder apuntes. */
+  const id=currentFileId;
+  try{
+    await dbPut('annotations',{id,data:annotations,v2:true});
+  }catch(e1){
+    try{
+      await new Promise(r=>setTimeout(r,400));
+      await dbPut('annotations',{id,data:annotations,v2:true});
+    }catch(e2){
+      showTip('⚠️ NO se han podido guardar las anotaciones. Haz una copia de seguridad antes de cerrar.',8000);
+      slog('guardar: ✗ fallo al guardar anotaciones → '+(e2.message||e2));
+      return;   // sin guardar no se marca como pendiente de subir
+    }
+  }
   /* NO regeneramos aquí las fichas de glosario/conclusiones: eso se hace al
      pulsar "✓ Cerrar" (closeGid) o al abrir el panel. Hacerlo en cada trazo
      obligaba a extraer texto de todas las páginas constantemente y frenaba
