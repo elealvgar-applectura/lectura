@@ -1564,7 +1564,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v93'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v94'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2899,7 +2899,13 @@ document.getElementById('backup-input').addEventListener('change',async e=>{
     if(mode==='replace'){
       pt.textContent='Limpiando…';pb.style.width='20%';await new Promise(r=>setTimeout(r,0));
       for(const f of await dbGetAll('folders'))await dbDel('folders',f.id);
-      for(const f of await dbGetAll('files'))await dbDel('files',f.id);
+      /* Al borrar un PDF hay que barrer TAMBIEN sus claves de localStorage,
+         igual que hace el borrado normal de la biblioteca. Sin esto, todas las
+         fichas, nodos, temas y marcadores de los documentos eliminados
+         quedaban huerfanos para siempre comiendose la cuota (unos 5 MB en
+         total). Ademas, si un prefijo sobrevivia y la copia no lo traia, se
+         mezclaba con lo restaurado: el "reemplazar" no reemplazaba del todo. */
+      for(const f of await dbGetAll('files')){purgeDocData(f.id);await dbDel('files',f.id)}
       for(const a of await dbGetAll('annotations'))await dbDel('annotations',a.id);
     }
     for(const f of json.folders||[])await dbPut('folders',f);
@@ -7023,6 +7029,9 @@ function purgeDocData(fileId){
     DOC_KEY_PREFIXES.forEach(pre=>raw(pre+fileId));
     raw('lp_synced_'+fileId);
     raw('lp_dirty_'+fileId);
+    raw('lp_remote_'+fileId);   // faltaba: quedaba huerfana, y un documento
+                                // reimportado con el mismo id heredaba una
+                                // marca de tiempo remota ajena
     raw('lp_lastpage_'+fileId);
   }catch(e){}
 }
@@ -9533,8 +9542,24 @@ document.getElementById('btn-sync').onclick=openSyncMenu;
     if(k.startsWith('lp_synced_')||k.startsWith('lp_dirty_')||k==='lp_lastsync')return false;
     return DOC_KEY_PREFIXES.some(pre=>k===pre+currentFileId);
   };
+  /* Los ~17 sitios que llaman a setItem lo hacen dentro de try{}catch(e){}
+     vacios. Eso evita que un fallo tumbe la pantalla, pero convierte quedarse
+     sin cuota en una perdida de datos INVISIBLE: las fichas simplemente dejan
+     de guardarse y no te enteras hasta que es tarde. Aqui lo detectamos una
+     sola vez y avisamos; el error se vuelve a lanzar para no cambiar en nada
+     el comportamiento de quien llama. */
+  let quotaAvisada=false;
   localStorage.setItem=function(k,v){
-    origSet(k,v);
+    try{
+      origSet(k,v);
+    }catch(err){
+      if(!quotaAvisada){
+        quotaAvisada=true;
+        try{showTip('⚠️ No queda espacio: los apuntes han dejado de guardarse. Haz una copia de seguridad y borra algun PDF.',9000)}catch(e){}
+        console.error('[localStorage] sin espacio al guardar',k,err);
+      }
+      throw err;
+    }
     try{if(isDocKey(k))markDirty()}catch(e){}
   };
   /* removeItem TAMBIEN cuenta: al borrar fichas o vaciar una lista, la clave se
