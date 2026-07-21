@@ -329,6 +329,21 @@ body.fullscreen #rd-bottom-show{display:none}
 #loading-screen{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:var(--ink2);font-size:15px}
 .spinner{width:34px;height:34px;border:3px solid var(--bg2);border-top-color:var(--rosa);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+/* ══ PROGRESO (estadísticas) ══
+   Todo se calcula al vuelo desde annotations y las claves que ya existen:
+   este panel NO guarda ningún dato nuevo. */
+.st-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;padding:0 12px 12px}
+.st-card{background:var(--bg2);border-radius:13px;padding:12px 13px}
+.st-num{font-size:23px;font-weight:700;color:var(--ink);line-height:1.15}
+.st-lab{font-size:11.5px;color:var(--ink3);margin-top:3px;line-height:1.35}
+.st-sec{font-size:11px;letter-spacing:.09em;color:var(--ink3);padding:14px 14px 7px;font-weight:600}
+.st-track{height:9px;border-radius:5px;background:var(--bg2);overflow:hidden;margin:7px 12px 3px}
+.st-fill{height:100%;border-radius:5px;background:var(--lila);transition:width .3s}
+.st-pct{font-size:12px;color:var(--ink3);padding:0 12px 6px}
+.st-theme{display:flex;align-items:center;gap:9px;padding:7px 13px;font-size:13.5px;color:var(--ink)}
+.st-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0}
+.st-theme-n{margin-left:auto;color:var(--ink3);font-size:12.5px;font-variant-numeric:tabular-nums}
+
 /* ══ SIDE PANELS (generic) ══ */
 /* ═══ PANELES LATERALES ═══
    ANCHO: se estudia directamente desde el panel (mapa conceptual, glosario,
@@ -943,6 +958,9 @@ body.fullscreen #gid-bar{bottom:20px}
     <button class="tool-btn" id="tb-cmap" title="Mapa conceptual">
       <svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.6"/><circle cx="18" cy="6" r="2.6"/><circle cx="6" cy="18" r="2.6"/><circle cx="18" cy="18" r="2.6"/><path d="M8.3 7.3L15.7 15.7M15.7 8.3L8.3 15.7"/></svg>
     </button>
+    <button class="tool-btn" id="tb-stats" title="Progreso del documento">
+      <svg viewBox="0 0 24 24"><line x1="3" y1="21" x2="21" y2="21"/><rect x="5" y="12" width="4" height="7" rx="1"/><rect x="11" y="7" width="4" height="12" rx="1"/><rect x="17" y="15" width="4" height="4" rx="1"/></svg>
+    </button>
     <button class="tool-btn" id="tb-margin" title="Ampliar márgenes para escribir">
       <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
     </button>
@@ -1127,6 +1145,15 @@ body.fullscreen #gid-bar{bottom:20px}
     <button id="resumen-refresh" class="sp-action-btn" style="background:var(--bg2);flex:1">↻ Actualizar</button>
     <button id="resumen-export" class="sp-action-btn" style="flex:1">Exportar</button>
   </div>
+</div>
+
+<!-- estadísticas de estudio -->
+<div id="stats-panel" class="side-panel">
+  <div class="sp-top">
+    <span class="sp-title">Progreso</span>
+    <button class="sp-close" data-panel="stats-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div id="stats-body" class="sp-body"></div>
 </div>
 
 <!-- barra de sesión de subrayado (definición / conclusión en curso) -->
@@ -1573,7 +1600,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v95'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v96'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2516,6 +2543,87 @@ async function renderBrowser(){
   addD.onclick=()=>document.getElementById('file-input').click();dGrid.appendChild(addD);browserContent.appendChild(dGrid);
   if(!folders.length&&!files.length){const em=document.createElement('div');em.className='empty-msg';em.textContent='Aquí no hay nada todavía. Crea una carpeta o importa un PDF.';browserContent.appendChild(em)}
 }
+/* ══════════════════════════════════════════════════════════════════
+   PROGRESO DEL DOCUMENTO
+   Cuánto llevas trabajado: páginas tocadas, qué has ido creando y cómo se
+   reparte por tema. NO guarda nada nuevo: se calcula cada vez a partir de
+   `annotations` y de las claves que ya existian. Por eso siempre cuadra con
+   la realidad aunque borres cosas, y no puede corromper ningun dato.
+   ══════════════════════════════════════════════════════════════════ */
+function computeStats(){
+  const s={pagsTocadas:0,pags:pageOrder.length,subr:0,trazos:0,notas:0,tapas:0};
+  for(const slot of pageOrder){
+    const a=annotations[slot.pid];if(!a)continue;
+    const h=(a.highlights||[]).length,t=(a.strokes||[]).length,
+          n=(a.notes||[]).length,c=(a.covers||[]).length;
+    if(h+t+n+c>0)s.pagsTocadas++;
+    s.subr+=h;s.trazos+=t;s.notas+=n;s.tapas+=c;
+  }
+  const glos=loadEnts('glos'),conc=loadEnts('conc');
+  s.glos=glos.length;s.conc=conc.length;
+  s.aclar=loadAclars().length;
+  s.marc=loadBms().length;
+  try{s.nodos=loadNodes().length}catch(e){s.nodos=0}
+  /* Reparto por tema: solo cuenta definiciones y conclusiones, que son las
+     que llevan themeId. Las que no tienen tema van a "Sin tema". */
+  const themes=loadThemes(),porTema=new Map();
+  themes.forEach(t=>porTema.set(t.id,{nombre:(t.num?t.num+'. ':'')+t.name,color:t.color,n:0}));
+  let sinTema=0;
+  [...glos,...conc].forEach(e=>{
+    const t=e.themeId&&porTema.get(e.themeId);
+    if(t)t.n++;else sinTema++;
+  });
+  s.temas=[...porTema.values()].filter(t=>t.n>0).sort((a,b)=>b.n-a.n);
+  s.sinTema=sinTema;
+  return s;
+}
+function renderStats(){
+  const box=document.getElementById('stats-body');if(!box)return;
+  const s=computeStats();
+  box.innerHTML='';
+  const add=(html)=>{const d=document.createElement('div');d.innerHTML=html;box.appendChild(d.firstElementChild)};
+
+  const pct=s.pags?Math.round(s.pagsTocadas/s.pags*100):0;
+  add(`<div class="st-sec">PÁGINAS TRABAJADAS</div>`);
+  add(`<div class="st-track"><div class="st-fill" style="width:${pct}%"></div></div>`);
+  add(`<div class="st-pct">${s.pagsTocadas} de ${s.pags} páginas · ${pct}%</div>`);
+
+  add(`<div class="st-sec">LO QUE HAS CREADO</div>`);
+  const grid=document.createElement('div');grid.className='st-grid';
+  [[s.glos,'Definiciones'],[s.conc,'Conclusiones'],[s.aclar,'Aclaraciones'],
+   [s.nodos,'Nodos'],[s.subr,'Subrayados'],[s.notas,'Notas'],
+   [s.marc,'Marcadores'],[s.tapas,'Tapas de estudio']].forEach(([n,lab])=>{
+    const c=document.createElement('div');c.className='st-card';
+    const v=document.createElement('div');v.className='st-num';v.textContent=n;
+    const l=document.createElement('div');l.className='st-lab';l.textContent=lab;
+    c.append(v,l);grid.appendChild(c);
+  });
+  box.appendChild(grid);
+
+  if(s.temas.length||s.sinTema){
+    add(`<div class="st-sec">REPARTO POR TEMA</div>`);
+    s.temas.forEach(t=>{
+      const r=document.createElement('div');r.className='st-theme';
+      const d=document.createElement('div');d.className='st-dot';d.style.background=t.color||'#ccc';
+      const nm=document.createElement('span');nm.textContent=t.nombre;
+      const n=document.createElement('span');n.className='st-theme-n';n.textContent=t.n;
+      r.append(d,nm,n);box.appendChild(r);
+    });
+    if(s.sinTema){
+      const r=document.createElement('div');r.className='st-theme';
+      const d=document.createElement('div');d.className='st-dot';d.style.background='var(--ink3)';
+      const nm=document.createElement('span');nm.textContent='Sin tema';nm.style.color='var(--ink3)';
+      const n=document.createElement('span');n.className='st-theme-n';n.textContent=s.sinTema;
+      r.append(d,nm,n);box.appendChild(r);
+    }
+  }
+  if(!s.pagsTocadas){
+    const em=document.createElement('div');em.className='empty-msg';
+    em.textContent='Todavía no has anotado nada en este documento.';
+    box.appendChild(em);
+  }
+}
+
 /* ══ AVISO DE COPIA DE SEGURIDAD ══
    La copia completa es excelente pero depende de que te acuerdes de pulsarla,
    y estos apuntes son de años. Si hace mas de 30 dias (o no se ha hecho
@@ -4507,7 +4615,8 @@ const notesPanel=document.getElementById('notes-panel');
    abrir un panel.
    ══════════════════════════════════════════════════════════════════ */
 const ALL_PANELS=['notes-panel','summary-panel','bookmarks-panel','thumbs-panel',
-                  'proc-panel','glossary-panel','conclusions-panel','aclar-panel','resumen-panel','cmap-panel'];
+                  'proc-panel','glossary-panel','conclusions-panel','aclar-panel','resumen-panel','cmap-panel',
+                  'stats-panel'];
 function closeAllPanels(except){
   ALL_PANELS.forEach(id=>{
     if(id===except)return;
@@ -7690,6 +7799,14 @@ document.getElementById('cmap-toggle-all').onclick=()=>{
 };
 
 document.getElementById('tb-cmap').onclick=()=>{openPanel('cmap-panel');refreshCmapPanel()};
+/* Antes de contar, regeneramos las fichas automaticas igual que hacen sus
+   propios paneles: si no, el progreso contaria las de la ultima vez que las
+   miraste y no cuadraria con lo que ves en el documento. */
+document.getElementById('tb-stats').onclick=async()=>{
+  openPanel('stats-panel');
+  try{await autoUpdateEnts('glos');await autoUpdateEnts('conc')}catch(e){}
+  renderStats();
+};
 addPanelSwipe('cmap-panel');
 
 /* ══ MAPA CONCEPTUAL: hipervínculos a definición/conclusión/aclaración ══
