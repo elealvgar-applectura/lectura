@@ -140,6 +140,7 @@ input,textarea{user-select:text!important;-webkit-user-select:text!important}
 .cchip{display:flex;flex-direction:column;align-items:center;gap:2px;border:none;background:transparent;cursor:pointer;padding:3px 5px;border-radius:10px;flex-shrink:0;min-width:52px}
 .cchip:active{background:var(--bg2)}
 .cchip .dot{width:26px;height:26px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1.5px var(--ink3);transition:transform .12s,box-shadow .12s}
+.cchip .dot .ico{width:14px;height:14px}
 .cchip.on .dot{transform:scale(1.12);box-shadow:0 0 0 2.5px var(--ink)}
 .cchip .tag{font-size:9px;color:var(--ink2);max-width:64px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cchip.on .tag{color:var(--ink);font-weight:600}
@@ -639,7 +640,8 @@ body.fullscreen #fs-hint{display:block!important}
 .emb-hd:active{cursor:grabbing}
 .emb-arrow{font-size:13px;color:var(--ink3);transition:transform .18s;flex-shrink:0;line-height:1;cursor:pointer;padding:2px}
 .emb-arrow.open{transform:rotate(90deg)}
-.emb-ic{font-size:14px;flex-shrink:0;line-height:1}
+.emb-ic{flex-shrink:0;display:inline-flex;align-items:center;color:var(--ink2)}
+.emb-ic .ico{width:14px;height:14px}
 .emb-title{flex:1;font-size:13px;font-weight:700;color:var(--ink);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .emb-del{font-size:16px;color:var(--ink3);cursor:pointer;padding:2px 4px;line-height:1;flex-shrink:0;touch-action:manipulation}
 .emb-body{display:none;padding:2px 11px 10px}
@@ -647,7 +649,14 @@ body.fullscreen #fs-hint{display:block!important}
 .emb-text{font-size:12.5px;color:var(--ink2);line-height:1.5;white-space:pre-wrap;margin-bottom:8px}
 .emb-sub{border-left:2px solid var(--border);padding-left:9px;margin:4px 0 8px}
 .emb-sub-item{padding:4px 0}
-.emb-sub-t{font-size:12px;font-weight:600;color:var(--ink)}
+.emb-sub-t{font-size:12px;font-weight:600;color:var(--ink);flex:1;min-width:0}
+/* subniveles plasmados: fila con flecha, y sus hijos plegados por defecto */
+.emb-sub-row{display:flex;align-items:center;gap:5px}
+.emb-sub-row.has-kids{cursor:pointer}
+.emb-sub-arrow{flex-shrink:0;display:inline-flex;color:var(--ink3);transition:transform .18s}
+.emb-sub-arrow.open{transform:rotate(90deg)}
+.emb-sub-kids{display:none;padding-left:11px;border-left:1.5px solid var(--border);margin:3px 0 3px 4px}
+.emb-sub-kids.open{display:block}
 .emb-sub-d{font-size:11.5px;color:var(--ink2);line-height:1.4;margin-top:2px}
 .emb-acts{display:flex;gap:5px;flex-wrap:wrap}
 .emb-btn{padding:5px 10px;border:none;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;background:var(--bg2);color:var(--ink2);font-family:inherit;touch-action:manipulation}
@@ -1491,7 +1500,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v82'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v83'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2178,10 +2187,35 @@ function drawSetPreview(){
 const colorBar=document.getElementById('color-bar');
 let barTab='pastel';try{barTab=localStorage.getItem('lp_bartab')||'pastel'}catch(e){}
 if(!PALETTES[barTab])barTab='pastel';
+/* Cambia a la SIGUIENTE paleta de un toque, sin abrir el cuadro de colores.
+   Los colores mantienen su significado entre paletas (el 1º es siempre
+   "Títulos generales", etc.), así que rotar es solo cambiar de tono. */
+function cyclePalette(){
+  const tabs=Object.keys(PALETTES);
+  const i=tabs.indexOf(barTab);
+  barTab=tabs[(i+1)%tabs.length];
+  try{localStorage.setItem('lp_bartab',barTab)}catch(e){}
+  buildColorBar();
+  /* si el color activo existía en la paleta anterior, se pasa al tono
+     equivalente de la nueva (misma posición = mismo significado) */
+  const prev=PALETTES[tabs[i]]&&PALETTES[tabs[i]].colors||[];
+  const pos=prev.findIndex(c=>c.c.toLowerCase()===(curColor||'').toLowerCase());
+  if(pos>=0){
+    const nc=PALETTES[barTab].colors[pos];
+    if(nc)setColor(nc.c,`${nc.n} · ${nc.t}`);
+  }
+  showTip('Paleta: '+PALETTES[barTab].label,1200);
+}
 function buildColorBar(){
   colorBar.querySelectorAll('.cchip').forEach(el=>el.remove());
+  const cyc=document.createElement('button');cyc.className='cchip';
+  cyc.title='Cambiar de paleta (toque rápido)';
+  cyc.innerHTML=`<div class="dot" style="background:conic-gradient(#FF9F9F,#FFD59F,#FFF3A0,#B7EBB0,#A8D8F0,#CDB4F5,#FF9F9F)"></div><span class="tag">${esc(PALETTES[barTab].label)}</span>`;
+  cyc.onclick=cyclePalette;
+  colorBar.appendChild(cyc);
   const more=document.createElement('button');more.className='cchip';
-  more.innerHTML=`<div class="dot" style="background:conic-gradient(#FF9F9F,#FFD59F,#FFF3A0,#B7EBB0,#A8D8F0,#CDB4F5,#FF9F9F)"></div><span class="tag">Más…</span>`;
+  more.title='Abrir todas las paletas y el color libre';
+  more.innerHTML=`<div class="dot" style="background:var(--bg2);display:flex;align-items:center;justify-content:center;color:var(--ink2)">${svg('dots')}</div><span class="tag">Más…</span>`;
   more.onclick=()=>{renderPalTab(barTab);document.querySelectorAll('.pal-tab').forEach(x=>x.classList.toggle('on',x.dataset.pal===barTab));modalPal.classList.remove('hidden')};
   colorBar.appendChild(more);
   PALETTES[barTab].colors.forEach(cd=>{
@@ -4547,28 +4581,32 @@ function resolveEmbed(emb){
   if(emb.kind==='node'){
     const n=loadNodes().find(x=>x.id===emb.refId);
     if(!n)return null;
-    return{ic:'🔗',color:n.color||'#E3D0F5',title:n.title,text:n.body||'',
-      children:(n.children||[]).map(c=>({title:c.title,body:c.body})),
+    /* el árbol ENTERO, no solo el primer nivel: antes se mapeaba a
+       {title,body} y se perdían los nietos, así que al plasmar un nodo con
+       profundidad los subniveles hondos no salían. */
+    return{ic:'synapse',color:n.color||'#E3D0F5',title:n.title,text:n.body||'',
+      children:n.children||[],openPanel:'nodes',
       goPage:(n.pages||[])[0]};
   }
   if(emb.kind==='cmap'){
     const found=findCmapNode(emb.refId);
     if(!found)return null;
-    return{ic:'🗺️',color:cmapLevelDot(found.node.level),title:found.node.title,
-      cmapNode:found.node,cmapMaps:found.maps,goPage:found.node.page};
+    return{ic:'brain',color:cmapLevelDot(found.node.level),title:found.node.title,
+      cmapNode:found.node,cmapMaps:found.maps,openPanel:'cmap',goPage:found.node.page};
   }
   if(emb.kind==='proc'){
     const procs=loadProc();
     const proc=procs.find(p=>p.id===emb.refId);
     if(!proc)return null;
     const th=proc.themeId?themeById(proc.themeId):null;
-    return{ic:'🔁',color:th?th.color:'#E3D0F5',title:proc.title,
-      procSteps:proc.steps,procsAll:procs};
+    return{ic:'flask',color:th?th.color:'#E3D0F5',title:proc.title,
+      procSteps:proc.steps,procsAll:procs,openPanel:'proc'};
   }
   const ent=loadEnts(emb.kind).find(x=>x.gid===emb.refId||x.id===emb.refId);
   if(!ent)return null;
-  return{ic:emb.kind==='glos'?'📖':'💡',color:ENT_KINDS[emb.kind].dot,
-    title:ent.title,text:ent.body||ent.text||'',children:[],goPage:ent.page};
+  return{ic:emb.kind==='glos'?'file':'heartMind',color:ENT_KINDS[emb.kind].dot,
+    title:ent.title,text:ent.body||ent.text||'',children:[],
+    openPanel:emb.kind,goPage:ent.page};
 }
 function renderEmbeds(){
   pagesInner.querySelectorAll('.emb-card').forEach(c=>c.remove());
@@ -4602,6 +4640,50 @@ function fitCardInPage(card,nl){
   if(card.offsetLeft+card.offsetWidth>lw)card.style.left=Math.max(0,lw-card.offsetWidth)+'px';
   if(card.offsetTop+card.offsetHeight>lh)card.style.top=Math.max(0,lh-card.offsetHeight)+'px';
 }
+/* Un subnivel plasmado, con TODA su profundidad y plegable. Solo lectura:
+   editar se hace desde el panel. El plegado es de la vista (no se guarda),
+   porque estos subniveles no tienen campo propio donde recordarlo. */
+function buildEmbedSubTree(item,depth){
+  const el=document.createElement('div');el.className='emb-sub-item';
+  const kids=item.children||[];
+  const row=document.createElement('div');row.className='emb-sub-row';
+  if(kids.length){
+    const arr=document.createElement('span');arr.className='emb-sub-arrow';
+    arr.innerHTML=svg('chevRight','ico cmap-chev');
+    row.appendChild(arr);
+    row.classList.add('has-kids');
+  }
+  const t=document.createElement('div');t.className='emb-sub-t';t.textContent=item.title||'';
+  row.appendChild(t);
+  el.appendChild(row);
+  if(item.body&&String(item.body).trim()){
+    const d=document.createElement('div');d.className='emb-sub-d rich-content';
+    d.innerHTML=richHTML(item.body);el.appendChild(d);
+  }
+  if(kids.length){
+    const box=document.createElement('div');box.className='emb-sub-kids';
+    kids.forEach(k=>box.appendChild(buildEmbedSubTree(k,(depth||0)+1)));
+    el.appendChild(box);
+    row.onclick=e=>{
+      e.stopPropagation();
+      const open=box.classList.toggle('open');
+      row.querySelector('.emb-sub-arrow').classList.toggle('open',open);
+    };
+  }
+  return el;
+}
+/* abre el panel de la herramienta de la que salió una tarjeta plasmada */
+function openSourcePanel(which){
+  if(which==='nodes'){openNodesTab();return}
+  if(which==='cmap'){openPanel('cmap-panel');refreshCmapPanel();return}
+  if(which==='proc'){openPanel('proc-panel');refreshProcPanel();return}
+  if(which==='aclar'){openPanel('aclar-panel');refreshAclarPanel();return}
+  if(which==='glos'||which==='conc'){
+    const pid=which==='glos'?'glossary-panel':'conclusions-panel';
+    openPanel(pid);
+    autoUpdateEnts(which).then(()=>renderEnts(which)).catch(()=>renderEnts(which));
+  }
+}
 function buildEmbedCard(emb,data,nl){
   const card=document.createElement('div');card.className='emb-card'+(emb.mini?' mini':'');
   card.style.left=(emb.x*scale)+'px';card.style.top=(emb.y*scale)+'px';
@@ -4611,7 +4693,7 @@ function buildEmbedCard(emb,data,nl){
 
   const hd=document.createElement('div');hd.className='emb-hd';hd.style.borderLeftColor=data.color;
   const arrow=document.createElement('span');arrow.className='emb-arrow'+(emb.mini?'':' open');arrow.textContent='▸';
-  const ic=document.createElement('span');ic.className='emb-ic';ic.textContent=data.ic;
+  const ic=document.createElement('span');ic.className='emb-ic';ic.innerHTML=svg(data.ic);
   const title=document.createElement('span');title.className='emb-title';title.textContent=data.title||'(sin título)';
   const del=document.createElement('span');del.className='emb-del';del.textContent='×';
   hd.append(arrow,ic,title,del);
@@ -4637,11 +4719,11 @@ function buildEmbedCard(emb,data,nl){
     if(data.text){const t=document.createElement('div');t.className='emb-text rich-content';t.innerHTML=richHTML(data.text);body.appendChild(t)}
     if(data.children&&data.children.length){
       const sub=document.createElement('div');sub.className='emb-sub';
-      data.children.forEach(ch=>{
-        const si=document.createElement('div');si.className='emb-sub-item';
-        si.innerHTML=`<div class="emb-sub-t">${esc(ch.title||'')}</div>${ch.body?`<div class="emb-sub-d rich-content">${richHTML(ch.body)}</div>`:''}`;
-        sub.appendChild(si);
-      });
+      /* ÁRBOL COMPLETO Y PLEGABLE: antes se pintaba una lista plana de un
+         solo nivel, así que los subniveles hondos de un nodo no aparecían
+         al plasmarlo. Ahora se recorre en profundidad y cada rama se
+         pliega/despliega, igual que el mapa conceptual plasmado. */
+      data.children.forEach(ch=>sub.appendChild(buildEmbedSubTree(ch)));
       body.appendChild(sub);
     }
   }
@@ -4650,6 +4732,14 @@ function buildEmbedCard(emb,data,nl){
     const go=document.createElement('button');go.className='emb-btn go';go.textContent='→ Ir a pág. '+posOfPid(data.goPage);
     go.onclick=e=>{e.stopPropagation();goPage(posOfPid(data.goPage))};
     acts.appendChild(go);
+  }
+  /* abrir la herramienta de origen para revisarlo en su sitio */
+  if(data.openPanel){
+    const op=document.createElement('button');op.className='emb-btn';
+    op.textContent='Abrir panel';
+    op.title='Ver esta ficha en su herramienta';
+    op.onclick=e=>{e.stopPropagation();openSourcePanel(data.openPanel)};
+    acts.appendChild(op);
   }
   body.appendChild(acts);
   card.append(hd,body);
