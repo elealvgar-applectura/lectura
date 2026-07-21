@@ -354,6 +354,15 @@ body.fullscreen #rd-bottom-show{display:none}
   font-size:17px;cursor:pointer;border-radius:8px}
 .tm-del:active{background:var(--card)}
 .tm-cnt{font-size:11px;color:var(--ink3);flex-shrink:0;min-width:20px;text-align:right}
+/* buscador de panel (nodos, glosario, conclusiones, aclaraciones) */
+.panel-search{margin-bottom:8px}
+.panel-search input{width:100%;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);
+  font-size:15px;padding:9px 12px;outline:none;font-family:inherit;box-sizing:border-box;
+  -webkit-appearance:none;appearance:none}
+.panel-search input::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none;
+  width:16px;height:16px;background:var(--ink3);cursor:pointer;
+  -webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M18 6 6 18M6 6l12 12' stroke='black' stroke-width='2.4' fill='none' stroke-linecap='round'/></svg>") center/contain no-repeat;
+  mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M18 6 6 18M6 6l12 12' stroke='black' stroke-width='2.4' fill='none' stroke-linecap='round'/></svg>") center/contain no-repeat}
 .sp-close{width:34px;height:34px;border:none;background:transparent;cursor:pointer;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .sp-close svg{width:19px;height:19px;stroke:var(--ink2);fill:none;stroke-width:2;stroke-linecap:round}
 .sp-tabs{display:flex;gap:4px;padding:8px 10px 0;flex-shrink:0}
@@ -1079,7 +1088,8 @@ body.fullscreen #gid-bar{bottom:20px}
   <div class="modal">
     <h3>Gestionar temas</h3>
     <p style="font-size:12.5px;color:var(--ink2);margin-bottom:12px;line-height:1.5">
-      Edita el número, el nombre o el color. Los cambios se guardan al instante.</p>
+      Toca el nombre para cambiarlo. Los cambios se guardan solos.</p>
+    <input id="tm-filter" type="text" placeholder="Buscar tema…" style="width:100%;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);font-size:15px;padding:10px 12px;outline:none;margin-bottom:10px">
     <div id="tm-list" style="max-height:46vh;overflow-y:auto;margin-bottom:12px"></div>
     <div style="display:flex;gap:8px;margin-bottom:4px">
       <input id="tm-new-num" type="number" min="1" placeholder="Nº" style="width:64px;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);font-size:15px;padding:10px;outline:none;text-align:center">
@@ -1249,6 +1259,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <div class="modal-bg hidden" id="modal-cmap-link">
   <div class="modal">
     <h3>Vincular con una ficha</h3>
+    <input id="cmap-link-search" type="search" placeholder="Buscar ficha…" style="width:100%;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);font-size:15px;padding:10px 12px;outline:none;margin-bottom:10px">
     <div id="cmap-link-list" style="max-height:50vh;overflow-y:auto;display:flex;flex-direction:column;gap:2px"></div>
     <div class="modal-btns">
       <button class="mbtn cancel" id="modal-cmap-link-cancel">Cancelar</button>
@@ -4323,7 +4334,22 @@ function refreshNodesPanel(){
   addBtn.onclick=async()=>{const d=await askNode(curPage);if(!d)return;nodes.push({id:uid(),title:d.title,body:d.body,pages:[curPid()],color:curColor,children:[],created:Date.now()});saveNodes(nodes);refreshNodesPanel();renderNodeAnchors();showTip('Nodo creado',1400)};
   npNodesBody.appendChild(addBtn);
   if(!nodes.length){const em=document.createElement('div');em.className='np-empty';em.textContent='Crea nodos conceptuales anclados al PDF.\nCada nodo puede tener subniveles de profundidad.';npNodesBody.appendChild(em);return}
-  nodes.sort((a,b)=>(a.pages[0]||0)-(b.pages[0]||0)).forEach(node=>npNodesBody.appendChild(buildNodeEl(node,nodes)));
+
+  /* buscador por palabra clave. Busca también dentro de los subniveles, para
+     encontrar un nodo por algo escrito en su profundidad. */
+  npNodesBody.appendChild(buildPanelSearch('node',refreshNodesPanel,'Buscar en nodos…'));
+  const qN=panelSearch.node;
+  let vis=nodes;
+  if(qN.trim()){
+    const textoDe=n=>[n.title,n.body].concat((n.children||[]).map(textoDe)).join(' ');
+    vis=nodes.filter(n=>panelMatch(qN,textoDe(n)));
+    if(!vis.length){
+      const em=document.createElement('div');em.className='np-empty';
+      em.textContent='Ningún nodo coincide con "'+qN.trim()+'".';
+      npNodesBody.appendChild(em);return;
+    }
+  }
+  vis.slice().sort((a,b)=>(a.pages[0]||0)-(b.pages[0]||0)).forEach(node=>npNodesBody.appendChild(buildNodeEl(node,nodes)));
 }
 
 function buildNodeEl(node,nodes){
@@ -5715,8 +5741,14 @@ function refreshAclarPanel(){
   let items=loadAclars();
   if(flt!=='__all__')items=items.filter(a=>((a.themeId||'')===flt));
 
+  /* buscador por palabra clave: busca en la referencia subrayada y en el texto */
+  body.appendChild(buildPanelSearch('aclar',refreshAclarPanel,'Buscar en aclaraciones…'));
+  const qA=panelSearch.aclar;
+  if(qA.trim())items=items.filter(a=>panelMatch(qA,a.ref,a.text));
+
   if(!items.length){
     const em=document.createElement('div');em.className='np-empty';
+    if(qA.trim()){em.textContent='Nada coincide con "'+qA.trim()+'".';body.appendChild(em);return}
     em.textContent= flt==='__all__'
       ? 'Subraya con el color "Aclaraciones" y pulsa ✓ Cerrar para escribir aquí la aclaración.'
       : (flt===''?'No hay aclaraciones sin tema.':'No hay aclaraciones en este tema.');
@@ -6220,14 +6252,58 @@ function deleteTheme(themeId){
   /* 3) aclaraciones: su tema vive dentro de cada aclaración */
   {const aa=loadAclars();let ch=false;aa.forEach(a=>{if(a.themeId===themeId){a.themeId=null;ch=true}});if(ch)saveAclars(aa)}
 }
+/* ══ BUSCADOR DE PANELES ══
+   Mismo cuadro de búsqueda para nodos, glosario, conclusiones y
+   aclaraciones. El texto buscado vive fuera del render (en `store`), porque
+   estos paneles se repintan enteros: si el estado viviera en el propio
+   campo, se perdería en cada repintado.
+   Devuelve el elemento ya cableado; el panel decide dónde colocarlo. */
+const panelSearch={glos:'',conc:'',aclar:'',node:''};
+function buildPanelSearch(key,onChange,placeholder){
+  const wrap=document.createElement('div');wrap.className='panel-search';
+  const inp=document.createElement('input');
+  inp.type='search';inp.placeholder=placeholder||'Buscar…';
+  inp.value=panelSearch[key]||'';
+  inp.addEventListener('input',()=>{panelSearch[key]=inp.value;onChange()});
+  wrap.appendChild(inp);
+  /* al repintar, devolver el foco donde estaba: si no, escribir una letra
+     y perder el cursor hace el buscador inservible */
+  if(panelSearchFocus===key)setTimeout(()=>{
+    inp.focus();
+    try{inp.setSelectionRange(inp.value.length,inp.value.length)}catch(e){}
+  },0);
+  inp.addEventListener('focus',()=>{panelSearchFocus=key});
+  inp.addEventListener('blur',()=>{if(panelSearchFocus===key)panelSearchFocus=null});
+  return wrap;
+}
+let panelSearchFocus=null;
+/* ¿coincide el texto buscado? Busca en título y cuerpo, sin distinguir
+   mayúsculas ni acentos, y sobre el texto plano (no sobre las etiquetas
+   HTML del formato: si no, buscar "b" encontraría toda la negrita). */
+function panelMatch(q,...campos){
+  const n=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+  const needle=n(q).trim();
+  if(!needle)return true;
+  const hay=campos.map(c=>n(richToPlain(c))).join(' ');
+  return needle.split(/\s+/).every(w=>hay.includes(w));
+}
+
+let tmFilter='';
 function renderThemesMgr(){
   const list=document.getElementById('tm-list');
   list.innerHTML='';
-  const themes=loadThemes().sort((a,b)=>(a.num||0)-(b.num||0));
-  if(!themes.length){
+  const all=loadThemes().sort((a,b)=>(a.num||0)-(b.num||0));
+  const q=tmFilter.trim().toLowerCase();
+  const themes=q?all.filter(t=>String(t.num||'').includes(q)||(t.name||'').toLowerCase().includes(q)):all;
+  if(!all.length){
     const em=document.createElement('div');
     em.style.cssText='font-size:13px;color:var(--ink3);padding:10px 2px';
     em.textContent='Aún no hay temas. Crea el primero abajo.';
+    list.appendChild(em);
+  }else if(!themes.length){
+    const em=document.createElement('div');
+    em.style.cssText='font-size:13px;color:var(--ink3);padding:10px 2px';
+    em.textContent='Ningún tema coincide con "'+tmFilter+'".';
     list.appendChild(em);
   }
   themes.forEach(t=>{
@@ -6235,6 +6311,7 @@ function renderThemesMgr(){
 
     const num=document.createElement('input');
     num.type='number';num.min='1';num.className='tm-num';num.value=t.num||1;
+    num.title='Número del tema (ordena la lista)';
     num.onchange=()=>{
       const a=loadThemes();const it=a.find(x=>x.id===t.id);
       if(it){it.num=parseInt(num.value,10)||1;saveThemes(a)}
@@ -6243,13 +6320,23 @@ function renderThemesMgr(){
 
     const name=document.createElement('input');
     name.type='text';name.className='tm-name';name.value=t.name||'';
-    const commitName=()=>{
+    name.title='Toca para cambiar el nombre';
+    /* Se guarda al salir del campo y también mientras se escribe (con un
+       respiro), porque en el iPad es fácil cerrar el cuadro sin que el
+       campo pierda el foco: así el cambio no se perdía y parecía que
+       "no se puede editar el título". Un aviso confirma que se guardó. */
+    let tTimer=null;
+    const commitName=(quiet)=>{
       const v=name.value.trim();
-      if(!v){name.value=t.name;return}         // no permitir vacio
+      if(!v)return;                            // vacío: no se guarda, pero no se pisa lo escrito
       const a=loadThemes();const it=a.find(x=>x.id===t.id);
-      if(it&&it.name!==v){it.name=v;saveThemes(a);refreshEntPanels()}
+      if(it&&it.name!==v){
+        it.name=v;saveThemes(a);t.name=v;refreshEntPanels();
+        if(!quiet)showTip('Tema renombrado',1100);
+      }
     };
-    name.onblur=commitName;
+    name.oninput=()=>{clearTimeout(tTimer);tTimer=setTimeout(()=>commitName(true),600)};
+    name.onblur=()=>{clearTimeout(tTimer);commitName(false)};
     name.onkeydown=ev=>{
       if(ev.key==='Enter'){ev.preventDefault();ev.stopPropagation();name.blur()}
       if(ev.key==='Escape'){ev.preventDefault();ev.stopPropagation();name.value=t.name;name.blur()}
@@ -6287,6 +6374,10 @@ function renderThemesMgr(){
   document.getElementById('tm-new-num').value=nextThemeNum();
   document.getElementById('tm-new-name').value='';
 }
+/* el buscador filtra sin repintar el campo (si no, se pierde el foco al escribir) */
+document.getElementById('tm-filter').addEventListener('input',e=>{
+  tmFilter=e.target.value;renderThemesMgr();
+});
 /* repinta el panel abierto para que los cambios se vean al momento */
 function refreshEntPanels(){
   ['glos','conc'].forEach(k=>{
@@ -6299,6 +6390,7 @@ function refreshEntPanels(){
 }
 function openThemesMgr(kind){
   tmPanelKind=kind;
+  tmFilter='';document.getElementById('tm-filter').value='';
   renderThemesMgr();
   document.getElementById('modal-themes-mgr').classList.remove('hidden');
 }
@@ -6457,9 +6549,15 @@ function renderEnts(kind){
     addRow.append(inp,btn);body.appendChild(addRow);
   }
 
+  /* buscador por palabra clave (además del filtro por tema) */
+  body.appendChild(buildPanelSearch(kind,()=>renderEnts(kind),'Buscar en '+K.label.toLowerCase()+'…'));
+  const q=panelSearch[kind];
+  if(q.trim())items=items.filter(g=>panelMatch(q,g.title,g.body));
+
   if(!items.length){
     const em=document.createElement('div');em.className='np-empty';
-    em.textContent = flt==='__all__' ? K.empty
+    em.textContent = q.trim() ? 'Nada coincide con "'+q.trim()+'".'
+                   : flt==='__all__' ? K.empty
                    : flt==='' ? 'No hay entradas sin tema.'
                    : 'No hay entradas en este tema.';
     body.appendChild(em);return;
@@ -6928,36 +7026,50 @@ document.getElementById('modal-cmap-link-cancel').onclick=()=>{mCmapLink.classLi
 function askCmapLink(){
   return new Promise(res=>{
     cmapLinkRes=res;
-    const list=document.getElementById('cmap-link-list');list.innerHTML='';
     const groups=[
-      {kind:'glos', label:'Definiciones', items:loadEnts('glos').map(it=>({id:it.gid||it.id,title:it.title}))},
-      {kind:'conc', label:'Conclusiones', items:loadEnts('conc').map(it=>({id:it.gid||it.id,title:it.title}))},
-      {kind:'aclar',label:'Aclaraciones', items:loadAclars().map(it=>({id:it.id,title:it.ref||'Aclaración'}))}
+      {kind:'glos', label:'Definiciones', items:loadEnts('glos').map(it=>({id:it.gid||it.id,title:it.title,body:it.body}))},
+      {kind:'conc', label:'Conclusiones', items:loadEnts('conc').map(it=>({id:it.gid||it.id,title:it.title,body:it.body}))},
+      {kind:'aclar',label:'Aclaraciones', items:loadAclars().map(it=>({id:it.id,title:it.ref||'Aclaración',body:it.text}))}
     ];
-    let any=false;
-    groups.forEach(g=>{
-      if(!g.items.length)return;
-      any=true;
-      const h=document.createElement('div');
-      /* flex-shrink:0 — la lista es un contenedor flex en columna: sin esto,
-         con varias fichas los elementos se encogían de alto y el texto
-         quedaba cortado por la mitad (ilegible). */
-      h.style.cssText='flex:0 0 auto;font-size:11.5px;font-weight:700;color:var(--ink3);margin:8px 2px 2px;text-transform:uppercase;letter-spacing:.04em';
-      h.textContent=g.label;list.appendChild(h);
-      g.items.forEach(it=>{
-        const b=document.createElement('button');
-        b.style.cssText='flex:0 0 auto;display:block;width:100%;min-height:38px;text-align:left;padding:9px 10px;border:none;border-radius:9px;background:var(--bg2);color:var(--ink);font-family:inherit;font-size:13.5px;line-height:1.35;cursor:pointer;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
-        b.textContent=it.title||'(sin título)';
-        b.onclick=()=>{mCmapLink.classList.add('hidden');cmapLinkRes&&cmapLinkRes({kind:g.kind,id:it.id,title:it.title||''})};
-        list.appendChild(b);
+    const hayAlgo=groups.some(g=>g.items.length);
+    const inp=document.getElementById('cmap-link-search');
+    const list=document.getElementById('cmap-link-list');
+
+    /* con muchas fichas, encontrar la que se quiere vincular a base de
+       scroll es inviable: el buscador filtra los tres grupos a la vez */
+    const pinta=()=>{
+      list.innerHTML='';
+      const q=inp.value;
+      let any=false;
+      groups.forEach(g=>{
+        const items=q.trim()?g.items.filter(it=>panelMatch(q,it.title,it.body)):g.items;
+        if(!items.length)return;
+        any=true;
+        const h=document.createElement('div');
+        /* flex-shrink:0 — la lista es un contenedor flex en columna: sin esto,
+           con varias fichas los elementos se encogían de alto y el texto
+           quedaba cortado por la mitad (ilegible). */
+        h.style.cssText='flex:0 0 auto;font-size:11.5px;font-weight:700;color:var(--ink3);margin:8px 2px 2px;text-transform:uppercase;letter-spacing:.04em';
+        h.textContent=g.label;list.appendChild(h);
+        items.forEach(it=>{
+          const b=document.createElement('button');
+          b.style.cssText='flex:0 0 auto;display:block;width:100%;min-height:38px;text-align:left;padding:9px 10px;border:none;border-radius:9px;background:var(--bg2);color:var(--ink);font-family:inherit;font-size:13.5px;line-height:1.35;cursor:pointer;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+          b.textContent=it.title||'(sin título)';
+          b.onclick=()=>{mCmapLink.classList.add('hidden');cmapLinkRes&&cmapLinkRes({kind:g.kind,id:it.id,title:it.title||''})};
+          list.appendChild(b);
+        });
       });
-    });
-    if(!any){
-      const em=document.createElement('div');
-      em.style.cssText='text-align:center;color:var(--ink3);font-size:13px;padding:20px 10px';
-      em.textContent='Aún no tienes definiciones, conclusiones ni aclaraciones en este documento.';
-      list.appendChild(em);
-    }
+      if(!any){
+        const em=document.createElement('div');
+        em.style.cssText='text-align:center;color:var(--ink3);font-size:13px;padding:20px 10px';
+        em.textContent=hayAlgo?('Nada coincide con "'+q.trim()+'".')
+          :'Aún no tienes definiciones, conclusiones ni aclaraciones en este documento.';
+        list.appendChild(em);
+      }
+    };
+    inp.value='';inp.oninput=pinta;
+    inp.style.display=hayAlgo?'':'none';
+    pinta();
     mCmapLink.classList.remove('hidden');
   });
 }
