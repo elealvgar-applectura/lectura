@@ -4782,16 +4782,39 @@ function getHlText(pg,h){
   if(!items||!items.length)return'';       // aún no extraído (o PDF escaneado)
   const x0=Math.min(h.x,h.x+h.w), x1=Math.max(h.x,h.x+h.w);
   const y0=Math.min(h.y,h.y+h.h), y1=Math.max(h.y,h.y+h.h);
-  const hit=items.filter(it=>{
-    /* solape horizontal y vertical con la caja del subrayado.
-       Umbrales bajos: basta con que el subrayado toque el fragmento para
-       incluirlo, así no se pierden palabras al principio/final de un trazo
-       largo o cuando la banda es un poco más corta que el texto real. */
-    const ox=Math.min(it.x1,x1)-Math.max(it.x0,x0);
+  const hit=[];
+  items.forEach(it=>{
     const oy=Math.min(it.bottom,y1)-Math.max(it.top,y0);
-    if(ox<=0||oy<=0)return false;
-    const wFrag=Math.max(1,it.x1-it.x0), hFrag=Math.max(1,it.bottom-it.top);
-    return (ox/wFrag)>0.12 && (oy/hFrag)>0.20;
+    const hFrag=Math.max(1,it.bottom-it.top);
+    if(oy<=0||(oy/hFrag)<=0.25)return;      // ni roza el renglón en vertical
+    const ox=Math.min(it.x1,x1)-Math.max(it.x0,x0);
+    const wFrag=Math.max(1,it.x1-it.x0);
+    if(ox<=0)return;
+    /* CADA FRAGMENTO DEL PDF PUEDE TRAER VARIAS PALABRAS PEGADAS (algunos
+       PDF exportan "de la palabra" como un único bloque de texto, no una
+       palabra suelta). Antes, con que el subrayado rozara un poco el borde
+       del bloque, se colaba el bloque ENTERO: así se colaban palabras de
+       más por delante o por detrás de lo subrayado de verdad.
+       Si el bloque es una sola palabra, basta con que la banda la toque lo
+       suficiente (umbral moderado). Si trae varias, se reparte su ancho por
+       caracteres (aproximación razonable, no hay datos de posición por
+       letra) y solo se cuela la palabra que la banda toca de verdad. */
+    const words=it.str.split(/(\s+)/);
+    if(words.length<=1){
+      if((ox/wFrag)>0.3)hit.push({str:it.str,x0:it.x0,base:it.base,top:it.top,bottom:it.bottom});
+      return;
+    }
+    const totalLen=it.str.length||1;
+    let pos=0;const kept=[];
+    words.forEach(w=>{
+      const len=w.length;
+      if(!w.trim()){pos+=len;return}
+      const wx0=it.x0+(pos/totalLen)*wFrag, wx1=it.x0+((pos+len)/totalLen)*wFrag;
+      const wox=Math.min(wx1,x1)-Math.max(wx0,x0), wlen=Math.max(1,wx1-wx0);
+      if(wox>0&&(wox/wlen)>0.35)kept.push(w);
+      pos+=len;
+    });
+    if(kept.length)hit.push({str:kept.join(' '),x0:it.x0,base:it.base,top:it.top,bottom:it.bottom});
   });
   if(!hit.length)return'';
   /* orden de lectura: por líneas (de arriba abajo) y dentro de cada una, izq→der */
