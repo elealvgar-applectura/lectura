@@ -352,23 +352,41 @@ body.fullscreen #rd-bottom-show{display:none}
   transition:background .14s,color .14s}
 .sp-themes:hover{background:var(--bg2);color:var(--ink)}
 .sp-themes .ico{width:19px;height:19px}
-.tm-row{display:flex;align-items:center;gap:8px;padding:8px;border-radius:10px;background:var(--bg2);margin-bottom:7px}
-.tm-num{width:44px;flex-shrink:0;background:var(--card);border:none;border-radius:8px;color:var(--ink);
-  font-size:14px;font-weight:700;padding:8px 4px;text-align:center;outline:none;font-family:inherit}
-/* wrapper para poder pintar un lápiz DENTRO del campo, sin que estorbe al
-   tocar: antes el campo de nombre solo se distinguía por un fondo un pelín
-   distinto, sin ninguna pista de que se puede escribir encima directamente
-   (no hace falta ningún botón "editar" aparte). */
+/* ═══ GESTOR DE TEMAS: tarjeta en DOS LÍNEAS por tema ═══
+   Antes era una sola fila con 5 controles apretados (número, nombre, color,
+   contador, borrar): en el iPad era difícil de tocar con precisión, y además
+   tenía un fallo real — la regla genérica ".modal input[type=text]" (más
+   específica por combinar clase + atributo) GANABA a ".tm-num"/".tm-name" y
+   les imponía width:100%, así que el número se comía toda la fila y el
+   resto quedaba fuera con scroll horizontal.
+   Todo lo de aquí va bajo el ID #modal-themes-mgr a propósito: un selector
+   con ID siempre gana a uno de clases, así esta regla genérica no puede
+   volver a colarse por encima nunca más. */
+.tm-card{background:var(--bg2);border-radius:12px;padding:10px;margin-bottom:8px}
+.tm-card-row1{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+#modal-themes-mgr .tm-color{width:34px;height:34px;flex-shrink:0;border:none;border-radius:9px;cursor:pointer;padding:0;background:none}
+/* wrapper para pintar un lápiz DENTRO del campo: sin él, el nombre no daba
+   ninguna pista de que se puede tocar y escribir encima directamente. */
 .tm-name-wrap{position:relative;flex:1;min-width:0}
-.tm-name{width:100%;background:var(--card);border:none;border-radius:8px;color:var(--ink);
-  font-size:14px;padding:8px 26px 8px 9px;outline:none;font-family:inherit}
-.tm-name-wrap .ico{position:absolute;right:8px;top:50%;transform:translateY(-50%);
-  width:13px;height:13px;color:var(--ink3);pointer-events:none}
-.tm-color{width:32px;height:32px;flex-shrink:0;border:none;border-radius:8px;cursor:pointer;padding:0;background:none}
-.tm-del{width:30px;height:30px;flex-shrink:0;border:none;background:transparent;color:var(--ink3);
-  font-size:17px;cursor:pointer;border-radius:8px}
-.tm-del:active{background:var(--card)}
-.tm-cnt{font-size:11px;color:var(--ink3);flex-shrink:0;min-width:20px;text-align:right}
+#modal-themes-mgr input.tm-name{width:100%;background:var(--card);border:1.5px solid var(--border);
+  border-radius:9px;color:var(--ink);font-size:15px;padding:10px 30px 10px 11px;outline:none;
+  font-family:inherit;margin:0}
+#modal-themes-mgr input.tm-name:focus{border-color:var(--lila)}
+.tm-name-wrap .ico{position:absolute;right:9px;top:50%;transform:translateY(-50%);
+  width:14px;height:14px;color:var(--ink3);pointer-events:none}
+#modal-themes-mgr .tm-del{width:34px;height:34px;flex-shrink:0;border:none;background:transparent;
+  color:var(--ink3);cursor:pointer;border-radius:9px;display:flex;align-items:center;justify-content:center}
+#modal-themes-mgr .tm-del:active{background:var(--card);color:var(--danger)}
+.tm-card-row2{display:flex;align-items:center;gap:8px}
+/* el orden se edita con botones, no escribiendo un número a mano: así nunca
+   hay dos temas con el mismo número por error, ni huecos raros */
+#modal-themes-mgr .tm-move{width:30px;height:30px;flex-shrink:0;border:none;background:var(--card);
+  color:var(--ink2);cursor:pointer;border-radius:8px;display:flex;align-items:center;justify-content:center}
+#modal-themes-mgr .tm-move .ico{width:14px;height:14px}
+#modal-themes-mgr .tm-move:active{background:var(--lila);color:var(--ink)}
+#modal-themes-mgr .tm-move:disabled{opacity:.3;cursor:default}
+.tm-pos{font-size:12.5px;font-weight:700;color:var(--ink2);min-width:26px;text-align:center}
+.tm-cnt{font-size:11.5px;color:var(--ink3);margin-left:auto}
 /* buscador de panel (nodos, glosario, conclusiones, aclaraciones) */
 .panel-search{margin-bottom:8px}
 .panel-search input{width:100%;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);
@@ -1538,7 +1556,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v87'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v88'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -6746,6 +6764,19 @@ function deleteTheme(themeId){
   /* 3) aclaraciones: su tema vive dentro de cada aclaración */
   {const aa=loadAclars();let ch=false;aa.forEach(a=>{if(a.themeId===themeId){a.themeId=null;ch=true}});if(ch)saveAclars(aa)}
 }
+/* Mueve un tema una posición arriba (-1) o abajo (+1) en la lista ordenada,
+   intercambiando su `num` con el del vecino. Nunca escribir un número a
+   mano: así no puede haber dos temas con el mismo número, ni huecos.
+   Devuelve false si ya está en el extremo (no hay vecino en esa dirección). */
+function moveTheme(themeId,dir){
+  const all=loadThemes().sort((a,b)=>(a.num||0)-(b.num||0));
+  const i=all.findIndex(t=>t.id===themeId);
+  const j=i+dir;
+  if(i<0||j<0||j>=all.length)return false;
+  const tmp=all[i].num;all[i].num=all[j].num;all[j].num=tmp;
+  saveThemes(all);
+  return true;
+}
 /* ══ BUSCADOR DE PANELES ══
    Mismo cuadro de búsqueda para nodos, glosario, conclusiones y
    aclaraciones. El texto buscado vive fuera del render (en `store`), porque
@@ -6801,24 +6832,26 @@ function renderThemesMgr(){
     list.appendChild(em);
   }
   themes.forEach(t=>{
-    const row=document.createElement('div');row.className='tm-row';
+    /* la posición y si está arriba/abajo del todo se calculan sobre `all`
+       (el orden real completo), no sobre `themes` (puede estar filtrado por
+       el buscador): si no, buscar y dejar un único resultado bloquearía
+       ambos botones aunque el tema sí tuviera vecinos en la lista real. */
+    const idx=all.findIndex(x=>x.id===t.id);
+    const card=document.createElement('div');card.className='tm-card';
+    const row1=document.createElement('div');row1.className='tm-card-row1';
+    const row2=document.createElement('div');row2.className='tm-card-row2';
 
-    const num=document.createElement('input');
-    num.type='number';num.min='1';num.className='tm-num';num.value=t.num||1;
-    num.title='Número del tema (ordena la lista)';
-    num.onchange=()=>{
+    const col=document.createElement('input');
+    col.type='color';col.className='tm-color';col.value=t.color||'#F9D5E5';
+    col.title='Color del tema';
+    col.oninput=()=>{
       const a=loadThemes();const it=a.find(x=>x.id===t.id);
-      if(it){it.num=parseInt(num.value,10)||1;saveThemes(a);t.num=it.num}
-      /* NO repintar la lista entera aquí: si el usuario ya había pasado a
-         tocar el campo del nombre (o cualquier otro), reconstruir todo le
-         robaba el foco a mitad de escribir (el mismo fallo que el buscador:
-         no se puede editar el segundo campo sin volver a pinchar). El orden
-         se reordena solo la próxima vez que se abra el gestor. */
-      refreshEntPanels();
+      if(it){it.color=col.value;saveThemes(a);refreshEntPanels()}
     };
 
     const name=document.createElement('input');
     name.type='text';name.className='tm-name';name.value=t.name||'';
+    name.placeholder='Nombre del tema';
     name.title='Toca para cambiar el nombre';
     /* Se guarda al salir del campo y también mientras se escribe (con un
        respiro), porque en el iPad es fácil cerrar el cuadro sin que el
@@ -6840,22 +6873,12 @@ function renderThemesMgr(){
       if(ev.key==='Enter'){ev.preventDefault();ev.stopPropagation();name.blur()}
       if(ev.key==='Escape'){ev.preventDefault();ev.stopPropagation();name.value=t.name;name.blur()}
     };
-
-    const col=document.createElement('input');
-    col.type='color';col.className='tm-color';col.value=t.color||'#F9D5E5';
-    col.oninput=()=>{
-      const a=loadThemes();const it=a.find(x=>x.id===t.id);
-      if(it){it.color=col.value;saveThemes(a);refreshEntPanels()}
-    };
-
-    const cnt=document.createElement('span');
-    cnt.className='tm-cnt';
-    const used=themeUsage(t.id);
-    cnt.textContent=used||'';
-    cnt.title=used+' ficha(s)';
+    const nameWrap=document.createElement('div');nameWrap.className='tm-name-wrap';
+    nameWrap.appendChild(name);
+    nameWrap.insertAdjacentHTML('beforeend',svg('pencil'));
 
     const del=document.createElement('button');
-    del.className='tm-del';del.textContent='×';del.title='Eliminar tema';
+    del.className='tm-del';del.title='Eliminar tema';del.innerHTML=svg('trash');
     del.onclick=async()=>{
       const n=themeUsage(t.id);
       const msg = n
@@ -6866,12 +6889,26 @@ function renderThemesMgr(){
       deleteTheme(t.id);
       renderThemesMgr();refreshEntPanels();
     };
+    row1.append(col,nameWrap,del);
 
-    const nameWrap=document.createElement('div');nameWrap.className='tm-name-wrap';
-    nameWrap.appendChild(name);
-    nameWrap.insertAdjacentHTML('beforeend',svg('pencil'));
-    row.append(num,nameWrap,col,cnt,del);
-    list.appendChild(row);
+    /* EL ORDEN SE EDITA CON BOTONES, no escribiendo un número: así nunca hay
+       dos temas con el mismo número por error ni huecos raros. Intercambia
+       el `num` con el del vecino en la lista ya ordenada. */
+    const up=document.createElement('button');up.className='tm-move';up.title='Subir';
+    up.innerHTML=svg('chevUp');up.disabled=idx===0;
+    up.onclick=()=>{if(moveTheme(t.id,-1))renderThemesMgr()};
+    const down=document.createElement('button');down.className='tm-move';down.title='Bajar';
+    down.innerHTML=svg('chevDown');down.disabled=idx===all.length-1;
+    down.onclick=()=>{if(moveTheme(t.id,1))renderThemesMgr()};
+    const pos=document.createElement('span');pos.className='tm-pos';pos.textContent=(idx+1)+'º';
+
+    const used=themeUsage(t.id);
+    const cnt=document.createElement('span');cnt.className='tm-cnt';
+    cnt.textContent=used?used+' ficha'+(used===1?'':'s'):'sin fichas';
+
+    row2.append(up,pos,down,cnt);
+    card.append(row1,row2);
+    list.appendChild(card);
   });
   document.getElementById('tm-new-num').value=nextThemeNum();
   document.getElementById('tm-new-name').value='';
