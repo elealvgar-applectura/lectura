@@ -626,6 +626,22 @@ body.fullscreen #rd-bottom-show{display:none}
 .side-panel.floating .sp-top:active{cursor:grabbing}
 .panel-win-resize{position:absolute;right:2px;bottom:2px;width:22px;height:22px;cursor:nwse-resize;touch-action:none;display:none;background:linear-gradient(135deg,transparent 50%,rgba(120,100,140,.4) 50%);border-bottom-right-radius:14px;z-index:5}
 .side-panel.floating .panel-win-resize{display:block}
+/* ═══ ASA DE ANCHO (panel ACOPLADO) ═══
+   Barra fina pegada al borde izquierdo del panel: se arrastra para ensanchar
+   o estrechar. El ancho elegido se guarda en lp_panelw y vale para todos los
+   paneles. En modo ventana se oculta, porque ahí ya manda el asa de la
+   esquina (.panel-win-resize) y las dos a la vez se estorbarían.
+   Es transparente salvo por la marca central: así no ensucia el panel, pero
+   se ve dónde hay que agarrar. 14px de ancho para poder cogerla con el dedo
+   en el iPad; se solapa con el padding del cuerpo, no con el texto. */
+.panel-dock-resize{position:absolute;left:0;top:0;width:14px;height:100%;
+  cursor:ew-resize;touch-action:none;z-index:6;
+  display:flex;align-items:center;justify-content:center}
+.panel-dock-resize::before{content:'';width:4px;height:44px;border-radius:2px;
+  background:rgba(120,100,140,.3);transition:background .14s}
+.panel-dock-resize:hover::before{background:rgba(120,100,140,.55)}
+.panel-dock-resize:active::before{background:var(--lila)}
+.side-panel.floating .panel-dock-resize{display:none}
 /* node anchors on PDF */
 .node-anchor{position:absolute;left:4px;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--ink);cursor:pointer;border:2px solid #fff;box-shadow:0 2px 8px rgba(120,100,140,.3);z-index:10;pointer-events:all;transition:transform .1s;touch-action:manipulation}
 .node-anchor:active{transform:scale(.88)}
@@ -1672,7 +1688,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v98'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v99'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -4865,8 +4881,22 @@ function closeAllPanels(except){
 function openPanel(id){
   closeAllPanels(id);
   const el=document.getElementById(id);
-  if(el)el.classList.add('open');
+  if(el){applyDockWidth(el);el.classList.add('open')}
   return el;
+}
+
+/* ══ ANCHO DEL PANEL ACOPLADO ══
+   Un único ancho para todos los paneles (lp_panelw). Si no hay nada guardado
+   se deja mandar al CSS (clamp 320–720px), que es como funcionaba antes.
+   Se aplica ANTES de añadir .open para que el panel entre ya con su ancho y
+   no se vea un salto al abrirlo. */
+function loadPanelW(){const v=parseInt(localStorage.getItem('lp_panelw')||'',10);
+  return (v&&v>=280)?v:0}
+function savePanelW(w){try{localStorage.setItem('lp_panelw',String(Math.round(w)))}catch(e){}}
+function applyDockWidth(p){
+  if(!p||p.classList.contains('floating'))return;
+  const w=loadPanelW();
+  p.style.width=w?Math.min(w,innerWidth-40)+'px':'';
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -4908,6 +4938,9 @@ function togglePanelWindow(p){
       p.style.left=saved.x+'px';p.style.top=saved.y+'px';
       p.style.width=saved.w+'px';p.style.height=saved.h+'px';
     }
+  }else{
+    /* al volver a acoplarlo recupera el ancho que Elena dejó arrastrando */
+    applyDockWidth(p);
   }
 }
 /* Prepara UN panel: botón de ventana en la cabecera, asa de redimensión,
@@ -4925,6 +4958,11 @@ function setupPanelWindow(id){
 
   const rz=document.createElement('div');rz.className='panel-win-resize';
   p.appendChild(rz);
+
+  /* asa de ancho del panel acoplado (borde izquierdo) */
+  const dz=document.createElement('div');dz.className='panel-dock-resize';
+  dz.title='Arrastra para cambiar el ancho';
+  p.appendChild(dz);
 
   /* el aspa cierra del todo (y saca el modo ventana) */
   if(closeBtn)closeBtn.onclick=e=>{e.stopPropagation();closePanel(p)};
@@ -4971,6 +5009,38 @@ function setupPanelWindow(id){
     const r=p.getBoundingClientRect();
     savePanelWin(p.id,{x:r.left,y:r.top,w:r.width,h:r.height});
   });
+
+  /* ══ ANCHO del panel ACOPLADO, arrastrando el asa del borde izquierdo ══
+     El panel está pegado a la derecha, así que arrastrar HACIA LA IZQUIERDA
+     lo ensancha: por eso el ancho es startW + (sx - x), con el signo al revés
+     que en el asa de la esquina.
+     Se desactiva la transición mientras se arrastra por precaución, para que
+     ningún cambio futuro en .side-panel haga que el ancho persiga al dedo con
+     retraso; se restaura al soltar.
+     El tope de 94vw es el mismo max-width que tiene el CSS: así el número
+     guardado nunca promete más ancho del que luego se puede dibujar.
+     stopPropagation evita que el gesto de "deslizar para cerrar" del panel
+     confunda este arrastre con un cierre. */
+  let dk=null;
+  dz.addEventListener('pointerdown',e=>{
+    if(p.classList.contains('floating'))return;
+    e.stopPropagation();e.preventDefault();
+    dk={sx:e.clientX,startW:p.getBoundingClientRect().width};
+    p.style.transition='none';
+    dz.setPointerCapture&&dz.setPointerCapture(e.pointerId);
+  });
+  dz.addEventListener('pointermove',e=>{
+    if(!dk)return;
+    const max=Math.floor(innerWidth*.94);
+    p.style.width=Math.max(300,Math.min(max,dk.startW+(dk.sx-e.clientX)))+'px';
+  });
+  const endDock=()=>{
+    if(!dk)return;dk=null;
+    p.style.transition='';
+    savePanelW(p.getBoundingClientRect().width);
+  };
+  dz.addEventListener('pointerup',endDock);
+  dz.addEventListener('pointercancel',endDock);
 }
 const npNotesBody=document.getElementById('np-notes-body');
 const npNodesBody=document.getElementById('np-nodes-body');
@@ -7396,8 +7466,8 @@ const DOC_KEY_PREFIXES=['lp_order_','lp_margin_','lp_nodes_','lp_embeds_','lp_bm
    de seguridad: hasta ver:5 se quedaban fuera y al restaurar en un iPad nuevo
    las paletas que te habias creado desaparecian sin decir nada. */
 const GLOBAL_KEYS=['lp_custompals','lp_toolcfg','lp_color','lp_boldstrength',
-  'lp_boldbycolor','lp_bartab','lp_panelwin','lp_dark','lp_gest','lp_bottommin',
-  'lp_lastbackup'];
+  'lp_boldbycolor','lp_bartab','lp_panelwin','lp_panelw','lp_dark','lp_gest',
+  'lp_bottommin','lp_lastbackup'];
 function collectGlobalData(){
   const out={};
   GLOBAL_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)out[k]=v});
