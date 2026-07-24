@@ -547,6 +547,18 @@ body.fullscreen #rd-bottom-show{display:none}
 .inline-ed .rich-ed:focus{border-color:var(--lila)}
 .inline-ed-btns{display:flex;gap:8px}
 .inline-ed-btns .mbtn{padding:10px;font-size:14px}
+/* "Recibe flecha de" (pasos de un proceso), dentro del editor en línea.
+   flex:0 0 auto en cada fila por lo mismo que en el modal antiguo: dentro de
+   un contenedor flex en columna se encogían y se cortaba el texto. */
+.proc-from-box{margin-bottom:8px}
+.proc-from-lab{display:block;font-size:12.5px;color:var(--ink2);margin-bottom:5px;line-height:1.4}
+.proc-from-list{max-height:150px;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  display:flex;flex-direction:column;gap:4px}
+.proc-from-item{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:8px;
+  min-height:36px;border-radius:8px;background:var(--card);border:1px solid var(--border);
+  font-size:13.5px;color:var(--ink);cursor:pointer}
+.proc-from-item input{width:18px;height:18px;flex-shrink:0;accent-color:#C9A9DC}
+.proc-from-empty{font-size:12.5px;color:var(--ink3);padding:4px 2px}
 .node-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .node-act-btn{flex:1 1 auto;min-width:78px;padding:9px 6px;border:none;border-radius:10px;font-size:12px;font-weight:500;cursor:pointer;color:var(--ink);white-space:nowrap}
 .node-act-btn.go{background:var(--lila)}
@@ -1715,7 +1727,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v100'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v101'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2283,6 +2295,19 @@ function askInlineEdit(host,title,text,opts){return new Promise(res=>{
     wireRichToolbar(tb,ed);
   }
 
+  /* opts.extra: un campo propio de UNA herramienta que no encaja en el molde
+     título/tema/texto. Lo usan los pasos de un proceso para su lista de
+     "recibe flecha de". Quien llama entrega {key, build}: build() devuelve
+     {el, get} — el trozo de pantalla y cómo leer lo que se ha marcado — y el
+     valor sale en la respuesta bajo esa `key`.
+     Así el editor sigue sirviendo para todo sin saber nada de flechas. */
+  let extraGet=null;
+  if(opts&&opts.extra){
+    const made=opts.extra.build();
+    box.appendChild(made.el);
+    extraGet=made.get;
+  }
+
   const btns=document.createElement('div');btns.className='inline-ed-btns';
   const bCan=document.createElement('button');bCan.type='button';
   bCan.className='mbtn cancel';bCan.textContent='Cancelar';
@@ -2311,8 +2336,10 @@ function askInlineEdit(host,title,text,opts){return new Promise(res=>{
     e.stopPropagation();
     const t=tIn?tIn.value.trim():'';
     if(tIn&&!t){showTip('Escribe un título');tIn.focus();return}
-    finish({title:tIn?t:undefined,text:ed?getRich(ed):undefined,
-            themeId:sel?(sel.value||null):undefined});
+    const out={title:tIn?t:undefined,text:ed?getRich(ed):undefined,
+               themeId:sel?(sel.value||null):undefined};
+    if(extraGet)out[opts.extra.key]=extraGet();
+    finish(out);
   };
 
   /* Los clics de dentro del editor no deben llegar a la cabecera de la
@@ -6442,7 +6469,13 @@ function refreshProcPanel(){
   const addBtn=document.createElement('button');addBtn.className='node-add-btn';
   setIconLabel(addBtn,'plus','Nuevo proceso');
   addBtn.onclick=async()=>{
-    const d=await askProc('',null);if(!d)return;
+    /* hueco vacío justo debajo del botón, para no tapar la lista de procesos
+       que ya existen mientras se escribe el nuevo */
+    const holder=document.createElement('div');
+    body.insertBefore(holder,addBtn.nextSibling);
+    const d=await askInlineEdit(holder,'','',{showTheme:true,themeId:null,noText:true});
+    holder.remove();
+    if(!d)return;
     procs.push({id:uid(),title:d.title,themeId:d.themeId,steps:[],open:true,created:Date.now()});
     saveProc(procs);refreshProcPanel();showTip('Proceso creado',1400);
   };
@@ -6524,8 +6557,18 @@ function buildProcCard(proc,procs){
   setIconLabel(addStepBtn,'plus','Paso');
   addStepBtn.onclick=async e=>{
     e.stopPropagation();
-    const d=await askProcStep(proc,null);if(!d)return;
-    proc.steps.push({id:uid(),title:d.title,desc:d.desc,from:d.from,x:null,y:null,created:Date.now()});
+    /* hueco VACÍO justo encima del botón: así el editor no tapa el diagrama
+       ni los pasos que ya hay (askInlineEdit oculta los hijos del hueco que
+       se le da, y este no tiene ninguno) */
+    const holder=document.createElement('div');
+    body.insertBefore(holder,addStepBtn);
+    const d=await askInlineEdit(holder,'','',{
+      ph:'Descripción del paso (opcional)',
+      extra:{key:'from',build:()=>buildProcFromList(proc,null)}
+    });
+    holder.remove();
+    if(!d)return;
+    proc.steps.push({id:uid(),title:d.title,desc:d.text,from:d.from,x:null,y:null,created:Date.now()});
     saveProc(procs);refreshProcPanel();showTip('Paso añadido',1200);
   };
   body.appendChild(addStepBtn);
@@ -6588,8 +6631,14 @@ function buildProcStepRow(step,proc,procs){
   };
   acts.append(
     mkE('pencil','Editar',async()=>{
-      const d=await askProcStep(proc,step);if(!d)return;
-      step.title=d.title;step.desc=d.desc;step.from=d.from;
+      /* el hueco es la fila entera del paso: mientras se edita se ocultan su
+         título, su "← viene de" y su descripción, y vuelven al terminar */
+      const d=await askInlineEdit(row,step.title,step.desc||'',{
+        ph:'Descripción del paso (opcional)',
+        extra:{key:'from',build:()=>buildProcFromList(proc,step)}
+      });
+      if(!d)return;
+      step.title=d.title;step.desc=d.text;step.from=d.from;
       saveProc(procs);refreshProcPanel();
     }),
     mkE('trash','Eliminar',async()=>{
@@ -6620,6 +6669,35 @@ function buildProcStepRow(step,proc,procs){
   }
 
   return row;
+}
+
+/* Lista de casillas "recibe flecha de": todos los DEMÁS pasos del proceso.
+   Se construye aparte para que el editor en línea pueda insertarla como
+   campo extra (opts.extra) sin saber nada de procesos ni de flechas.
+   Devuelve {el,get} tal y como espera askInlineEdit.
+   `step` es null cuando se está AÑADIENDO un paso nuevo: entonces salen
+   todos los pasos existentes y ninguno marcado. */
+function buildProcFromList(proc,step){
+  const wrap=document.createElement('div');wrap.className='proc-from-box';
+  const lab=document.createElement('div');lab.className='proc-from-lab';
+  lab.textContent='Recibe flecha de (elige 0, 1 o varios; marcar uno posterior crea un ciclo)';
+  wrap.appendChild(lab);
+  const list=document.createElement('div');list.className='proc-from-list';
+  const others=proc.steps.filter(s=>!step||s.id!==step.id);
+  if(!others.length){
+    const em=document.createElement('div');em.className='proc-from-empty';
+    em.textContent='Este es el primer paso: aún no hay otros para conectar.';
+    list.appendChild(em);
+  }
+  others.forEach(s=>{
+    const l=document.createElement('label');l.className='proc-from-item';
+    const cb=document.createElement('input');cb.type='checkbox';cb.value=s.id;
+    cb.checked=!!(step&&step.from&&step.from.includes(s.id));
+    l.append(cb,document.createTextNode(s.title));
+    list.appendChild(l);
+  });
+  wrap.appendChild(list);
+  return {el:wrap,get:()=>[...list.querySelectorAll('input:checked')].map(c=>c.value)};
 }
 
 /* editor de paso: título + descripción con formato + lista de casillas con
