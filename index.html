@@ -424,29 +424,56 @@ body.fullscreen #rd-bottom-show{display:none}
    volver a colarse por encima nunca más. */
 .tm-card{background:var(--bg2);border-radius:12px;padding:10px;margin-bottom:8px}
 .tm-card-row1{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-#modal-themes-mgr .tm-color{width:34px;height:34px;flex-shrink:0;border:none;border-radius:9px;cursor:pointer;padding:0;background:none}
+/* Cada regla vale en LOS DOS sitios: la ventana de siempre y el gestor
+   metido dentro de un panel (.tm-host). Se mantiene el selector con ID por
+   lo explicado arriba, y .tm-host lleva clase+etiqueta donde hace falta para
+   ganarle también a la regla generica ".side-panel input". */
+#modal-themes-mgr .tm-color,.tm-host .tm-color{width:34px;height:34px;flex-shrink:0;border:none;border-radius:9px;cursor:pointer;padding:0;background:none}
 /* wrapper para pintar un lápiz DENTRO del campo: sin él, el nombre no daba
    ninguna pista de que se puede tocar y escribir encima directamente. */
 .tm-name-wrap{position:relative;flex:1;min-width:0}
-#modal-themes-mgr input.tm-name{width:100%;background:var(--card);border:1.5px solid var(--border);
+#modal-themes-mgr input.tm-name,.tm-host input.tm-name{width:100%;background:var(--card);border:1.5px solid var(--border);
   border-radius:9px;color:var(--ink);font-size:15px;padding:10px 30px 10px 11px;outline:none;
-  font-family:inherit;margin:0}
-#modal-themes-mgr input.tm-name:focus{border-color:var(--lila)}
+  font-family:inherit;margin:0;box-sizing:border-box}
+#modal-themes-mgr input.tm-name:focus,.tm-host input.tm-name:focus{border-color:var(--lila)}
 .tm-name-wrap .ico{position:absolute;right:9px;top:50%;transform:translateY(-50%);
   width:14px;height:14px;color:var(--ink3);pointer-events:none}
-#modal-themes-mgr .tm-del{width:34px;height:34px;flex-shrink:0;border:none;background:transparent;
+#modal-themes-mgr .tm-del,.tm-host .tm-del{width:34px;height:34px;flex-shrink:0;border:none;background:transparent;
   color:var(--ink3);cursor:pointer;border-radius:9px;display:flex;align-items:center;justify-content:center}
-#modal-themes-mgr .tm-del:active{background:var(--card);color:var(--danger)}
+#modal-themes-mgr .tm-del:active,.tm-host .tm-del:active{background:var(--card);color:var(--danger)}
 .tm-card-row2{display:flex;align-items:center;gap:8px}
 /* el orden se edita con botones, no escribiendo un número a mano: así nunca
    hay dos temas con el mismo número por error, ni huecos raros */
-#modal-themes-mgr .tm-move{width:30px;height:30px;flex-shrink:0;border:none;background:var(--card);
+#modal-themes-mgr .tm-move,.tm-host .tm-move{width:30px;height:30px;flex-shrink:0;border:none;background:var(--card);
   color:var(--ink2);cursor:pointer;border-radius:8px;display:flex;align-items:center;justify-content:center}
-#modal-themes-mgr .tm-move .ico{width:14px;height:14px}
-#modal-themes-mgr .tm-move:active{background:var(--lila);color:var(--ink)}
-#modal-themes-mgr .tm-move:disabled{opacity:.3;cursor:default}
+#modal-themes-mgr .tm-move .ico,.tm-host .tm-move .ico{width:14px;height:14px}
+#modal-themes-mgr .tm-move:active,.tm-host .tm-move:active{background:var(--lila);color:var(--ink)}
+#modal-themes-mgr .tm-move:disabled,.tm-host .tm-move:disabled{opacity:.3;cursor:default}
 .tm-pos{font-size:12.5px;font-weight:700;color:var(--ink2);min-width:26px;text-align:center}
 .tm-cnt{font-size:11.5px;color:var(--ink3);margin-left:auto}
+.tm-empty{font-size:13px;color:var(--ink3);padding:10px 2px}
+/* ═══ GESTOR DE TEMAS DENTRO DEL PANEL ═══
+   Ocupa el cuerpo del panel en lugar de salir como ventana, para no tapar el
+   documento. El botón de volver lleva la flecha girada 180º (se reutiliza el
+   icono chevRight que ya existe, en vez de añadir uno nuevo). */
+.tm-back{display:flex;align-items:center;gap:6px;width:100%;padding:10px 12px;margin-bottom:10px;
+  border:1px solid var(--border);border-radius:10px;background:var(--bg2);color:var(--ink);
+  font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer;text-align:left}
+.tm-back:active{background:var(--lila)}
+.tm-back .ico{width:15px;height:15px;flex-shrink:0;transform:rotate(180deg)}
+.tm-hint{font-size:12.5px;color:var(--ink2);line-height:1.5;margin-bottom:10px}
+.tm-host input.tm-panel-filter{width:100%;background:var(--bg2);border:none;border-radius:10px;
+  color:var(--ink);font-size:15px;padding:10px 12px;outline:none;margin-bottom:10px;
+  font-family:inherit;box-sizing:border-box;-webkit-appearance:none;appearance:none}
+.tm-panel-list{margin-bottom:12px}
+.tm-panel-new{display:flex;gap:8px;align-items:center}
+.tm-host input.tm-new-num-p{width:62px;flex-shrink:0;background:var(--bg2);border:none;border-radius:10px;
+  color:var(--ink);font-size:15px;padding:10px;outline:none;text-align:center;font-family:inherit;box-sizing:border-box}
+.tm-host input.tm-new-name-p{flex:1;min-width:0;background:var(--bg2);border:none;border-radius:10px;
+  color:var(--ink);font-size:15px;padding:10px;outline:none;font-family:inherit;box-sizing:border-box}
+.tm-new-add-p{background:var(--menta);border:none;border-radius:10px;padding:0 14px;height:40px;
+  flex-shrink:0;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer;font-family:inherit}
+.tm-new-add-p:active{opacity:.8}
 /* buscador de panel (nodos, glosario, conclusiones, aclaraciones) */
 .panel-search{margin-bottom:8px}
 .panel-search input{width:100%;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);
@@ -1727,7 +1754,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v101'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v102'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2241,6 +2268,12 @@ function askEmbedEdit(title,text,opts){return new Promise(r=>{
    tener que acordarse de tocar dos sitios.
    ══════════════════════════════════════════════════════════════════ */
 let closeInlineEdit=null;   // cierra el editor en línea abierto, si lo hay
+
+/* {panelId, filtro} mientras el GESTOR DE TEMAS ocupa el cuerpo de un panel.
+   Se declara aquí arriba, y no junto a openThemesInPanel, porque closePanel
+   la consulta y closePanel corre mucho antes en el arranque: con `let` más
+   abajo daría "no está definida" al abrir el primer panel. */
+let tmInPanel=null;
 
 function askInlineEdit(host,title,text,opts){return new Promise(res=>{
   if(!host){res(null);return}
@@ -5096,6 +5129,9 @@ function closePanel(id){
   /* si había un editor en línea abierto dentro, se cancela: cerrar el panel
      no debe guardar a medias lo que se estuviera escribiendo */
   if(closeInlineEdit&&p.querySelector('.inline-ed'))closeInlineEdit();
+  /* si el panel se cierra con el gestor de temas dentro, se olvida: al
+     volver a abrirlo debe salir la lista de fichas, no el gestor */
+  if(tmInPanel&&tmInPanel.panelId===p.id)tmInPanel=null;
   p.classList.remove('open','floating');
   p.style.left='';p.style.top='';p.style.width='';p.style.height='';p.style.transform='';
   const btn=p.querySelector('.panel-win-btn');
@@ -7574,28 +7610,19 @@ function panelMatch(q,...campos){
 }
 
 let tmFilter='';
-function renderThemesMgr(){
-  const list=document.getElementById('tm-list');
-  list.innerHTML='';
-  const all=loadThemes().sort((a,b)=>(a.num||0)-(b.num||0));
-  const q=tmFilter.trim().toLowerCase();
-  const themes=q?all.filter(t=>String(t.num||'').includes(q)||(t.name||'').toLowerCase().includes(q)):all;
-  if(!all.length){
-    const em=document.createElement('div');
-    em.style.cssText='font-size:13px;color:var(--ink3);padding:10px 2px';
-    em.textContent='Aún no hay temas. Crea el primero abajo.';
-    list.appendChild(em);
-  }else if(!themes.length){
-    const em=document.createElement('div');
-    em.style.cssText='font-size:13px;color:var(--ink3);padding:10px 2px';
-    em.textContent='Ningún tema coincide con "'+tmFilter+'".';
-    list.appendChild(em);
-  }
-  themes.forEach(t=>{
+
+/* ══ UNA TARJETA DE TEMA ══
+   Color, nombre editable, borrar, subir/bajar y cuántas fichas lo usan.
+   Se sacó aquí para que la usen LOS DOS gestores (el de ventana y el que va
+   dentro del panel) sin duplicar nada: mismo aspecto y mismo comportamiento
+   en los dos sitios, y un arreglo vale para ambos.
+   `all` es la lista completa YA ORDENADA (hace falta para la posición y para
+   saber si se puede subir o bajar) y `rerender` repinta la lista donde esté. */
+function buildThemeCard(t,all,rerender){
     /* la posición y si está arriba/abajo del todo se calculan sobre `all`
-       (el orden real completo), no sobre `themes` (puede estar filtrado por
-       el buscador): si no, buscar y dejar un único resultado bloquearía
-       ambos botones aunque el tema sí tuviera vecinos en la lista real. */
+       (el orden real completo), no sobre la lista filtrada por el buscador:
+       si no, buscar y dejar un único resultado bloquearía ambos botones
+       aunque el tema sí tuviera vecinos en la lista real. */
     const idx=all.findIndex(x=>x.id===t.id);
     const card=document.createElement('div');card.className='tm-card';
     const row1=document.createElement('div');row1.className='tm-card-row1';
@@ -7647,7 +7674,7 @@ function renderThemesMgr(){
       const ok=await askConfirm(msg);
       if(!ok)return;
       deleteTheme(t.id);
-      renderThemesMgr();refreshEntPanels();
+      rerender();refreshEntPanels();
     };
     row1.append(col,nameWrap,del);
 
@@ -7656,10 +7683,10 @@ function renderThemesMgr(){
        el `num` con el del vecino en la lista ya ordenada. */
     const up=document.createElement('button');up.className='tm-move';up.title='Subir';
     up.innerHTML=svg('chevUp');up.disabled=idx===0;
-    up.onclick=()=>{if(moveTheme(t.id,-1))renderThemesMgr()};
+    up.onclick=()=>{if(moveTheme(t.id,-1))rerender()};
     const down=document.createElement('button');down.className='tm-move';down.title='Bajar';
     down.innerHTML=svg('chevDown');down.disabled=idx===all.length-1;
-    down.onclick=()=>{if(moveTheme(t.id,1))renderThemesMgr()};
+    down.onclick=()=>{if(moveTheme(t.id,1))rerender()};
     const pos=document.createElement('span');pos.className='tm-pos';pos.textContent=(idx+1)+'º';
 
     const used=themeUsage(t.id);
@@ -7668,8 +7695,30 @@ function renderThemesMgr(){
 
     row2.append(up,pos,down,cnt);
     card.append(row1,row2);
-    list.appendChild(card);
-  });
+    return card;
+}
+
+/* Pinta la lista de temas (con el buscador aplicado) dentro de `list`.
+   Común a los dos gestores. `filtro` es lo escrito en el buscador. */
+function fillThemeList(list,filtro,rerender){
+  list.innerHTML='';
+  const all=loadThemes().sort((a,b)=>(a.num||0)-(b.num||0));
+  const q=(filtro||'').trim().toLowerCase();
+  const themes=q?all.filter(t=>String(t.num||'').includes(q)||(t.name||'').toLowerCase().includes(q)):all;
+  if(!all.length){
+    const em=document.createElement('div');em.className='tm-empty';
+    em.textContent='Aún no hay temas. Crea el primero abajo.';
+    list.appendChild(em);
+  }else if(!themes.length){
+    const em=document.createElement('div');em.className='tm-empty';
+    em.textContent='Ningún tema coincide con "'+filtro+'".';
+    list.appendChild(em);
+  }
+  themes.forEach(t=>list.appendChild(buildThemeCard(t,all,rerender)));
+}
+
+function renderThemesMgr(){
+  fillThemeList(document.getElementById('tm-list'),tmFilter,renderThemesMgr);
   document.getElementById('tm-new-num').value=nextThemeNum();
   document.getElementById('tm-new-name').value='';
 }
@@ -7679,12 +7728,15 @@ document.getElementById('tm-filter').addEventListener('input',e=>{
 });
 /* repinta el panel abierto para que los cambios se vean al momento */
 function refreshEntPanels(){
+  /* Si el gestor de temas está ocupando un panel, ESE panel no se repinta:
+     si no, cambiar un color o un nombre (que llama aquí) borraría el gestor
+     de la pantalla a media faena. Los demás se repintan con normalidad. */
   ['glos','conc'].forEach(k=>{
     const pid = k==='glos' ? 'glossary-panel' : 'conclusions-panel';
     const p=document.getElementById(pid);
-    if(p&&p.classList.contains('open'))renderEnts(k);
+    if(p&&p.classList.contains('open')&&!(tmInPanel&&tmInPanel.panelId===pid))renderEnts(k);
   });
-  refreshAclarPanelIfOpen();
+  if(!(tmInPanel&&tmInPanel.panelId==='aclar-panel'))refreshAclarPanelIfOpen();
   renderPageAnchors();
 }
 function openThemesMgr(kind){
@@ -7692,6 +7744,90 @@ function openThemesMgr(kind){
   tmFilter='';document.getElementById('tm-filter').value='';
   renderThemesMgr();
   document.getElementById('modal-themes-mgr').classList.remove('hidden');
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   GESTOR DE TEMAS DENTRO DEL PANEL
+   ──────────────────────────────────────────────────────────────────
+   Antes era una ventana que salía de abajo y tapaba el documento con un
+   fondo oscuro. Ahora ocupa el cuerpo del panel en el que ya estabas, con un
+   botón "Volver a las fichas" que devuelve la lista de siempre. Así se puede
+   seguir leyendo y tocando el PDF mientras se ordenan los temas.
+
+   La ventana (#modal-themes-mgr) NO se toca: sigue existiendo y funcionando
+   igual, simplemente ya no se abre desde los paneles. Se deja porque el
+   cableado de teclado (MODAL_OK / MODAL_CANCEL) la nombra, y quitarla sería
+   un cambio mayor sin ninguna ganancia.
+   ══════════════════════════════════════════════════════════════════ */
+const TM_PANELS={
+  'glossary-panel':   {body:'glossary-body',   back:()=>renderEnts('glos')},
+  'conclusions-panel':{body:'conclusions-body',back:()=>renderEnts('conc')},
+  'aclar-panel':      {body:'aclar-body',      back:()=>refreshAclarPanel()}
+};
+function openThemesInPanel(panelId){
+  const cfg=TM_PANELS[panelId];if(!cfg)return;
+  const body=document.getElementById(cfg.body);if(!body)return;
+  tmInPanel={panelId,filtro:''};
+  body.innerHTML='';
+
+  const host=document.createElement('div');host.className='tm-host';
+
+  const back=document.createElement('button');back.className='tm-back';
+  back.innerHTML=svg('chevRight')+'<span>Volver a las fichas</span>';
+  back.onclick=()=>closeThemesInPanel();
+  host.appendChild(back);
+
+  const hint=document.createElement('div');hint.className='tm-hint';
+  hint.textContent='Toca el nombre para cambiarlo. Los cambios se guardan solos.';
+  host.appendChild(hint);
+
+  const filtro=document.createElement('input');
+  filtro.type='search';filtro.className='tm-panel-filter';filtro.placeholder='Buscar tema…';
+  host.appendChild(filtro);
+
+  const list=document.createElement('div');list.className='tm-panel-list';
+  host.appendChild(list);
+
+  /* solo se repinta la LISTA, nunca el buscador: si se repintara entero,
+     escribir una letra devolvería el foco al principio y sería inservible
+     (el mismo problema que ya tenía el buscador de fichas) */
+  const repinta=()=>fillThemeList(list,tmInPanel?tmInPanel.filtro:'',repinta);
+  filtro.addEventListener('input',()=>{
+    if(tmInPanel)tmInPanel.filtro=filtro.value;
+    repinta();
+  });
+
+  /* crear tema nuevo, al final igual que en la ventana */
+  const nueva=document.createElement('div');nueva.className='tm-panel-new';
+  const num=document.createElement('input');num.type='number';num.min='1';
+  num.className='tm-new-num-p';num.placeholder='Nº';num.value=nextThemeNum();
+  const nom=document.createElement('input');nom.type='text';
+  nom.className='tm-new-name-p';nom.placeholder='Nuevo tema…';
+  const crear=document.createElement('button');crear.className='tm-new-add-p';crear.textContent='Crear';
+  const doCrear=()=>{
+    const n=nom.value.trim();
+    if(!n){showTip('Ponle nombre al tema');nom.focus();return}
+    createTheme(parseInt(num.value,10)||nextThemeNum(),n);
+    nom.value='';num.value=nextThemeNum();
+    repinta();refreshEntPanels();
+  };
+  crear.onclick=doCrear;
+  nom.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){e.preventDefault();e.stopPropagation();doCrear()}
+  });
+  nueva.append(num,nom,crear);
+  host.appendChild(nueva);
+
+  body.appendChild(host);
+  repinta();
+}
+
+/* vuelve a la lista de fichas del panel donde estaba el gestor */
+function closeThemesInPanel(){
+  if(!tmInPanel)return;
+  const cfg=TM_PANELS[tmInPanel.panelId];
+  tmInPanel=null;
+  if(cfg)cfg.back();
 }
 
 /* ══ ENTRADAS AUTOMÁTICAS BORRADAS ══
@@ -8143,7 +8279,7 @@ addPanelSwipe('conclusions-panel');
 /* ── Aclaraciones ── */
 document.getElementById('tb-aclar').onclick=()=>{openPanel('aclar-panel');refreshAclarPanel()};
 document.querySelector('#aclar-panel .sp-close').onclick=()=>closePanel('aclar-panel');
-document.querySelectorAll('#aclar-panel .sp-themes').forEach(b=>b.onclick=()=>openThemesMgr('glos'));
+document.querySelectorAll('#aclar-panel .sp-themes').forEach(b=>b.onclick=()=>openThemesInPanel('aclar-panel'));
 document.getElementById('aclar-export').onclick=()=>exportAclars();
 addPanelSwipe('aclar-panel');
 
@@ -8642,8 +8778,11 @@ document.getElementById('ip-cancel').onclick=()=>{
 
 /* ══ GESTOR DE TEMAS: cableado ══ */
 document.querySelectorAll('.sp-themes').forEach(b=>b.innerHTML=svg('notebook'));
-document.querySelectorAll('#glossary-panel .sp-themes').forEach(b=>b.onclick=()=>openThemesMgr('glos'));
-document.querySelectorAll('#conclusions-panel .sp-themes').forEach(b=>b.onclick=()=>openThemesMgr('conc'));
+/* El gestor se abre DENTRO del propio panel (ya no en ventana), y cada uno
+   vuelve a su propia lista al terminar. Antes los tres llamaban a
+   openThemesMgr y además aclaraciones pasaba 'glos', que era engañoso. */
+document.querySelectorAll('#glossary-panel .sp-themes').forEach(b=>b.onclick=()=>openThemesInPanel('glossary-panel'));
+document.querySelectorAll('#conclusions-panel .sp-themes').forEach(b=>b.onclick=()=>openThemesInPanel('conclusions-panel'));
 document.getElementById('tm-close').onclick=()=>document.getElementById('modal-themes-mgr').classList.add('hidden');
 document.getElementById('tm-new-add').onclick=()=>{
   const num=parseInt(document.getElementById('tm-new-num').value,10)||nextThemeNum();
