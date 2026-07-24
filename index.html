@@ -520,6 +520,33 @@ body.fullscreen #rd-bottom-show{display:none}
 .rich-tb input[type=color]{width:32px;height:30px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);padding:2px;cursor:pointer}
 .rich-ed{width:100%;min-height:110px;max-height:40vh;overflow-y:auto;background:var(--bg2);border:none;border-radius:12px;color:var(--ink);font-size:16px;line-height:1.5;padding:12px 14px;outline:none;margin-bottom:12px;font-family:inherit}
 .rich-ed:empty:before{content:attr(data-ph);color:var(--ink3)}
+/* ═══ EDICIÓN EN LÍNEA (dentro del propio panel) ═══
+   Antes, editar cualquier ficha abría el modal de abajo, que tapa el
+   documento: no se podía ir leyendo la página mientras se escribe. Este
+   editor se despliega DENTRO de la tarjeta, así el PDF sigue visible y
+   utilizable.
+   El borde lila marca claramente qué ficha se está editando.
+   Los botones de formato se encogen un poco respecto al modal porque aquí
+   el ancho es el del panel: con el tamaño grande se desbordaban en cuatro
+   filas y se comían el sitio del texto. */
+.inline-ed{background:var(--bg2);border:1.5px solid var(--lila);border-radius:12px;
+  padding:10px;margin:2px 0 8px}
+.inline-ed input.inline-ed-title{width:100%;background:var(--card);border:1px solid var(--border);
+  border-radius:10px;color:var(--ink);font-size:16px;padding:10px 11px;outline:none;
+  font-family:inherit;margin:0 0 8px;box-sizing:border-box}
+.inline-ed input.inline-ed-title:focus{border-color:var(--lila)}
+.inline-ed-therow{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.inline-ed-therow label{font-size:12.5px;color:var(--ink2);flex-shrink:0}
+.inline-ed select.inline-ed-theme{flex:1;min-width:0;background:var(--card);
+  border:1px solid var(--border);border-radius:10px;color:var(--ink);font-size:15px;
+  padding:9px;outline:none;font-family:inherit}
+.inline-ed .rich-tb{margin-bottom:6px}
+.inline-ed .rich-tb button,.inline-ed .rich-tb input[type=color]{min-width:28px;height:28px;padding:0 6px}
+.inline-ed .rich-ed{min-height:96px;max-height:44vh;background:var(--card);
+  border:1px solid var(--border);margin-bottom:8px}
+.inline-ed .rich-ed:focus{border-color:var(--lila)}
+.inline-ed-btns{display:flex;gap:8px}
+.inline-ed-btns .mbtn{padding:10px;font-size:14px}
 .node-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .node-act-btn{flex:1 1 auto;min-width:78px;padding:9px 6px;border:none;border-radius:10px;font-size:12px;font-weight:500;cursor:pointer;color:var(--ink);white-space:nowrap}
 .node-act-btn.go{background:var(--lila)}
@@ -1688,7 +1715,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v99'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v100'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2184,6 +2211,129 @@ function askEmbedEdit(title,text,opts){return new Promise(r=>{
     sel.value=opts.themeId||'';
   }else{row.style.display='none'}
   mEmbEdit.classList.remove('hidden');setTimeout(()=>embEditTitle.focus(),100)})}
+
+/* ══════════════════════════════════════════════════════════════════
+   EDICIÓN EN LÍNEA — el mismo editor, pero DENTRO del panel
+   ──────────────────────────────────────────────────────────────────
+   askInlineEdit devuelve EXACTAMENTE lo mismo que askEmbedEdit
+   ({title,text,themeId} al guardar, null al cancelar), así que cada
+   herramienta se cambia sustituyendo la llamada y nada más: la lógica de
+   guardado de cada una se queda igual y no hay riesgo de tocar datos.
+
+   `host` es el hueco donde se abre el editor (el cuerpo de la tarjeta).
+   Sus hijos se ocultan mientras se edita y se restauran al cerrar, para que
+   el editor ocupe el sitio del texto y no se vea todo duplicado.
+
+   La barra de formato se CLONA de la del modal (#emb-edit-tb) en vez de
+   repetir su HTML: si algún día se le añade un botón, sale también aquí sin
+   tener que acordarse de tocar dos sitios.
+   ══════════════════════════════════════════════════════════════════ */
+let closeInlineEdit=null;   // cierra el editor en línea abierto, si lo hay
+
+function askInlineEdit(host,title,text,opts){return new Promise(res=>{
+  if(!host){res(null);return}
+  /* solo un editor abierto a la vez: si había otro, se cancela (no se
+     guarda a medias, que sería perder lo escrito sin avisar) */
+  if(closeInlineEdit)closeInlineEdit();
+
+  const box=document.createElement('div');box.className='inline-ed';
+
+  /* opts.noTitle: las aclaraciones no tienen título propio (su rótulo es el
+     texto subrayado al que están pegadas), así que ahí solo se edita el
+     cuerpo y no se pide un título que no existe. */
+  let tIn=null;
+  if(!(opts&&opts.noTitle)){
+    tIn=document.createElement('input');
+    tIn.type='text';tIn.className='inline-ed-title';tIn.maxLength=120;
+    tIn.placeholder='Título';tIn.value=title||'';
+    box.appendChild(tIn);
+  }
+
+  /* el selector de tema solo aparece si lo pide quien llama, igual que en el
+     modal; si no aparece, themeId se devuelve como undefined y el que guarda
+     sabe que no debe tocar el tema */
+  let sel=null;
+  if(opts&&opts.showTheme){
+    const row=document.createElement('div');row.className='inline-ed-therow';
+    const lab=document.createElement('label');lab.textContent='Tema';
+    sel=document.createElement('select');sel.className='inline-ed-theme';
+    const none=document.createElement('option');none.value='';none.textContent='Sin tema';
+    sel.appendChild(none);
+    loadThemes().sort((a,b)=>(a.num||0)-(b.num||0)).forEach(t=>{
+      const o=document.createElement('option');o.value=t.id;
+      o.textContent=(t.num?t.num+' · ':'')+(t.name||'Tema');sel.appendChild(o)});
+    sel.value=(opts.themeId)||'';
+    row.append(lab,sel);box.appendChild(row);
+  }
+
+  /* opts.noText: un proceso solo tiene título y tema (sus pasos se editan
+     aparte), así que ahí no se pinta ni el área de texto ni su barra. */
+  let ed=null;
+  if(!(opts&&opts.noText)){
+    const tb=document.getElementById('emb-edit-tb').cloneNode(true);
+    tb.removeAttribute('id');
+    box.appendChild(tb);
+
+    ed=document.createElement('div');
+    ed.className='rich-ed rich-content';
+    ed.contentEditable='true';
+    ed.setAttribute('data-ph',(opts&&opts.ph)||'Texto…');
+    setRich(ed,text);
+    box.appendChild(ed);
+    wireRichToolbar(tb,ed);
+  }
+
+  const btns=document.createElement('div');btns.className='inline-ed-btns';
+  const bCan=document.createElement('button');bCan.type='button';
+  bCan.className='mbtn cancel';bCan.textContent='Cancelar';
+  const bOk=document.createElement('button');bOk.type='button';
+  bOk.className='mbtn ok';bOk.textContent='Guardar';bOk.style.background='var(--lila)';
+  btns.append(bCan,bOk);box.appendChild(btns);
+
+  /* ocultar lo que ya había en el hueco (texto, etiqueta de tema, botones…)
+     recordando su display exacto para poder devolverlo tal cual */
+  const prev=[...host.children];
+  prev.forEach(c=>{c.dataset.ieDisp=c.style.display;c.style.display='none'});
+  host.appendChild(box);
+
+  let done=false;
+  const finish=v=>{
+    if(done)return;done=true;
+    closeInlineEdit=null;
+    box.remove();
+    prev.forEach(c=>{c.style.display=c.dataset.ieDisp||'';delete c.dataset.ieDisp});
+    res(v);
+  };
+  closeInlineEdit=()=>finish(null);
+
+  bCan.onclick=e=>{e.stopPropagation();finish(null)};
+  bOk.onclick=e=>{
+    e.stopPropagation();
+    const t=tIn?tIn.value.trim():'';
+    if(tIn&&!t){showTip('Escribe un título');tIn.focus();return}
+    finish({title:tIn?t:undefined,text:ed?getRich(ed):undefined,
+            themeId:sel?(sel.value||null):undefined});
+  };
+
+  /* Los clics de dentro del editor no deben llegar a la cabecera de la
+     tarjeta, que la plegaría en mitad de la edición. */
+  box.addEventListener('click',e=>e.stopPropagation());
+  box.addEventListener('pointerdown',e=>e.stopPropagation());
+
+  /* Escape cancela; Ctrl/Cmd+Enter guarda. Se queda dentro del editor para no
+     interferir con los atajos generales de la app. */
+  box.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){e.preventDefault();e.stopPropagation();finish(null)}
+    else if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();e.stopPropagation();bOk.click()}
+    else if(e.key==='Enter'&&tIn&&e.target===tIn){e.preventDefault();if(ed)ed.focus();else bOk.click()}
+  });
+
+  /* que se vea entero aunque la tarjeta estuviera al final de la lista */
+  setTimeout(()=>{
+    try{box.scrollIntoView({block:'nearest',behavior:'smooth'})}catch(_){}
+    const f=tIn||ed;if(f)f.focus();
+  },60);
+})}
 
 /* selector de tema → devuelve id de tema, o null si "sin tema" */
 let themeRes=null,themeKeyNav=null;
@@ -4916,6 +5066,9 @@ function savePanelWin(id,rect){
 function closePanel(id){
   const p=typeof id==='string'?document.getElementById(id):id;
   if(!p)return;
+  /* si había un editor en línea abierto dentro, se cancela: cerrar el panel
+     no debe guardar a medias lo que se estuviera escribiendo */
+  if(closeInlineEdit&&p.querySelector('.inline-ed'))closeInlineEdit();
   p.classList.remove('open','floating');
   p.style.left='';p.style.top='';p.style.width='';p.style.height='';p.style.transform='';
   const btn=p.querySelector('.panel-win-btn');
@@ -5260,9 +5413,11 @@ function buildNodeEl(node,nodes){
     })));
   };
   const doEdit=async()=>{
-    const d=await askNodeEdit(node.title,node.body||'',node.themeId||null);
+    if(!body.classList.contains('open')){body.classList.add('open');arrow.classList.add('open')}
+    const d=await askInlineEdit(body,node.title,node.body||'',
+      {showTheme:true,themeId:node.themeId||null,ph:'Explicación…'});
     if(!d)return;
-    node.title=d.title;node.body=d.body;node.themeId=d.themeId||null;
+    node.title=d.title;node.body=d.text;node.themeId=d.themeId||null;
     saveNodes(nodes);refreshNodesPanel();renderNodeAnchors();showTip('Nodo actualizado',1200);
   };
   const doSub=async()=>{
@@ -5333,8 +5488,11 @@ function buildSubTree(item,siblings,nodes){
   };
   acts.append(
     mkS('pencil','Editar',async()=>{
-      const d=await askSubNodeEdit(item.title,item.body||'');if(!d)return;
-      item.title=d.title;item.body=d.body;saveNodes(nodes);refreshNodesPanel();renderNodeAnchors();
+      /* el hueco es el subnivel entero: mientras se edita se ocultan su
+         título y sus hijos, y al terminar vuelven a su sitio */
+      const d=await askInlineEdit(el,item.title,item.body||'',{ph:'Explicación…'});
+      if(!d)return;
+      item.title=d.title;item.body=d.text;saveNodes(nodes);refreshNodesPanel();renderNodeAnchors();
     }),
     mkS('plus','Profundizar',async()=>{
       const d=await askSubNode();if(!d)return;
@@ -5832,7 +5990,8 @@ function renderSummary(tab){
       /* EDITAR la nota desde el panel (antes solo se podía en la propia página).
          Ahora también se le puede asignar un tema, para agruparla. */
       mkN2('pencil','Editar',async()=>{
-        const d=await askEmbedEdit(n.title||'',n.text||'',{showTheme:true,themeId:n.themeId||null});
+        if(!bd.classList.contains('open')){bd.classList.add('open');arrow.classList.add('open')}
+        const d=await askInlineEdit(bd,n.title||'',n.text||'',{showTheme:true,themeId:n.themeId||null});
         if(!d)return;
         n.title=d.title;n.text=d.text;n.themeId=d.themeId||null;   // n es la referencia real de ann.notes
         scheduleSave();renderSummary(tab);forceNoteLayerRefresh(pg);
@@ -6381,7 +6540,12 @@ function buildProcCard(proc,procs){
   };
   acts.append(
     mkP('pencil','Editar',async()=>{
-      const d=await askProc(proc.title,proc.themeId);if(!d)return;
+      /* un proceso solo tiene título y tema: el contenido son sus pasos, que
+         se editan uno a uno con su propio botón */
+      if(!body.classList.contains('open')){proc.open=true;body.classList.add('open');arrow.classList.add('open')}
+      const d=await askInlineEdit(body,proc.title,'',
+        {showTheme:true,themeId:proc.themeId||null,noText:true});
+      if(!d)return;
       proc.title=d.title;proc.themeId=d.themeId;
       saveProc(procs);refreshProcPanel();
     }),
@@ -6839,7 +7003,11 @@ function buildAclarCard(a){
         if(w){w.style.outline='3px solid '+(a.color||'#00C2AE');setTimeout(()=>w.style.outline='',1400)}},420);
     }),
     mkA('pencil','Editar',async()=>{
-      const d=await askAclarText(a.ref,{text:a.text,themeId:a.themeId||null});
+      /* sin título: el rótulo de una aclaración es el texto subrayado (a.ref),
+         no algo que se escriba a mano */
+      if(!bd.classList.contains('open')){bd.classList.add('open');arrow.classList.add('open')}
+      const d=await askInlineEdit(bd,'',a.text,{showTheme:true,themeId:a.themeId||null,
+        noTitle:true,ph:'Aclaración…'});
       if(!d)return;
       patchAclar(a.id,{text:d.text,themeId:d.themeId||null});
       refreshAclarPanel();renderPageAnchors();forceNoteLayerRefresh(a.page);
@@ -7791,7 +7959,11 @@ function buildEntCard(kind,g){
        MANUAL vive dentro de la ficha (g.themeId). Pasamos el tema actual al
        modal para que salga preseleccionado. */
     const curThemeId = g.auto ? (loadThemeMap()[g.gid]||null) : (g.themeId||null);
-    const d=await askEmbedEdit(g.title,g.body||g.text||'',{showTheme:true,themeId:curThemeId});
+    /* el editor se abre DENTRO del cuerpo de la tarjeta: hay que desplegarla
+       antes, porque si está plegada el cuerpo tiene display:none y no se
+       vería nada al escribir */
+    if(!bd.classList.contains('open')){bd.classList.add('open');arrow.classList.add('open')}
+    const d=await askInlineEdit(bd,g.title,g.body||g.text||'',{showTheme:true,themeId:curThemeId});
     if(!d)return;
     const a=loadEnts(kind);const it=a.find(x=>x.gid===g.gid||x.id===g.id);
     if(it){it.title=d.title;it.body=d.text;it.edited=true;
@@ -8010,8 +8182,12 @@ function buildCmapEl(node,siblings,maps){
     return b;
   };
   const doEdit=async()=>{
-    const d=await askCmapNode(node.title,node.desc||'');if(!d)return;
-    node.title=d.title;node.desc=d.desc;
+    /* el nodo estaba plegado (node.fold): hay que desplegarlo para que se vea
+       el editor, que va dentro de su cuerpo */
+    if(node.fold){node.fold=false;arrow.classList.add('open');body.classList.add('open');saveCmap(maps)}
+    const d=await askInlineEdit(body,node.title,node.desc||'',{ph:'Descripción…'});
+    if(!d)return;
+    node.title=d.title;node.desc=d.text;
     saveCmap(maps);refreshCmapPanel();renderPageAnchors();showTip('Actualizado',1200);
   };
   const doSub=async()=>{
