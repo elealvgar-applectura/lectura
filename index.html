@@ -298,6 +298,14 @@ body.fullscreen #rd-bottom-show{display:none}
 .gest-info{flex:1}
 .gest-name{font-size:15px;font-weight:500;color:var(--ink)}
 .gest-desc{font-size:12px;color:var(--ink2);margin-top:2px;line-height:1.4}
+/* mi diccionario (autocorrector) */
+#modal-dicc{z-index:920}
+#dicc-list{max-height:34dvh;overflow-y:auto;margin:4px 0 6px}
+.dicc-head{font-size:12px;font-weight:600;color:var(--ink2);margin:12px 0 2px}
+.dicc-row{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--border);font-size:15px;color:var(--ink)}
+.dicc-row span{flex:1;overflow:hidden;text-overflow:ellipsis}
+.dicc-x{background:none;border:none;padding:5px;cursor:pointer;color:var(--ink2);flex-shrink:0}
+.dicc-x:active{opacity:.6}
 .gswitch{position:relative;width:50px;height:30px;flex-shrink:0}
 .gswitch input{opacity:0;width:0;height:0}
 .gslider{position:absolute;inset:0;background:var(--ink3);border-radius:30px;cursor:pointer;transition:background .18s}
@@ -1786,8 +1794,30 @@ body.fullscreen #gid-bar{bottom:20px}
       </div>
       <label class="gswitch"><input type="checkbox" id="g-autocorr" checked><span class="gslider"></span></label>
     </div>
+    <div class="gest-row" id="dicc-open" style="cursor:pointer">
+      <div class="gest-info">
+        <div class="gest-name">Mi diccionario</div>
+        <div class="gest-desc">Tus propias palabras: las que quieres que corrija y las que quieres que deje en paz.</div>
+      </div>
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><polyline points="9.5 5.5 16 12 9.5 18.5"/></svg>
+    </div>
     <div class="modal-btns">
       <button class="mbtn ok" id="gest-close" style="background:var(--lila)">Listo</button>
+    </div>
+  </div>
+</div>
+<div class="modal-bg hidden" id="modal-dicc">
+  <div class="modal">
+    <h3>Mi diccionario</h3>
+    <p style="font-size:13px;color:var(--ink2);margin-bottom:14px;line-height:1.5">Escribe la palabra <b>bien escrita, con su tilde</b>. A partir de ahora, cuando la escribas sin tilde se corregirá sola. También vale para nombres propios (Bandura, Piaget): los pondrá en mayúscula.</p>
+    <div style="display:flex;gap:8px">
+      <input id="dicc-new" type="text" placeholder="ej: técnicas" maxlength="30"
+             autocorrect="off" autocapitalize="off" spellcheck="false" style="flex:1;margin-bottom:0">
+      <button class="mbtn ok" id="dicc-add" style="flex:0 0 auto;background:var(--menta);padding:13px 20px">Añadir</button>
+    </div>
+    <div id="dicc-list"></div>
+    <div class="modal-btns">
+      <button class="mbtn ok" id="dicc-close" style="background:var(--lila)">Listo</button>
     </div>
   </div>
 </div>
@@ -1800,7 +1830,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v109'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v110'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -8082,7 +8112,7 @@ const DOC_KEY_PREFIXES=['lp_order_','lp_margin_','lp_nodes_','lp_embeds_','lp_bm
    las paletas que te habias creado desaparecian sin decir nada. */
 const GLOBAL_KEYS=['lp_custompals','lp_toolcfg','lp_color','lp_boldstrength',
   'lp_boldbycolor','lp_bartab','lp_panelwin','lp_panelw','lp_dark','lp_gest',
-  'lp_bottommin','lp_lastbackup','lp_autocorr'];
+  'lp_bottommin','lp_lastbackup','lp_autocorr','lp_dicc','lp_diccno'];
 function collectGlobalData(){
   const out={};
   GLOBAL_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)out[k]=v});
@@ -9859,6 +9889,7 @@ const MODAL_OK={
   'modal-settings':'set-close',          // solo cierra: no hay nada que confirmar
   'modal-margin':'mg-close',
   'modal-gest':'gest-close',
+  'modal-dicc':'dicc-close',             // Enter dentro del campo ya anade
   'modal-themes-mgr':'tm-close',         // se guarda al vuelo
   'modal-icon':'ip-cancel'
 };
@@ -9882,6 +9913,7 @@ const MODAL_CANCEL={
   'modal-settings':'set-close',
   'modal-margin':'mg-close',
   'modal-gest':'gest-close',
+  'modal-dicc':'dicc-close',
   'modal-themes-mgr':'tm-close',
   'modal-icon':'ip-cancel'
   /* modal-theme se gestiona dentro de askTheme() */
@@ -10194,10 +10226,17 @@ document.getElementById('gest-close').onclick=()=>modalGest.classList.add('hidde
 
    QUE HACE
    Cuando terminas una palabra (espacio, punto, coma, Enter...) mira si esa
-   palabra esta en una lista de palabras que casi siempre llevan tilde y la
-   corrige: "tambien" -> "también", "psicologia" -> "psicología". Funciona en
-   TODOS los cuadros de texto de la app: titulos, editores con formato,
-   nombres, aclaraciones, etc.
+   palabra casi siempre lleva tilde y la corrige: "tambien" -> "también",
+   "psicologia" -> "psicología". Funciona en TODOS los cuadros de texto de la
+   app: titulos, editores con formato, nombres, aclaraciones, etc.
+
+   DE DONDE SALEN LAS PALABRAS (tres fuentes, en este orden)
+   1. Reglas de terminacion (AC_RULES): -cion, -sion, -logia, -isimo... que
+      en espanol SIEMPRE llevan tilde. Cubren miles de palabras con 12 lineas.
+   2. Lista de palabras sueltas (AC_OK) + sus variantes calculadas solas
+      (plural, femenino de los "-ico", adverbios en -mente): ver acDerive.
+   3. TU diccionario (lp_dicc), con las palabras que anadas tu, y tus
+      excepciones (lp_diccno) con las que has dicho que no se toquen.
 
    POR QUE UNA LISTA CERRADA Y NO "ADIVINAR"
    En espanol muchisimas palabras sin tilde TAMBIEN existen: esta/está,
@@ -10205,7 +10244,8 @@ document.getElementById('gest-close').onclick=()=>modalGest.classList.add('hidde
    hablo/habló, hacia/hacía, sabia/sabía, seria/sería. Un corrector que las
    cambiara solo se equivocaria a cada frase y acabaria estorbando. Asi que
    esas se dejan en paz A PROPOSITO: solo se corrige lo que casi nunca puede
-   ser otra cosa. Si algun dia falta una palabra, se anade a AC_OK.
+   ser otra cosa. Si algun dia falta una palabra, se anade a AC_OK (o la
+   anade la usuaria a su diccionario con el boton derecho).
 
    COMO SE CONSTRUYE LA LISTA
    Solo se escriben las palabras BIEN escritas (con su tilde). El codigo
@@ -10225,77 +10265,74 @@ document.getElementById('gest-close').onclick=()=>modalGest.classList.add('hidde
 let acOn=localStorage.getItem('lp_autocorr')!=='0';   // encendido por defecto
 function saveAutocorr(){try{localStorage.setItem('lp_autocorr',acOn?'1':'0')}catch(e){}}
 
-/* Palabras BIEN escritas. La clave que se busca (sin tildes) se calcula sola.
-   La ñ NO se toca: "espanol" no se corrige, "compañía" si. */
+/* ── 1. TERMINACIONES QUE SIEMPRE LLEVAN TILDE ────────────────────────
+   Estas no hace falta listarlas palabra por palabra: en espanol NINGUNA
+   palabra acaba en "-cion", "-sion", "-logia", "-grafia", "-isimo"... sin
+   tilde. Con estas seis reglas quedan cubiertas miles de palabras de golpe
+   (informacion, conexion, reflexion, psicologia, fotografia, filosofia,
+   empatia, geometria, buenisimo...) sin engordar el archivo. */
+const AC_RULES=[
+  [/cion$/,'ción'],[/sion$/,'sión'],[/xion$/,'xión'],
+  [/logia$/,'logía'],[/grafia$/,'grafía'],[/sofia$/,'sofía'],
+  [/patia$/,'patía'],[/metria$/,'metría'],
+  [/isimo$/,'ísimo'],[/isima$/,'ísima'],
+  [/isimos$/,'ísimos'],[/isimas$/,'ísimas']
+];
+
+/* ── 2. PALABRAS SUELTAS ──────────────────────────────────────────────
+   Solo se escriben BIEN escritas (con su tilde); la version sin tildes que
+   hay que buscar la calcula el codigo. Y de cada una se sacan solas sus
+   variantes (ver acDerive): plural, femenino de los "-ico" y adverbio en
+   "-mente". Por eso basta con "técnico" para que funcionen tambien
+   "técnica", "técnicos", "técnicas" y "técnicamente". */
 const AC_OK=(`
 también además así aquí ahí allí allá acá adiós después atrás detrás jamás
-quizá quizás según más día días demás ojalá todavía
-será serán estará estarán están estáis habrá habrán podrá podrán tendrá tendrán
-hará harán dirá dirán vendrá vendrán deberá deberán sabrá querrá
-habría habrían podría podrían tendría tendrían haría harían diría dirían
-estaría estarían serían daría darían gustaría deberían
-había habían tenía tenían podía podían debía debían quería querían decía decían
-venía creía creían seguía seguían sentía sentían vivía vivían ponía ponían
-salía salían leía traía caía oía veía volvía existía existían permitía servía
-acción actuación adaptación administración afección alteración ampliación
-animación aplicación apreciación aproximación argumentación asociación atención
-atribución autorización calificación cognición colaboración combinación
-comparación compensación competición composición comprensión comunicación
-concentración concepción conclusión condición conexión confirmación confusión
-conservación consideración constitución construcción contaminación contradicción
-contribución conversación conversión cooperación coordinación corrección
-correlación creación decisión declaración dedicación definición deformación
-degradación demostración denominación depresión derivación descripción desviación
-determinación dimensión dirección discriminación discusión disposición distinción
-distribución diversión división documentación duración edición educación ejecución
-elaboración elección eliminación emisión emoción especialización especificación
-estimación evaluación evolución exclusión excepción exposición expresión extensión
-fijación formación formulación función generación gestión identificación ilusión
-imaginación implicación impresión inclusión indicación información iniciación
-innovación inspiración instrucción integración interacción interpretación
-intervención introducción intuición investigación justificación lección limitación
-localización manifestación medición mediación misión modificación motivación
-narración negación obligación observación obsesión ocasión operación opinión
-oposición organización orientación participación pasión percepción planificación
-población posición precisión predicción preparación presentación presión
-prevención producción profesión programación progresión proporción protección
-publicación radiación razón reacción realización recepción reducción reflexión
-regulación relación religión repetición representación reproducción resolución
-reunión revisión revolución satisfacción sección selección sensación separación
-sesión significación situación socialización solución sucesión superación
-supervisión televisión tensión tradición traducción transformación transmisión
-unión valoración variación versión visión vocación votación
-teoría filosofía psicología sociología antropología biología metodología
-epistemología ideología economía autonomía energía categoría mayoría minoría
-geografía fisiología patología psiquiatría pedagogía tecnología cronología
-alegría compañía garantía policía fotografía bibliografía biografía anatomía
-análisis síntesis hipótesis énfasis párrafo capítulo capítulos título títulos
-artículo artículos índice ítem método métodos
-público pública práctica prácticas práctico teórico teórica físico física
-químico química biológico psicológico sociológico histórico económico
-político política básico básica clásico clásica crítico crítica
-específico específica técnico técnica médico médica psicólogo psicóloga
-pedagógico didáctico metodológico epistemológico semántico lingüística lingüístico
-número números máximo máxima mínimo mínima óptimo óptima último última
-único única próximo próxima típico típica lógico lógica rápido rápida cómodo
-símbolo símbolos sílaba síntoma síntomas régimen síndrome área áreas época épocas
-ética éxito límite límites línea líneas música página páginas máquina mágico
-orgánico oxígeno plástico estadística estadísticas matemáticas gramática
-dinámica dinámico automático académico informático fonética semiótica pragmática
-difícil difíciles fácil fáciles útil útiles inútil débil ágil hábil móvil frágil
+quizá según más día demás ojalá todavía
+será estará están estáis habrá podrá tendrá hará dirá vendrá deberá sabrá
+serán estarán habrán podrán tendrán harán dirán vendrán deberán querrá
+habría podría tendría haría diría estaría daría gustaría querría
+habrían podrían tendrían harían dirían estarían darían gustarían deberían serían
+había tenía podía debía quería decía venía creía seguía sentía vivía ponía
+salía leía traía caía oía veía volvía existía permitía servía
+habían tenían podían debían querían decían creían seguían sentían vivían ponían
+teoría categoría economía autonomía energía mayoría minoría alegría compañía
+garantía policía anatomía maestría
+análisis síntesis hipótesis énfasis paréntesis génesis
+párrafo capítulo título artículo índice ítem método módulo
+público práctico teórico físico químico histórico económico político básico
+clásico crítico específico técnico médico académico informático semántico
+lingüístico numérico geométrico matemático estadístico analítico sintético
+auténtico idéntico característico empírico científico filosófico pedagógico
+didáctico clínico crónico terapéutico sistemático mecánico eléctrico
+electrónico atómico magnético óptico acústico térmico dinámico estático
+automático pragmático dogmático traumático sintomático patológico psicológico
+sociológico antropológico ideológico metodológico epistemológico cronológico
+biográfico bibliográfico gráfico típico atípico único ilógico lógico jurídico
+estético artístico poético dramático romántico fantástico mágico trágico lúdico
+cívico místico escéptico simpático elástico plástico drástico doméstico
+genérico esférico periférico hipotético biológico ecológico genético orgánico
+inorgánico energético neurológico fisiológico psiquiátrico farmacológico
+demográfico geográfico étnico ético léxico tóxico cósmico psicólogo psicóloga
+número máximo mínimo óptimo último próximo rápido cómodo incómodo válido
+sólido líquido cálido rígido tónico
+máxima mínima óptima última próxima rápida cómoda incómoda válida sólida
+símbolo sílaba síntoma síndrome régimen área época éxito límite línea
+música página máquina oxígeno gramática matemáticas fonética semiótica
+difícil fácil útil inútil débil ágil hábil móvil frágil árbol ángel
 jóvenes exámenes imágenes orígenes márgenes resúmenes volúmenes regímenes
 corazón común botón montón rincón camión avión canción patrón león jardín
 país países francés inglés portugués estrés cortés través interés
-estímulo estímulos fenómeno fenómenos diagnóstico pronóstico psíquico
-psiquiátrico patológico crónico traumático genético genética empatía apatía
-neurológico hábito hábitos ámbito ámbitos vínculo vínculos génesis
-café sofá mamá papá bebé teléfono cámara película década sábado miércoles
-jamón limón azúcar árbol lápiz lápices mayúscula minúscula
-España América Perú México París Japón
+estímulo fenómeno diagnóstico pronóstico psíquico hábito ámbito vínculo
+cálculo círculo código célula músculo núcleo tránsito árbitro cátedra
+crédito débito déficit mérito tópico
+café sofá mamá papá bebé teléfono micrófono cámara película década
+sábado miércoles jamón limón azúcar lápiz mayúscula minúscula
+parámetro kilómetro diámetro perímetro termómetro centímetro milímetro
+España América Perú México París Japón Bélgica Bogotá
 `).trim().split(/\s+/);
 
 /* Erratas frecuentes y palabras que se escriben separadas. No se pueden
-   deducir de la lista de arriba, asi que van a mano. */
+   deducir de las reglas de arriba, asi que van a mano. */
 const AC_FIX={qeu:'que',aunqeu:'aunque',porqeu:'porque',tambein:'también',
   dijieron:'dijeron',haci:'así',dle:'del',esque:'es que',apartir:'a partir',
   aveces:'a veces',talvez:'tal vez',sinembargo:'sin embargo',
@@ -10303,9 +10340,59 @@ const AC_FIX={qeu:'que',aunqeu:'aunque',porqeu:'porque',tambein:'también',
 
 const AC_TILDE={'á':'a','é':'e','í':'i','ó':'o','ú':'u','ü':'u'};
 function acStrip(w){return w.replace(/[áéíóúü]/g,c=>AC_TILDE[c])}
-const AC_DICT={};
-AC_OK.forEach(w=>{const k=acStrip(w.toLowerCase());if(k!==w)AC_DICT[k]=w});
-Object.keys(AC_FIX).forEach(k=>{AC_DICT[k]=AC_FIX[k]});
+
+/* ── 3. VARIANTES AUTOMATICAS ─────────────────────────────────────────
+   De cada palabra se sacan sus formas hermanas. Las reglas estan elegidas
+   para que NUNCA inventen una palabra que sin tilde ya exista:
+     - femenino solo de los "-ico" (técnico → técnica). No se hace con
+       cualquier "-o" porque "número" daria "númera", que no existe, y sobre
+       todo porque hay verbos por medio (numero, explico, dedico...).
+     - plural: vocal + "s" (técnica → técnicas, será → serás, café → cafés).
+       Los que acaban en "-n" o "-s" NO se pluralizan aqui: sus plurales
+       (razones, franceses) van SIN tilde y ya estan bien.
+     - "-l" → "-les" y "-lmente" (fácil → fáciles, fácilmente).
+     - "-o" → "-amente" (rápido → rápidamente, técnico → técnicamente):
+       el adverbio en -mente conserva siempre la tilde del adjetivo. */
+function acDerive(w,add){
+  const forms=[w];
+  if(/ico$/.test(w))forms.push(w.slice(0,-1)+'a');       // técnico → técnica
+  forms.forEach(f=>{
+    add(f);
+    const last=f.slice(-1);
+    if('aeiouáéíóú'.indexOf(last)>=0)add(f+'s');         // página → páginas
+    else if(last==='l'){add(f+'es');add(f+'mente')}      // fácil → fáciles
+    else if(last==='z')add(f.slice(0,-1)+'ces');         // lápiz → lápices
+    if(last==='o')add(f.slice(0,-1)+'amente');           // rápido → rápidamente
+  });
+}
+/* De fabrica: se calcula una sola vez y no se toca nunca mas. */
+const AC_BASE={};
+function acPut(map,w){const k=acStrip(w.toLowerCase());if(k!==w)map[k]=w}
+AC_OK.forEach(w=>acDerive(w,x=>acPut(AC_BASE,x)));
+Object.keys(AC_FIX).forEach(k=>{AC_BASE[k]=AC_FIX[k]});
+
+/* ── 4. TU PROPIO DICCIONARIO ─────────────────────────────────────────
+   lp_dicc   = palabras que TU has anadido (bien escritas).
+   lp_diccno = palabras que has dicho que NO se corrijan nunca.
+   Los dos van en la copia de seguridad. Se recalcula el diccionario entero
+   cada vez que cambian, que es instantaneo y evita quedarse a medias. */
+let acMine=[],acNever=[];
+try{acMine=JSON.parse(localStorage.getItem('lp_dicc')||'[]')||[]}catch(e){}
+try{acNever=JSON.parse(localStorage.getItem('lp_diccno')||'[]')||[]}catch(e){}
+let AC_DICT={};
+function acRebuild(){
+  AC_DICT=Object.assign({},AC_BASE);
+  acMine.forEach(w=>acDerive(w,x=>acPut(AC_DICT,x)));
+  acNever.forEach(k=>{delete AC_DICT[k]});
+}
+function saveDicc(){
+  try{
+    localStorage.setItem('lp_dicc',JSON.stringify(acMine));
+    localStorage.setItem('lp_diccno',JSON.stringify(acNever));
+  }catch(e){}
+  acRebuild();
+}
+acRebuild();
 
 const AC_SEP=' .,;:!?)]}"»…\t';                      // cierran palabra
 const AC_LET=/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/;
@@ -10340,8 +10427,16 @@ function acWordAt(text,pos){
   if(word.length<2||word.length>24)return null;
   return {start,word};
 }
+/* Como se escribe de verdad esa palabra (o null si se deja como esta):
+   1º lo que TU hayas dicho que no se toque, 2º el diccionario, 3º las
+   terminaciones que siempre llevan tilde. */
 function acLookup(word){
-  const rep=AC_DICT[word.toLowerCase()];
+  const low=word.toLowerCase();
+  if(acNever.indexOf(low)>=0)return null;
+  let rep=AC_DICT[low];
+  if(!rep)for(let i=0;i<AC_RULES.length;i++){
+    if(AC_RULES[i][0].test(low)){rep=low.replace(AC_RULES[i][0],AC_RULES[i][1]);break}
+  }
   if(!rep)return null;
   const out=acCase(word,rep);
   return out===word?null:out;
@@ -10475,6 +10570,166 @@ document.addEventListener('focusin',()=>{acLast=null},true);
 const acSwitch=document.getElementById('g-autocorr');
 acSwitch.checked=acOn;
 acSwitch.addEventListener('change',e=>{acOn=e.target.checked;acLast=null;saveAutocorr()});
+
+/* ══════════════════════════════════════════════════════════════════
+   MI DICCIONARIO
+   Anadir una palabra = escribirla BIEN (con su tilde). A partir de ahi,
+   escribirla sin tilde la corrige, y sus variantes tambien (si anades
+   "técnica" salen gratis "técnicas"). Anadir una palabra SIN tilde y sin
+   mayuscula no serviria de nada, asi que se avisa en vez de tragar.
+   ══════════════════════════════════════════════════════════════════ */
+const AC_WORD_RE=/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{2,30}$/;
+function acCleanWord(w){
+  if(!w)return null;
+  w=String(w).trim().split(/\s+/)[0]
+     .replace(/^[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+|[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+$/g,'');
+  return AC_WORD_RE.test(w)?w:null;
+}
+function acAddWord(raw){
+  const w=acCleanWord(raw);
+  if(!w){showTip('Escribe una sola palabra');return false}
+  /* Si al quitarle las tildes queda igual que como esta escrita, no hay nada
+     que corregir (salvo que lleve mayuscula, como "Bandura"). */
+  if(acStrip(w.toLowerCase())===w){showTip('«'+w+'» no lleva tilde: escríbela con tilde');return false}
+  const low=w.toLowerCase(),key=acStrip(low);
+  acNever=acNever.filter(k=>k!==key&&k!==low);
+  acMine=acMine.filter(x=>x.toLowerCase()!==low);
+  acMine.push(w);
+  if(acMine.length>800)acMine.shift();
+  saveDicc();
+  showTip('«'+w+'» añadida a tu diccionario');
+  return true;
+}
+function acNeverWord(w){
+  const low=w.toLowerCase();
+  if(acNever.indexOf(low)<0)acNever.push(low);
+  acMine=acMine.filter(x=>x.toLowerCase()!==low);
+  saveDicc();
+  showTip('«'+w+'» ya no se corregirá');
+}
+const modalDicc=document.getElementById('modal-dicc');
+const diccNew=document.getElementById('dicc-new');
+function renderDicc(){
+  const box=document.getElementById('dicc-list');
+  box.innerHTML='';
+  const group=(title,arr,rm)=>{
+    if(!arr.length)return;
+    const h=document.createElement('div');h.className='dicc-head';h.textContent=title;
+    box.appendChild(h);
+    arr.slice().sort((a,b)=>a.localeCompare(b,'es')).forEach(w=>{
+      const row=document.createElement('div');row.className='dicc-row';
+      const s=document.createElement('span');s.textContent=w;
+      const b=document.createElement('button');b.className='dicc-x';b.title='Quitar';
+      b.innerHTML=svg('trash');
+      b.onclick=()=>{rm(w);renderDicc()};
+      row.appendChild(s);row.appendChild(b);box.appendChild(row);
+    });
+  };
+  group('Palabras que has añadido',acMine,w=>{acMine=acMine.filter(x=>x!==w);saveDicc()});
+  group('Palabras que has pedido no corregir',acNever,w=>{acNever=acNever.filter(x=>x!==w);saveDicc()});
+  if(!acMine.length&&!acNever.length){
+    const p=document.createElement('div');
+    p.style.cssText='font-size:13px;color:var(--ink2);text-align:center;padding:16px 0';
+    p.textContent='Todavía no has añadido ninguna palabra.';
+    box.appendChild(p);
+  }
+}
+function openDicc(pre){
+  diccNew.value=pre||'';
+  renderDicc();
+  modalDicc.classList.remove('hidden');
+  setTimeout(()=>{diccNew.focus();if(pre)diccNew.select()},60);
+}
+document.getElementById('dicc-open').onclick=()=>openDicc('');
+document.getElementById('dicc-add').onclick=()=>{
+  if(acAddWord(diccNew.value)){diccNew.value='';renderDicc()}
+  diccNew.focus();
+};
+/* Enter aqui = "Añadir", no "Listo". Se corta la propagacion para que no
+   llegue al manejador general de modales, que cerraria el cuadro. */
+diccNew.addEventListener('keydown',e=>{
+  if(e.key!=='Enter')return;
+  e.preventDefault();e.stopPropagation();
+  document.getElementById('dicc-add').click();
+});
+document.getElementById('dicc-close').onclick=()=>modalDicc.classList.add('hidden');
+
+/* ══ BOTON DERECHO SOBRE UNA PALABRA ══
+   En el PC: clic derecho encima de una palabra de cualquier cuadro de texto.
+   En el iPad no hay clic derecho, por eso lo mismo esta en el panel de la
+   mano → "Mi diccionario". */
+function acWordAround(text,pos){
+  let s=pos,e=pos;
+  while(s>0&&AC_LET.test(text.charAt(s-1)))s--;
+  while(e<text.length&&AC_LET.test(text.charAt(e)))e++;
+  return text.slice(s,e);
+}
+function acWordUnder(el,kind,x,y){
+  if(kind==='val'){
+    const a=el.selectionStart,b=el.selectionEnd;
+    if(a==null)return null;
+    if(b>a)return el.value.slice(a,b);
+    return acWordAround(el.value,a);
+  }
+  const sel=window.getSelection();
+  if(sel&&!sel.isCollapsed){const t=sel.toString();if(t.trim())return t}
+  let node=null,off=0;
+  if(document.caretRangeFromPoint){
+    const r=document.caretRangeFromPoint(x,y);
+    if(r){node=r.startContainer;off=r.startOffset}
+  }else if(document.caretPositionFromPoint){
+    const p=document.caretPositionFromPoint(x,y);
+    if(p){node=p.offsetNode;off=p.offset}
+  }
+  if((!node||node.nodeType!==3)&&sel&&sel.anchorNode&&sel.anchorNode.nodeType===3){
+    node=sel.anchorNode;off=sel.anchorOffset;
+  }
+  if(!node||node.nodeType!==3)return null;
+  return acWordAround(node.nodeValue||'',off);
+}
+document.addEventListener('contextmenu',e=>{
+  if(!acOn)return;
+  const kind=acKind(e.target);
+  if(!kind)return;
+  const w=acCleanWord(acWordUnder(e.target,kind,e.clientX,e.clientY));
+  if(!w)return;                       // sin palabra debajo: menu del navegador
+  const low=w.toLowerCase(),key=acStrip(low),items=[];
+  /* Al poner menu propio se pierde el del navegador, asi que Copiar y Pegar
+     tienen que estar aqui: si no, en el PC no se podria pegar con el raton.
+     Hay que devolver el foco y la seleccion al cuadro, porque al pulsar en el
+     menu el cuadro los ha perdido. */
+  const el=e.target,hasSel=kind==='val'
+    ?el.selectionEnd>el.selectionStart
+    :!!(window.getSelection()&&!window.getSelection().isCollapsed);
+  const selA=kind==='val'?el.selectionStart:0,selB=kind==='val'?el.selectionEnd:0;
+  const rng=kind==='rich'&&window.getSelection().rangeCount
+    ?window.getSelection().getRangeAt(0).cloneRange():null;
+  const restore=()=>{
+    el.focus();
+    if(kind==='val')el.setSelectionRange(selA,selB);
+    else if(rng){const s=window.getSelection();s.removeAllRanges();s.addRange(rng)}
+  };
+  if(hasSel)items.push({label:'Copiar',action:()=>{restore();try{document.execCommand('copy')}catch(err){}}});
+  items.push({label:'Pegar',action:()=>{
+    restore();
+    if(!navigator.clipboard||!navigator.clipboard.readText){showTip('Pega con Ctrl+V');return}
+    navigator.clipboard.readText()
+      .then(t=>{if(t){restore();document.execCommand('insertText',false,t)}})
+      .catch(()=>showTip('No he podido leer el portapapeles: pega con Ctrl+V'));
+  }});
+  if(acLookup(w))
+    items.push({icon:'eraserFmt',label:'No corregir «'+w+'»',action:()=>acNeverWord(w)});
+  if(acMine.some(x=>x.toLowerCase()===low))
+    items.push({icon:'trash',label:'Quitar «'+w+'» de mi diccionario',danger:true,
+      action:()=>{acMine=acMine.filter(x=>x.toLowerCase()!==low);saveDicc();showTip('«'+w+'» quitada')}});
+  else if(low!==key||w!==low)         // lleva tilde o mayuscula: se anade tal cual
+    items.push({icon:'plus',label:'Añadir «'+w+'» al diccionario',action:()=>acAddWord(w)});
+  else                                // sin tilde: se abre para escribirla bien
+    items.push({icon:'plus',label:'Añadir «'+w+'» al diccionario…',action:()=>openDicc(w)});
+  items.push({icon:'book',label:'Mi diccionario…',action:()=>openDicc('')});
+  e.preventDefault();
+  showCtx(e.clientX,e.clientY,items);
+},true);
 
 /* ══ NAV ══ */
 const pageObs=new IntersectionObserver(entries=>{entries.forEach(en=>{if(en.isIntersecting){const pid=parseInt(en.target.dataset.page);const pos=posOfPid(pid);if(pos&&pos!==curPage){curPage=pos;updateNav();saveLastPage()}}})},{root:canvasWrap,threshold:.5});
