@@ -1793,7 +1793,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v107'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v108'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -7385,8 +7385,37 @@ async function createAclarFromGid(gid){
 function cmapKey(){return 'lp_cmap_'+currentFileId}
 function loadCmap(){try{return JSON.parse(localStorage.getItem(cmapKey())||'[]')}catch(e){return[]}}
 function saveCmap(arr){try{localStorage.setItem(cmapKey(),JSON.stringify(arr))}catch(e){}}
-function newCmapNode(level,title,pid){
-  return{id:uid(),level:level||'manual',title,page:pid||null,desc:'',children:[],fold:true,created:Date.now()};
+/* `y` = altura del subrayado DENTRO de su página (la misma coordenada que
+   guardan los trazos). Sirve para saber qué va antes y qué va después cuando
+   varios nodos comparten página: sin ella, un guión no puede saber cuál de
+   los dos epígrafes de esa página es el suyo. Los nodos creados a mano no
+   tienen subrayado detrás y valen 0 (se comportan como siempre). */
+function newCmapNode(level,title,pid,y){
+  return{id:uid(),level:level||'manual',title,page:pid||null,y:(typeof y==='number'?y:0),
+    desc:'',children:[],fold:true,created:Date.now()};
+}
+/* Altura de un nodo dentro de su página, para ordenarlo frente a otros de la
+   MISMA página. Los nodos guardados antes de que existiera `y` no la traen:
+   se intenta recuperar buscando en esa página el subrayado cuyo texto es el
+   título del nodo, y se deja guardada para no repetir el trabajo. Solo se
+   busca en la página que se está subrayando ahora (es la única cuyo texto
+   seguro está extraído); en cualquier otro caso vale 0, es decir, se comporta
+   igual que antes de este arreglo. */
+function cmapYOf(node,pidCargado){
+  if(typeof node.y==='number')return node.y;
+  if(!node.page||node.page!==pidCargado)return 0;
+  const ann=annotations[node.page];
+  if(!ann||!ann.highlights){return 0}
+  const norm=s=>String(s||'').replace(/\s+/g,' ').trim().toLowerCase();
+  const t=norm(node.title);
+  if(!t)return 0;
+  let y=null;
+  ann.highlights.forEach(h=>{
+    if(norm(getHlText(node.page,h))===t&&(y===null||h.y<y))y=h.y;
+  });
+  if(y===null)return 0;
+  node.y=y;                       // migración silenciosa: se guarda con saveCmap
+  return y;
 }
 /* Inserta un nodo nuevo en el árbol según su nivel, tipo esquema de Markdown:
    título > subtítulo > epígrafe > guión. Es una función pura sobre `maps`
@@ -7397,14 +7426,22 @@ function newCmapNode(level,title,pid){
        ÚLTIMO mapa/tema, cuyo nivel sea más superficial que el nuevo.
    Limitación conocida (ver plan): siempre amplía el tema más reciente. Para
    retomar un tema anterior hay que usar "＋ Subnivel" a mano en el panel. */
-function cmapInsert(maps,level,title,pid){
+function cmapInsert(maps,level,title,pid,y){
   const rank=l=>{const i=CMAP_LEVELS.indexOf(l);return i<0?CMAP_LEVELS.length:i};
   /* posición REAL en el documento (no el valor del pid, que para páginas
      insertadas vale >=10000). Sin página conocida → 0, así nunca "gana"
      como el ancestro más cercano. */
   const posOf=p=>p?posOfPid(p):0;
   const newPos=posOf(pid);
-  const node=newCmapNode(level,title,pid);
+  const newY=(typeof y==='number'?y:0);
+  /* SITIO EXACTO EN EL DOCUMENTO = página + altura dentro de la página.
+     Antes solo se miraba la página, y por eso un guión no sabía cuál de los
+     dos epígrafes de esa misma página era el suyo: se colgaba siempre del
+     mismo, no del que tenía justo encima. */
+  const sitio=n=>[posOf(n.page),cmapYOf(n,pid)];
+  const antes=(a,b)=>(a[0]-b[0])||(a[1]-b[1]);   // <0 si `a` va antes que `b`
+  const newSitio=[newPos,newY];
+  const node=newCmapNode(level,title,pid,newY);
 
   /* Colocación POR PÁGINA, no "al último que abrí".
      Antes todo se colgaba del último mapa creado, así que subrayar un
@@ -7414,7 +7451,7 @@ function cmapInsert(maps,level,title,pid){
   if(level==='cmap_titulo'){
     node.fold=false;
     let i=maps.length;
-    for(let k=0;k<maps.length;k++){if(posOf(maps[k].page)>newPos){i=k;break}}
+    for(let k=0;k<maps.length;k++){if(antes(sitio(maps[k]),newSitio)>0){i=k;break}}
     maps.splice(i,0,node);
     return node;
   }
@@ -7424,15 +7461,16 @@ function cmapInsert(maps,level,title,pid){
   }
 
   /* padre = el nodo MÁS PROFUNDO, de nivel más superficial que el nuevo, que
-     empiece en una página no posterior a la del nuevo. A igualdad de página
-     gana el más profundo (un epígrafe va bajo el subtítulo de esa página, no
-     bajo su título). */
-  let best=null,bestPos=-1,bestRank=-1;
+     empiece en un sitio no posterior al del nuevo (página y, dentro de ella,
+     altura). Empatados en el mismo sitio gana el más profundo (un epígrafe va
+     bajo el subtítulo de esa página, no bajo su título). */
+  let best=null,bestS=null,bestRank=-1;
   const visit=n=>{
     if(rank(n.level)<rank(level)){
-      const p=posOf(n.page);
-      if(p<=newPos&&(p>bestPos||(p===bestPos&&rank(n.level)>bestRank))){
-        best=n;bestPos=p;bestRank=rank(n.level);
+      const s=sitio(n);
+      if(antes(s,newSitio)<=0&&
+         (!bestS||antes(s,bestS)>0||(antes(s,bestS)===0&&rank(n.level)>bestRank))){
+        best=n;bestS=s;bestRank=rank(n.level);
       }
     }
     (n.children||[]).forEach(visit);
@@ -7442,8 +7480,13 @@ function cmapInsert(maps,level,title,pid){
 
   if(!best.children)best.children=[];
   let i=best.children.length;
-  for(let k=0;k<best.children.length;k++){if(posOf(best.children[k].page)>newPos){i=k;break}}
+  for(let k=0;k<best.children.length;k++){if(antes(sitio(best.children[k]),newSitio)>0){i=k;break}}
   best.children.splice(i,0,node);
+  /* que se VEA nada más añadirlo: se despliega la cadena de padres hasta él.
+     Si no, el nodo cae dentro de un epígrafe plegado y parece que no se ha
+     insertado nada (es lo mismo que hace "＋ Subnivel" a mano). */
+  let anc=best;
+  while(anc){anc.fold=false;const f=cmapParentOf(maps,anc);anc=f?f.parent:null}
   return node;
 }
 
@@ -7519,7 +7562,7 @@ async function createCmapNodeFromGid(gid,level){
   for(const b of bands){
     const txt=(getHlText(b.pid,b.h)||'').replace(/\s+/g,' ').trim();
     if(!txt)continue;                    // trazo sin texto (escaneado): se salta
-    const node=cmapInsert(maps,level,txt,b.pid);
+    const node=cmapInsert(maps,level,txt,b.pid,b.h.y);
     if(!node)return;                     // sin título general previo: avisado por cmapInsert
     n++;
   }
