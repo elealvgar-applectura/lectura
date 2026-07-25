@@ -1159,6 +1159,10 @@ body.fullscreen #gid-bar{bottom:20px}
   </div>
   <div id="np-notes-body" class="notes-panel-body hidden"></div>
   <div id="np-nodes-body" class="notes-panel-body"></div>
+  <div style="padding:0 12px 12px;flex-shrink:0;display:flex;gap:8px">
+    <button id="nodes-export-pdf" class="sp-action-btn" style="flex:1;padding:9px;font-size:13px">Exportar PDF</button>
+    <button id="nodes-export-txt" class="sp-action-btn" style="flex:1;padding:9px;font-size:13px;background:var(--bg2)">Texto</button>
+  </div>
 </div>
 
 <!-- buscador general -->
@@ -1184,8 +1188,9 @@ body.fullscreen #gid-bar{bottom:20px}
     <button class="sp-close" data-panel="summary-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <div id="summary-body" class="sp-body"></div>
-  <div style="padding:0 12px 12px;flex-shrink:0">
-    <button id="summary-export" class="sp-action-btn">Exportar notas</button>
+  <div style="padding:0 12px 12px;flex-shrink:0;display:flex;gap:8px">
+    <button id="summary-export-pdf" class="sp-action-btn" style="flex:1;padding:9px;font-size:13px">Exportar PDF</button>
+    <button id="summary-export" class="sp-action-btn" style="flex:1;padding:9px;font-size:13px;background:var(--bg2)">Texto</button>
   </div>
 </div>
 
@@ -1214,6 +1219,10 @@ body.fullscreen #gid-bar{bottom:20px}
     <button class="sp-close" data-panel="proc-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <div id="proc-body" class="sp-body"></div>
+  <div style="padding:0 12px 12px;flex-shrink:0;display:flex;gap:8px">
+    <button id="proc-export-pdf" class="sp-action-btn" style="flex:1;padding:9px;font-size:13px">Exportar PDF</button>
+    <button id="proc-export-txt" class="sp-action-btn" style="flex:1;padding:9px;font-size:13px;background:var(--bg2)">Texto</button>
+  </div>
 </div>
 
 <!-- glossary panel -->
@@ -1224,8 +1233,9 @@ body.fullscreen #gid-bar{bottom:20px}
     <button class="sp-close" data-panel="glossary-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <div id="glossary-body" class="sp-body"></div>
-  <div style="padding:0 12px 12px;flex-shrink:0">
-    <button id="glossary-export" class="sp-action-btn">Exportar glosario</button>
+  <div style="padding:0 12px 12px;flex-shrink:0;display:flex;gap:8px">
+    <button id="glossary-export-pdf" class="sp-action-btn" style="flex:1;padding:9px;font-size:13px">Exportar PDF</button>
+    <button id="glossary-export" class="sp-action-btn" style="flex:1;padding:9px;font-size:13px;background:var(--bg2)">Texto</button>
   </div>
 </div>
 
@@ -1237,8 +1247,9 @@ body.fullscreen #gid-bar{bottom:20px}
     <button class="sp-close" data-panel="conclusions-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <div id="conclusions-body" class="sp-body"></div>
-  <div style="padding:0 12px 12px;flex-shrink:0">
-    <button id="conclusions-export" class="sp-action-btn">Exportar conclusiones</button>
+  <div style="padding:0 12px 12px;flex-shrink:0;display:flex;gap:8px">
+    <button id="conclusions-export-pdf" class="sp-action-btn" style="flex:1;padding:9px;font-size:13px">Exportar PDF</button>
+    <button id="conclusions-export" class="sp-action-btn" style="flex:1;padding:9px;font-size:13px;background:var(--bg2)">Texto</button>
   </div>
 </div>
 
@@ -1250,8 +1261,9 @@ body.fullscreen #gid-bar{bottom:20px}
     <button class="sp-close" data-panel="aclar-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <div id="aclar-body" class="sp-body"></div>
-  <div style="padding:0 12px 12px;flex-shrink:0">
-    <button id="aclar-export" class="sp-action-btn">Exportar aclaraciones</button>
+  <div style="padding:0 12px 12px;flex-shrink:0;display:flex;gap:8px">
+    <button id="aclar-export-pdf" class="sp-action-btn" style="flex:1;padding:9px;font-size:13px">Exportar PDF</button>
+    <button id="aclar-export" class="sp-action-btn" style="flex:1;padding:9px;font-size:13px;background:var(--bg2)">Texto</button>
   </div>
 </div>
 
@@ -1768,7 +1780,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v104'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v105'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -8527,18 +8539,21 @@ function refreshCmapPanelIfOpen(){
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   EXPORTAR EL MAPA CONCEPTUAL (PDF y texto)
+   EXPORTAR A PDF — motor común de TODAS las herramientas
 
-   El mapa es un esquema con jerarquía: título general > subtítulo >
-   epígrafe > guión > los niveles manuales que se hayan añadido. La
-   exportación respeta ese orden y esa profundidad: numera cada rama
-   (1, 1.2, 1.2.3…) y la indenta como un índice de libro.
+   Glosario, conclusiones, aclaraciones, nodos, mapa conceptual, procesos
+   y notas exportan con la misma pinta: portada, apartados numerados y
+   sangrados según su jerarquía, y el texto con su formato.
 
-   El PDF conserva además el FORMATO de las descripciones (negrita,
-   cursiva, subrayado, color y listas), porque se escriben con la barra
-   de formato y perderlo sería perder medio apunte. jsPDF no entiende
-   HTML: hay que traducirlo a trozos de texto con su estilo (richToRuns)
-   y hacer el salto de línea a mano, midiendo trozo a trozo.
+   Todo eso vive aquí una sola vez (pdfExport) y cada herramienta solo
+   dice QUÉ escribir, no CÓMO se dibuja. Si algún día hay que cambiar la
+   tipografía o los márgenes, se cambia en un sitio y valen todos.
+
+   El PDF conserva el FORMATO de lo escrito (negrita, cursiva, subrayado,
+   color y listas), porque se escribe con la barra de formato y perderlo
+   sería perder medio apunte. jsPDF no entiende HTML: hay que traducirlo a
+   trozos de texto con su estilo (richToRuns) y hacer el salto de línea a
+   mano, midiendo trozo a trozo.
 
    No añade ninguna librería: jsPDF ya estaba cargado para el PDF anotado.
    ══════════════════════════════════════════════════════════════════ */
@@ -8606,174 +8621,275 @@ function richToRuns(html){
   return paras.filter(p=>p.runs.some(r=>r.t&&r.t.trim()));
 }
 
-/* estilo de cada nivel de profundidad del esquema */
-const CMAP_PDF_LV=[
-  {size:14.5,bold:true, ind:0,  gap:20},   // título general
-  {size:12,  bold:true, ind:18, gap:12},   // subtítulo
-  {size:10.8,bold:true, ind:34, gap:8},    // epígrafe
-  {size:10.2,bold:false,ind:50, gap:6},    // guión
-  {size:9.8, bold:false,ind:64, gap:5}     // manuales (y más hondos)
+/* estilo de cada nivel de profundidad: el 0 es el rótulo con banda de color
+   (un tema, un nodo raíz, un proceso…) y los demás van cayendo hacia dentro */
+const PDF_LV=[
+  {size:14.5,bold:true, ind:0,  gap:20},
+  {size:12,  bold:true, ind:18, gap:12},
+  {size:10.8,bold:true, ind:34, gap:8},
+  {size:10.2,bold:false,ind:50, gap:6},
+  {size:9.8, bold:false,ind:64, gap:5}    // y más hondos
 ];
+
+/* Abre un PDF y devuelve las cuatro cosas que necesita cualquier herramienta:
+   portada, rótulo de apartado, texto con formato y guardar. Devuelve null si
+   jsPDF no está disponible (sin conexión la primera vez, por ejemplo). */
+function pdfExport(){
+  if(!(window.jspdf&&window.jspdf.jsPDF))return null;
+  const{jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'pt',format:'a4'});
+  const PH=doc.internal.pageSize.getHeight();
+  const ML=54,MT=58,MB=62,RIGHT=doc.internal.pageSize.getWidth()-54;
+  const INK=[74,68,88],INK2=[104,98,120],INK3=[152,146,168];
+  const nom=(currentFileName||'Documento').replace(/\.[^.]+$/,'');
+  let y=MT;
+
+  const tinta=c=>doc.setTextColor(c[0],c[1],c[2]);
+  const fuente=(b,i)=>doc.setFont('helvetica',b&&i?'bolditalic':b?'bold':i?'italic':'normal');
+  /* si lo siguiente no cabe en lo que queda de hoja, hoja nueva */
+  const sitio=h=>{if(y+h>PH-MB){doc.addPage();y=MT}};
+  const nivel=p=>PDF_LV[Math.min(p||0,PDF_LV.length-1)];
+  const xDe=p=>ML+nivel(p).ind+(p>4?(p-4)*12:0);
+
+  /* ── párrafos con formato ── */
+  const dibujarRico=(html,x,size,colorBase)=>{
+    const paras=richToRuns(html);
+    if(!paras.length)return;
+    const lh=size*1.42;
+    /* `y` llega en el borde superior del hueco, pero jsPDF dibuja sobre la
+       línea base: sin este empujón la primera línea se montaría encima del
+       rótulo que va justo arriba */
+    y+=size*.95;
+    paras.forEach(p=>{
+      const bx=x+(p.sangria>0?(p.sangria-1)*11:0);
+      const sangraViñeta=p.bullet?13:0;
+      const maxW=RIGHT-bx-sangraViñeta;
+      /* trocear en palabras SIN perder el estilo de cada trozo */
+      const pal=[];
+      p.runs.forEach(r=>r.t.split(/(\s+)/).forEach(w=>{if(w!=='')pal.push({t:w,st:r})}));
+      let linea=[],ancho=0,primera=true;
+      const soltar=()=>{
+        if(!linea.length)return;
+        sitio(lh);
+        if(primera&&p.bullet){
+          fuente(false,false);doc.setFontSize(size);tinta(INK3);
+          doc.text(p.bullet,bx,y);
+        }
+        let cx=bx+sangraViñeta;
+        linea.forEach(seg=>{
+          fuente(seg.st.b,seg.st.i);doc.setFontSize(size);
+          const col=parseColorRGB(seg.st.color)||colorBase;
+          tinta(col);
+          doc.text(seg.t,cx,y);
+          const w=doc.getTextWidth(seg.t);
+          if(seg.st.u){doc.setDrawColor(col[0],col[1],col[2]);doc.setLineWidth(.5);doc.line(cx,y+1.6,cx+w,y+1.6)}
+          cx+=w;
+        });
+        y+=lh;linea=[];ancho=0;primera=false;
+      };
+      pal.forEach(w=>{
+        fuente(w.st.b,w.st.i);doc.setFontSize(size);
+        const ww=doc.getTextWidth(w.t);
+        if(ancho+ww>maxW&&linea.length&&w.t.trim())soltar();
+        if(!linea.length&&!w.t.trim())return;      // ninguna línea empieza por un espacio
+        linea.push(w);ancho+=ww;
+      });
+      soltar();
+      y+=size*.4;                                   // aire entre párrafos
+    });
+  };
+
+  /* ── rótulo de un apartado ──
+     o = {titulo, num, prof, color, pagina, extra} */
+  const rotulo=o=>{
+    const prof=o.prof||0,st=nivel(prof);
+    const x=xDe(prof);
+    const dotc=parseColorRGB(o.color)||[201,195,214];
+    const pgTxt=o.pagina?('p. '+o.pagina):'';
+
+    doc.setFont('helvetica','normal');doc.setFontSize(8.5);
+    const pgW=pgTxt?doc.getTextWidth(pgTxt)+12:0;
+
+    const tx=x+(prof===0?14:13);
+    fuente(st.bold,false);doc.setFontSize(st.size);
+    const numS=o.num?(o.num+'   '):'';
+    const numW=numS?doc.getTextWidth(numS):0;
+    const lineas=doc.splitTextToSize(String(o.titulo||'(sin título)'),Math.max(60,RIGHT-tx-numW-pgW));
+    const lh=st.size*1.3;
+    const alto=lineas.length*lh;
+
+    y+=st.gap;
+    /* que ningún rótulo se quede solo al final de la hoja. Uno de nivel 0
+       pide bastante más sitio: si no caben unas líneas suyas, mejor
+       empezarlo limpio en la hoja siguiente. */
+    sitio(alto+(prof===0?96:16));
+
+    const y0=y+lh*.78;
+    doc.setFillColor(dotc[0],dotc[1],dotc[2]);
+    if(prof===0)doc.roundedRect(ML,y-5,RIGHT-ML,alto+12,6,6,'F');
+    else doc.roundedRect(x,y0-6.5,6,6,1.5,1.5,'F');       // punto del nivel
+
+    fuente(st.bold,false);doc.setFontSize(st.size);
+    if(numS){tinta(prof===0?INK:INK2);doc.text(numS,tx,y0)}
+    tinta(INK);
+    let yy=y0;
+    lineas.forEach(ln=>{doc.text(ln,tx+numW,yy);yy+=lh});
+    if(pgTxt){
+      doc.setFont('helvetica','normal');doc.setFontSize(8.5);tinta(prof===0?INK2:INK3);
+      doc.text(pgTxt,RIGHT-(prof===0?10:0),y0,{align:'right'});
+    }
+    y+=alto+(prof===0?10:3);
+  };
+
+  return{
+    doc,
+    /* cabecera del documento: qué es, de qué PDF sale y cuánto hay */
+    portada(titulo,resumen,leyenda){
+      doc.setFont('helvetica','bold');doc.setFontSize(21);tinta(INK);
+      doc.text(titulo,ML,y+8);y+=30;
+      doc.setFont('helvetica','normal');doc.setFontSize(12);tinta(INK2);
+      doc.splitTextToSize(nom,RIGHT-ML).forEach(l=>{doc.text(l,ML,y);y+=16});
+      doc.setFontSize(9.5);tinta(INK3);
+      const fecha=new Date().toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric'});
+      doc.text(fecha+(resumen?('   ·   '+resumen):''),ML,y);
+      y+=14;
+      if(leyenda&&leyenda.length){
+        let lx=ML;doc.setFontSize(8.5);
+        leyenda.forEach(l=>{
+          const c=parseColorRGB(l.color)||[201,195,214];
+          doc.setFillColor(c[0],c[1],c[2]);doc.roundedRect(lx,y-5,6,6,1.5,1.5,'F');
+          tinta(INK3);doc.text(l.label,lx+10,y);
+          lx+=doc.getTextWidth(l.label)+26;
+        });
+        y+=10;
+      }
+      doc.setDrawColor(224,220,234);doc.setLineWidth(1);doc.line(ML,y,RIGHT,y);
+      y+=4;
+    },
+    apartado(o){rotulo(o)},
+    /* texto con formato colgando de un apartado */
+    cuerpo(html,prof,size){
+      if(html==null||!String(html).trim())return;
+      dibujarRico(html,xDe(prof)+13,size||((prof||0)<=1?10:9.6),INK2);
+    },
+    /* apunte pequeño en gris (una referencia, un aviso…) */
+    apunte(txt,prof){
+      if(!txt)return;
+      const x=xDe(prof)+13;
+      doc.setFont('helvetica','italic');doc.setFontSize(8.6);tinta(INK3);
+      y+=9;
+      doc.splitTextToSize(String(txt),RIGHT-x).forEach(l=>{sitio(11);doc.text(l,x,y);y+=11});
+    },
+    /* Un dibujo a mano de una nota: sus trazos son puntos en un lienzo de
+       164x120, así que se reescalan a una caja del PDF. Si no se pintaran,
+       una nota dibujada saldría vacía y parecería que se ha perdido. */
+    dibujo(strokes,prof,ancho,alto){
+      const trazos=(strokes||[]).filter(s=>s.pts&&s.pts.length);
+      if(!trazos.length)return;
+      const W=ancho||164,H=alto||120,x=xDe(prof)+13;
+      y+=8;sitio(H+8);
+      doc.setFillColor(252,251,248);doc.setDrawColor(228,224,236);doc.setLineWidth(.6);
+      doc.roundedRect(x,y,W,H,4,4,'FD');
+      const k=Math.min(W/164,H/120);
+      trazos.forEach(s=>{
+        const c=parseColorRGB(s.color)||[74,68,88];
+        doc.setDrawColor(c[0],c[1],c[2]);doc.setLineWidth(Math.max(.5,(s.size||2)*k));
+        for(let i=1;i<s.pts.length;i++){
+          doc.line(x+s.pts[i-1].x*k,y+s.pts[i-1].y*k,x+s.pts[i].x*k,y+s.pts[i].y*k);
+        }
+      });
+      y+=H+4;
+    },
+    /* pies de página y descarga */
+    guardar(nombre,aviso){
+      const total=doc.getNumberOfPages();
+      for(let p=1;p<=total;p++){
+        doc.setPage(p);
+        doc.setFont('helvetica','normal');doc.setFontSize(8.5);tinta(INK3);
+        doc.text(nom,ML,PH-32);
+        doc.text(p+' / '+total,RIGHT,PH-32,{align:'right'});
+      }
+      downloadBlob(doc.output('blob'),nombre+'_'+nom+'.pdf');
+      showTip(aviso||'Exportado en PDF',1800);
+    }
+  };
+}
+
+/* envoltorio: prepara el PDF, avisa si no hay nada o si algo falla, y deja
+   que cada herramienta solo escriba su contenido */
+function conPDF(hayAlgo,vacio,fn){
+  if(!hayAlgo){showTip(vacio);return}
+  const P=pdfExport();
+  if(!P){showTip('No se ha podido cargar el generador de PDF');return}
+  try{fn(P)}
+  catch(err){console.error(err);showTip('No se ha podido generar el PDF. Prueba con "Texto".',2600)}
+}
+
+/* agrupa por tema igual que hacen los paneles: los temas por su número y,
+   al final, lo que no tiene tema asignado */
+function porTemas(items,getTid){
+  const themes=loadThemes().sort((a,b)=>(a.num||0)-(b.num||0));
+  const byTheme=new Map();themes.forEach(t=>byTheme.set(t.id,[]));
+  const sin=[];
+  items.forEach(it=>{const tid=getTid(it);if(tid&&byTheme.has(tid))byTheme.get(tid).push(it);else sin.push(it)});
+  const out=[];
+  themes.forEach(t=>{const l=byTheme.get(t.id);if(l&&l.length)out.push({theme:t,items:l})});
+  if(sin.length)out.push({theme:null,items:sin});
+  return out;
+}
+/* rótulo, número y color de un grupo de tema (o del cajón "Sin tema").
+   El número que se ve es el del PROPIO tema, no el orden en que salga en la
+   lista: así el papel numera igual que la app. */
+function temaRotulo(t){return t?(t.name||'Tema'):'Sin tema'}
+function temaNum(t,i){return String((t&&t.num)||(i+1))}
+function temaColor(t){return t?t.color:'#E6E2EE'}
 
 function cmapExportPDF(){
   const maps=loadCmap();
-  if(!maps.length){showTip('No hay ningún mapa conceptual que exportar');return}
-  if(!(window.jspdf&&window.jspdf.jsPDF)){showTip('No se ha podido cargar el generador de PDF');return}
-  try{
-    const{jsPDF}=window.jspdf;
-    const doc=new jsPDF({unit:'pt',format:'a4'});
-    const PW=doc.internal.pageSize.getWidth(),PH=doc.internal.pageSize.getHeight();
-    const ML=54,MT=58,MB=62,RIGHT=PW-54;
-    const INK=[74,68,88],INK2=[104,98,120],INK3=[152,146,168];
-    let y=MT;
-
-    const tinta=c=>doc.setTextColor(c[0],c[1],c[2]);
-    const fuente=(b,i)=>doc.setFont('helvetica',b&&i?'bolditalic':b?'bold':i?'italic':'normal');
-    /* si lo siguiente no cabe en lo que queda de hoja, hoja nueva */
-    const sitio=h=>{if(y+h>PH-MB){doc.addPage();y=MT}};
-
-    /* ── párrafos con formato (descripciones) ── */
-    const dibujarRico=(html,x,size,colorBase)=>{
-      const paras=richToRuns(html);
-      if(!paras.length)return;
-      const lh=size*1.42;
-      /* `y` llega en el borde superior del hueco, pero jsPDF dibuja sobre la
-         línea base: sin este empujón la primera línea se montaría encima del
-         rótulo que va justo arriba */
-      y+=size*.95;
-      paras.forEach(p=>{
-        const bx=x+(p.sangria>0?(p.sangria-1)*11:0);
-        const sangraViñeta=p.bullet?13:0;
-        const maxW=RIGHT-bx-sangraViñeta;
-        /* trocear en palabras SIN perder el estilo de cada trozo */
-        const pal=[];
-        p.runs.forEach(r=>r.t.split(/(\s+)/).forEach(w=>{if(w!=='')pal.push({t:w,st:r})}));
-        let linea=[],ancho=0,primera=true;
-        const soltar=()=>{
-          if(!linea.length)return;
-          sitio(lh);
-          if(primera&&p.bullet){
-            fuente(false,false);doc.setFontSize(size);tinta(INK3);
-            doc.text(p.bullet,bx,y);
-          }
-          let cx=bx+sangraViñeta;
-          linea.forEach(seg=>{
-            fuente(seg.st.b,seg.st.i);doc.setFontSize(size);
-            const col=parseColorRGB(seg.st.color)||colorBase;
-            tinta(col);
-            doc.text(seg.t,cx,y);
-            const w=doc.getTextWidth(seg.t);
-            if(seg.st.u){doc.setDrawColor(col[0],col[1],col[2]);doc.setLineWidth(.5);doc.line(cx,y+1.6,cx+w,y+1.6)}
-            cx+=w;
-          });
-          y+=lh;linea=[];ancho=0;primera=false;
-        };
-        pal.forEach(w=>{
-          fuente(w.st.b,w.st.i);doc.setFontSize(size);
-          const ww=doc.getTextWidth(w.t);
-          if(ancho+ww>maxW&&linea.length&&w.t.trim())soltar();
-          if(!linea.length&&!w.t.trim())return;      // ninguna línea empieza por un espacio
-          linea.push(w);ancho+=ww;
-        });
-        soltar();
-        y+=size*.4;                                   // aire entre párrafos
-      });
-    };
-
-    /* ── un apartado del esquema ── */
-    const dibujarNodo=(node,prof,num)=>{
-      const st=CMAP_PDF_LV[Math.min(prof,CMAP_PDF_LV.length-1)];
-      const x=ML+st.ind+(prof>4?(prof-4)*12:0);
-      const dotc=parseColorRGB(cmapLevelDot(node.level))||[201,195,214];
-      const pgTxt=node.page?('p. '+pageLabel(node.page)):'';
-
-      doc.setFont('helvetica','normal');doc.setFontSize(8.5);
-      const pgW=pgTxt?doc.getTextWidth(pgTxt)+12:0;
-
-      const tx=x+(prof===0?14:13);
-      fuente(st.bold,false);doc.setFontSize(st.size);
-      const numS=num+'   ';
-      const numW=doc.getTextWidth(numS);
-      const lineas=doc.splitTextToSize(String(node.title||'(sin título)'),Math.max(60,RIGHT-tx-numW-pgW));
-      const lh=st.size*1.3;
-      const altoTitulo=lineas.length*lh;
-
-      y+=st.gap;
-      /* que ningún rótulo se quede solo al final de la hoja. Un tema entero
-         (nivel 0) pide bastante más sitio: si no caben unas líneas suyas,
-         mejor empezarlo limpio en la hoja siguiente. */
-      sitio(altoTitulo+(prof===0?96:16));
-
-      const y0=y+lh*.78;
-      if(prof===0){
-        doc.setFillColor(dotc[0],dotc[1],dotc[2]);
-        doc.roundedRect(ML,y-5,RIGHT-ML,altoTitulo+12,6,6,'F');
-      }else{
-        doc.setFillColor(dotc[0],dotc[1],dotc[2]);
-        doc.roundedRect(x,y0-6.5,6,6,1.5,1.5,'F');       // punto del nivel
-      }
-      fuente(st.bold,false);doc.setFontSize(st.size);
-      tinta(prof===0?INK:INK2);
-      doc.text(numS,tx,y0);
-      tinta(INK);
-      let yy=y0;
-      lineas.forEach(ln=>{doc.text(ln,tx+numW,yy);yy+=lh});
-      if(pgTxt){
-        doc.setFont('helvetica','normal');doc.setFontSize(8.5);tinta(prof===0?INK2:INK3);
-        doc.text(pgTxt,RIGHT-(prof===0?10:0),y0,{align:'right'});
-      }
-      y+=altoTitulo+(prof===0?10:3);
-
-      if(node.desc&&String(node.desc).trim())dibujarRico(node.desc,tx,prof<=1?10:9.6,INK2);
-    };
-
-    /* ── portada ligera ── */
-    const nom=(currentFileName||'Documento').replace(/\.[^.]+$/,'');
+  conPDF(maps.length,'No hay ningún mapa conceptual que exportar',P=>{
     let nApart=0;maps.forEach(r=>cmapWalk(r,()=>nApart++));
-    doc.setFont('helvetica','bold');doc.setFontSize(21);tinta(INK);
-    doc.text('Mapa conceptual',ML,y+8);y+=30;
-    doc.setFont('helvetica','normal');doc.setFontSize(12);tinta(INK2);
-    doc.splitTextToSize(nom,RIGHT-ML).forEach(l=>{doc.text(l,ML,y);y+=16});
-    doc.setFontSize(9.5);tinta(INK3);
-    const fecha=new Date().toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric'});
-    doc.text(fecha+'   ·   '+maps.length+(maps.length===1?' tema':' temas')+'   ·   '+nApart+' apartados',ML,y);
-    y+=14;
-    /* leyenda: qué significa cada color del esquema */
-    let lx=ML;
-    doc.setFontSize(8.5);
-    CMAP_LEVELS.forEach(lv=>{
-      const c=parseColorRGB(cmapLevelDot(lv))||[201,195,214];
-      const et=CMAP_LEVEL_META[lv].label;
-      doc.setFillColor(c[0],c[1],c[2]);doc.roundedRect(lx,y-5,6,6,1.5,1.5,'F');
-      tinta(INK3);doc.text(et,lx+10,y);
-      lx+=doc.getTextWidth(et)+26;
-    });
-    y+=10;
-    doc.setDrawColor(224,220,234);doc.setLineWidth(1);doc.line(ML,y,RIGHT,y);
-    y+=4;
-
-    /* ── el esquema entero ── */
+    P.portada('Mapa conceptual',
+      maps.length+(maps.length===1?' tema':' temas')+'   ·   '+nApart+' apartados',
+      CMAP_LEVELS.map(lv=>({color:cmapLevelDot(lv),label:CMAP_LEVEL_META[lv].label})));
     const recorrer=(node,prof,num)=>{
-      dibujarNodo(node,prof,num);
+      P.apartado({titulo:node.title,num,prof,color:cmapLevelDot(node.level),
+                  pagina:node.page?pageLabel(node.page):null});
+      P.cuerpo(node.desc,prof);
       (node.children||[]).forEach((ch,i)=>recorrer(ch,prof+1,num+'.'+(i+1)));
     };
     maps.forEach((root,i)=>recorrer(root,0,String(i+1)));
+    P.guardar('MapaConceptual','Mapa conceptual exportado en PDF');
+  });
+}
 
-    /* ── pies de página ── */
-    const total=doc.getNumberOfPages();
-    for(let p=1;p<=total;p++){
-      doc.setPage(p);
-      doc.setFont('helvetica','normal');doc.setFontSize(8.5);tinta(INK3);
-      doc.text(nom,ML,PH-32);
-      doc.text(p+' / '+total,RIGHT,PH-32,{align:'right'});
-    }
-
-    downloadBlob(doc.output('blob'),'MapaConceptual_'+nom+'.pdf');
-    showTip('Mapa conceptual exportado en PDF',1800);
-  }catch(err){
-    console.error(err);
-    showTip('No se ha podido generar el PDF. Prueba con "Texto".',2600);
-  }
+/* ── exportaciones en texto plano: piezas compartidas ── */
+/* parte un texto en líneas de ~76 columnas con sangría, respetando los
+   saltos de párrafo que ya traía */
+function txtWrap(txt,sangria){
+  let res='';
+  String(txt||'').split('\n').forEach(lin=>{
+    if(!lin.trim()){res+='\n';return}
+    const palabras=lin.trim().split(/\s+/);let l='';
+    palabras.forEach(w=>{
+      if((l+' '+w).trim().length>76-sangria.length){res+=sangria+l.trim()+'\n';l=w}
+      else l+=' '+w;
+    });
+    if(l.trim())res+=sangria+l.trim()+'\n';
+  });
+  return res;
+}
+const TXT_SEP='═'.repeat(60);
+function txtCabecera(titulo,resumen){
+  const nom=(currentFileName||'documento').replace(/\.[^.]+$/,'');
+  let out=titulo.toUpperCase()+'\n'+nom+'\n';
+  out+=new Date().toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric'});
+  if(resumen)out+='  ·  '+resumen;
+  return out+'\n'+TXT_SEP+'\n';
+}
+function txtGuardar(out,nombre,aviso){
+  const nom=(currentFileName||'documento').replace(/\.[^.]+$/,'');
+  downloadBlob(new Blob([out+TXT_SEP+'\n'],{type:'text/plain;charset=utf-8'}),nombre+'_'+nom+'.txt');
+  showTip(aviso||'Exportado en texto',1600);
 }
 
 /* Mismo esquema en texto plano, por si hace falta pegarlo en otro sitio.
@@ -8789,19 +8905,7 @@ function cmapExportTXT(){
   out+=new Date().toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric'});
   out+='  ·  '+maps.length+(maps.length===1?' tema':' temas')+'  ·  '+nApart+' apartados\n'+sep+'\n';
 
-  const parrafo=(txt,sangria)=>{
-    let res='';
-    txt.split('\n').forEach(lin=>{
-      if(!lin.trim()){res+='\n';return}
-      const palabras=lin.trim().split(/\s+/);let l='';
-      palabras.forEach(w=>{
-        if((l+' '+w).trim().length>76-sangria.length){res+=sangria+l.trim()+'\n';l=w}
-        else l+=' '+w;
-      });
-      if(l.trim())res+=sangria+l.trim()+'\n';
-    });
-    return res;
-  };
+  const parrafo=txtWrap;
   const recorrer=(n,prof,num)=>{
     const et=(CMAP_LEVEL_META[n.level]&&CMAP_LEVEL_META[n.level].label)||'Apartado';
     const pad='   '.repeat(prof);
@@ -8822,6 +8926,198 @@ function cmapExportTXT(){
 
 document.getElementById('cmap-export-pdf').onclick=()=>cmapExportPDF();
 document.getElementById('cmap-export-txt').onclick=()=>cmapExportTXT();
+
+/* ══════════════════════════════════════════════════════════════════
+   EXPORTAR LAS DEMÁS HERRAMIENTAS
+   Todas con el mismo molde que el mapa conceptual: portada, los temas
+   como bandas de color y, colgando de cada uno, sus fichas numeradas y
+   con su texto tal como se escribió. El orden y la agrupación son los
+   mismos que se ven en el panel, para que el papel y la pantalla
+   cuenten lo mismo.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── GLOSARIO / CONCLUSIONES ── */
+function entExportPDF(kind){
+  const K=ENT_KINDS[kind];
+  const items=loadEnts(kind);
+  conPDF(items.length,'No hay nada que exportar todavía',P=>{
+    P.portada(K.label,items.length+(items.length===1?' entrada':' entradas'));
+    /* el glosario se lee alfabético; las conclusiones, por orden del documento */
+    const orden=l=>[...l].sort((a,b)=>kind==='glos'
+      ? String(a.title||'').localeCompare(String(b.title||''),'es',{sensitivity:'base'})
+      : posOfPid(a.page)-posOfPid(b.page));
+    porTemas(items,entThemeId).forEach((g,i)=>{
+      const nt=temaNum(g.theme,i);
+      P.apartado({titulo:temaRotulo(g.theme),num:nt,prof:0,color:temaColor(g.theme)});
+      orden(g.items).forEach((it,j)=>{
+        P.apartado({titulo:it.title,num:nt+'.'+(j+1),prof:1,color:K.dot,
+                    pagina:it.page?pageLabel(it.page):null});
+        P.cuerpo(it.body||it.text,1);
+      });
+    });
+    P.guardar(kind==='glos'?'Glosario':'Conclusiones',K.label+' exportado en PDF');
+  });
+}
+
+/* ── ACLARACIONES ── */
+function aclarExportPDF(){
+  const items=loadAclars();
+  conPDF(items.length,'No hay aclaraciones que exportar todavía',P=>{
+    P.portada('Aclaraciones',items.length+(items.length===1?' aclaración':' aclaraciones'));
+    porTemas(items,a=>a.themeId).forEach((g,i)=>{
+      const nt=temaNum(g.theme,i);
+      P.apartado({titulo:temaRotulo(g.theme),num:nt,prof:0,color:temaColor(g.theme)});
+      [...g.items].sort((a,b)=>posOfPid(a.page)-posOfPid(b.page)).forEach((a,j)=>{
+        /* el rótulo de una aclaración es el texto subrayado al que se pegó */
+        P.apartado({titulo:a.ref||'Aclaración',num:nt+'.'+(j+1),prof:1,
+                    color:a.color||'#00C2AE',pagina:a.page?pageLabel(a.page):null});
+        P.cuerpo(a.text,1);
+      });
+    });
+    P.guardar('Aclaraciones','Aclaraciones exportadas en PDF');
+  });
+}
+
+/* ── NODOS CONCEPTUALES (árbol, como el mapa) ── */
+function contarNodos(list){let n=0;const v=l=>(l||[]).forEach(x=>{n++;v(x.children)});v(list);return n}
+function nodesExportPDF(){
+  const nodes=loadNodes();
+  conPDF(nodes.length,'No hay nodos que exportar todavía',P=>{
+    const n=contarNodos(nodes);
+    P.portada('Nodos conceptuales',n+(n===1?' nodo':' nodos'));
+    const rama=(item,prof,num)=>{
+      P.apartado({titulo:item.title,num,prof,color:'#E3D0F5'});
+      P.cuerpo(item.body,prof);
+      (item.children||[]).forEach((c,k)=>rama(c,prof+1,num+'.'+(k+1)));
+    };
+    porTemas(nodes,x=>x.themeId).forEach((g,i)=>{
+      const nt=temaNum(g.theme,i);
+      P.apartado({titulo:temaRotulo(g.theme),num:nt,prof:0,color:temaColor(g.theme)});
+      g.items.forEach((nd,j)=>{
+        const pgs=(nd.pages||[]).map(p=>pageLabel(p)).join(', ');
+        P.apartado({titulo:nd.title,num:nt+'.'+(j+1),prof:1,color:nd.color||'#E3D0F5',pagina:pgs||null});
+        P.cuerpo(nd.body,1);
+        (nd.children||[]).forEach((c,k)=>rama(c,2,nt+'.'+(j+1)+'.'+(k+1)));
+      });
+    });
+    P.guardar('Nodos','Nodos exportados en PDF');
+  });
+}
+function nodesExportTXT(){
+  const nodes=loadNodes();
+  if(!nodes.length){showTip('No hay nodos que exportar todavía');return}
+  const n=contarNodos(nodes);
+  let out=txtCabecera('Nodos conceptuales',n+(n===1?' nodo':' nodos'));
+  const rama=(item,prof,num)=>{
+    const pad='   '.repeat(prof);
+    out+=pad+num+'.  '+(item.title||'(sin título)')+'\n';
+    const d=richToPlain(item.body||'');
+    if(d.trim())out+=txtWrap(d,pad+'    ');
+    out+='\n';
+    (item.children||[]).forEach((c,k)=>rama(c,prof+1,num+'.'+(k+1)));
+  };
+  porTemas(nodes,x=>x.themeId).forEach((g,i)=>{
+    const nt=temaNum(g.theme,i);
+    out+='\n'+TXT_SEP+'\n'+nt+'.  '+temaRotulo(g.theme).toUpperCase()+'\n'+TXT_SEP+'\n\n';
+    g.items.forEach((nd,j)=>{
+      const pgs=(nd.pages||[]).map(p=>pageLabel(p)).join(', ');
+      out+='   '+nt+'.'+(j+1)+'.  '+(nd.title||'(sin título)')+(pgs?'   [p.'+pgs+']':'')+'\n';
+      const d=richToPlain(nd.body||'');
+      if(d.trim())out+=txtWrap(d,'       ');
+      out+='\n';
+      (nd.children||[]).forEach((c,k)=>rama(c,2,nt+'.'+(j+1)+'.'+(k+1)));
+    });
+  });
+  txtGuardar(out,'Nodos','Nodos exportados en texto');
+}
+
+/* ── PROCESOS Y TEORÍAS ──
+   Los pasos van en su orden y, cuando un paso recibe flechas de otros, se
+   dice de cuáles: es la única forma de que el diagrama se entienda en papel. */
+function procExportPDF(){
+  const procs=loadProc();
+  conPDF(procs.length,'No hay procesos que exportar todavía',P=>{
+    let ns=0;procs.forEach(p=>ns+=(p.steps||[]).length);
+    P.portada('Procesos y teorías',
+      procs.length+(procs.length===1?' proceso':' procesos')+'   ·   '+ns+(ns===1?' paso':' pasos'));
+    porTemas(procs,p=>p.themeId).forEach((g,i)=>{
+      const nt=temaNum(g.theme,i);
+      P.apartado({titulo:temaRotulo(g.theme),num:nt,prof:0,color:temaColor(g.theme)});
+      g.items.forEach((pr,j)=>{
+        P.apartado({titulo:pr.title,num:nt+'.'+(j+1),prof:1,color:temaColor(g.theme)});
+        const byId={};(pr.steps||[]).forEach(s=>byId[s.id]=s);
+        if(!(pr.steps||[]).length)P.apunte('(sin pasos todavía)',1);
+        (pr.steps||[]).forEach((s,k)=>{
+          P.apartado({titulo:s.title,num:nt+'.'+(j+1)+'.'+(k+1),prof:2,color:'#CFE3F5'});
+          P.cuerpo(s.desc,2);
+          const de=(s.from||[]).map(id=>byId[id]&&byId[id].title).filter(Boolean);
+          if(de.length)P.apunte('Viene de: '+de.join(' · '),2);
+        });
+      });
+    });
+    P.guardar('Procesos','Procesos exportados en PDF');
+  });
+}
+function procExportTXT(){
+  const procs=loadProc();
+  if(!procs.length){showTip('No hay procesos que exportar todavía');return}
+  let ns=0;procs.forEach(p=>ns+=(p.steps||[]).length);
+  let out=txtCabecera('Procesos y teorías',
+    procs.length+(procs.length===1?' proceso':' procesos')+'  ·  '+ns+(ns===1?' paso':' pasos'));
+  porTemas(procs,p=>p.themeId).forEach((g,i)=>{
+    const nt=temaNum(g.theme,i);
+    out+='\n'+TXT_SEP+'\n'+nt+'.  '+temaRotulo(g.theme).toUpperCase()+'\n'+TXT_SEP+'\n\n';
+    g.items.forEach((pr,j)=>{
+      out+='   '+nt+'.'+(j+1)+'.  '+(pr.title||'(sin título)')+'\n\n';
+      const byId={};(pr.steps||[]).forEach(s=>byId[s.id]=s);
+      if(!(pr.steps||[]).length)out+='       (sin pasos todavía)\n\n';
+      (pr.steps||[]).forEach((s,k)=>{
+        out+='      '+nt+'.'+(j+1)+'.'+(k+1)+'.  '+(s.title||'(sin título)')+'\n';
+        const d=richToPlain(s.desc||'');
+        if(d.trim())out+=txtWrap(d,'          ');
+        const de=(s.from||[]).map(id=>byId[id]&&byId[id].title).filter(Boolean);
+        if(de.length)out+='          Viene de: '+de.join(' · ')+'\n';
+        out+='\n';
+      });
+    });
+  });
+  txtGuardar(out,'Procesos','Procesos exportados en texto');
+}
+
+/* ── NOTAS ──
+   Las notas escritas a mano no tienen texto que copiar: sus trazos se
+   redibujan en el PDF, si no una nota dibujada saldría en blanco. */
+function notesExportPDF(){
+  const notas=[];
+  for(const slot of pageOrder){
+    const ann=annotations[slot.pid];if(!ann)continue;
+    (ann.notes||[]).filter(n=>(n.title&&n.title.trim())||(n.text&&n.text.trim())||(n.strokes&&n.strokes.length))
+      .forEach(n=>notas.push({n,pg:slot.pid}));
+  }
+  conPDF(notas.length,'No hay notas que exportar',P=>{
+    P.portada('Notas',notas.length+(notas.length===1?' nota':' notas'));
+    porTemas(notas,x=>x.n.themeId).forEach((g,i)=>{
+      const nt=temaNum(g.theme,i);
+      P.apartado({titulo:temaRotulo(g.theme),num:nt,prof:0,color:temaColor(g.theme)});
+      g.items.forEach((it,j)=>{
+        P.apartado({titulo:noteTitle(it.n),num:nt+'.'+(j+1),prof:1,
+                    color:it.n.color||'#FFF0C9',pagina:pageLabel(it.pg)});
+        P.cuerpo(it.n.text,1);
+        P.dibujo(it.n.strokes,1);
+      });
+    });
+    P.guardar('Notas','Notas exportadas en PDF');
+  });
+}
+
+document.getElementById('glossary-export-pdf').onclick=()=>entExportPDF('glos');
+document.getElementById('conclusions-export-pdf').onclick=()=>entExportPDF('conc');
+document.getElementById('aclar-export-pdf').onclick=()=>aclarExportPDF();
+document.getElementById('summary-export-pdf').onclick=()=>notesExportPDF();
+document.getElementById('nodes-export-pdf').onclick=()=>nodesExportPDF();
+document.getElementById('nodes-export-txt').onclick=()=>nodesExportTXT();
+document.getElementById('proc-export-pdf').onclick=()=>procExportPDF();
+document.getElementById('proc-export-txt').onclick=()=>procExportTXT();
 
 /* "Desplegar todo"/"Plegar todo": alterna sobre TODOS los nodos de TODOS los
    mapas del documento, no solo el que se ve. */
