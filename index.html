@@ -1111,7 +1111,7 @@ body.fullscreen #gid-bar{bottom:20px}
       <svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
     </button>
     <button class="tool-btn" id="tb-dark" title="Modo oscuro"></button>
-    <button class="tool-btn" id="tb-gest" title="Gestos">
+    <button class="tool-btn" id="tb-gest" title="Gestos y escritura">
       <svg viewBox="0 0 24 24"><path d="M8 13V5.5a1.5 1.5 0 013 0V12M11 11.5v-2a1.5 1.5 0 013 0V12M14 10.5a1.5 1.5 0 013 0V16a6 6 0 01-6 6h-2c-2.1 0-3.6-.9-4.8-2.4L4 15.6c-.6-.8-.4-1.9.4-2.5.7-.5 1.7-.4 2.3.3L8 15"/></svg>
     </button>
     <button class="tool-btn" id="tb-find" title="Buscar en el documento">
@@ -1375,7 +1375,7 @@ body.fullscreen #gid-bar{bottom:20px}
     <h3>Gestionar temas</h3>
     <p style="font-size:12.5px;color:var(--ink2);margin-bottom:12px;line-height:1.5">
       Toca el nombre para cambiarlo. Los cambios se guardan solos.</p>
-    <input id="tm-filter" type="text" placeholder="Buscar tema…" style="width:100%;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);font-size:15px;padding:10px 12px;outline:none;margin-bottom:10px">
+    <input id="tm-filter" type="text" placeholder="Buscar tema…" autocorrect="off" style="width:100%;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);font-size:15px;padding:10px 12px;outline:none;margin-bottom:10px">
     <div id="tm-list" style="max-height:46vh;overflow-y:auto;margin-bottom:12px"></div>
     <div style="display:flex;gap:8px;margin-bottom:4px">
       <input id="tm-new-num" type="number" min="1" placeholder="Nº" style="width:64px;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);font-size:15px;padding:10px;outline:none;text-align:center">
@@ -1549,7 +1549,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <div class="modal-bg hidden" id="modal-cmap-link">
   <div class="modal">
     <h3>Vincular con una ficha</h3>
-    <input id="cmap-link-search" type="search" placeholder="Buscar ficha…" style="width:100%;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);font-size:15px;padding:10px 12px;outline:none;margin-bottom:10px">
+    <input id="cmap-link-search" type="search" placeholder="Buscar ficha…" autocorrect="off" style="width:100%;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);font-size:15px;padding:10px 12px;outline:none;margin-bottom:10px">
     <div id="cmap-link-list" style="max-height:50vh;overflow-y:auto;display:flex;flex-direction:column;gap:2px"></div>
     <div class="modal-btns">
       <button class="mbtn cancel" id="modal-cmap-link-cancel">Cancelar</button>
@@ -1750,7 +1750,7 @@ body.fullscreen #gid-bar{bottom:20px}
 </div>
 <div class="modal-bg hidden" id="modal-gest">
   <div class="modal">
-    <h3>Gestos táctiles</h3>
+    <h3>Gestos y escritura</h3>
     <div class="gest-row">
       <div class="gest-info">
         <div class="gest-name">2 dedos = deshacer</div>
@@ -1779,6 +1779,13 @@ body.fullscreen #gid-bar{bottom:20px}
       </div>
       <label class="gswitch"><input type="checkbox" id="g-pinch" checked><span class="gslider"></span></label>
     </div>
+    <div class="gest-row" style="border-top:1px solid var(--border)">
+      <div class="gest-info">
+        <div class="gest-name">Autocorrector de tildes</div>
+        <div class="gest-desc">Al terminar una palabra le pone la tilde que le falta (tambien → también). Si se equivoca, pulsa Retroceso justo después y la deja como la escribiste.</div>
+      </div>
+      <label class="gswitch"><input type="checkbox" id="g-autocorr" checked><span class="gslider"></span></label>
+    </div>
     <div class="modal-btns">
       <button class="mbtn ok" id="gest-close" style="background:var(--lila)">Listo</button>
     </div>
@@ -1793,7 +1800,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v108'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v109'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -8075,7 +8082,7 @@ const DOC_KEY_PREFIXES=['lp_order_','lp_margin_','lp_nodes_','lp_embeds_','lp_bm
    las paletas que te habias creado desaparecian sin decir nada. */
 const GLOBAL_KEYS=['lp_custompals','lp_toolcfg','lp_color','lp_boldstrength',
   'lp_boldbycolor','lp_bartab','lp_panelwin','lp_panelw','lp_dark','lp_gest',
-  'lp_bottommin','lp_lastbackup'];
+  'lp_bottommin','lp_lastbackup','lp_autocorr'];
 function collectGlobalData(){
   const out={};
   GLOBAL_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)out[k]=v});
@@ -10181,6 +10188,293 @@ const gestInputs={twoTapUndo:'g-twotap',threeTapRedo:'g-threetap',pinch:'g-pinch
 document.getElementById('tb-gest').onclick=()=>{Object.entries(gestInputs).forEach(([k,id])=>document.getElementById(id).checked=!!gestCfg[k]);modalGest.classList.remove('hidden')};
 Object.entries(gestInputs).forEach(([k,id])=>{document.getElementById(id).addEventListener('change',e=>{gestCfg[k]=e.target.checked;saveGest()})});
 document.getElementById('gest-close').onclick=()=>modalGest.classList.add('hidden');
+
+/* ══════════════════════════════════════════════════════════════════
+   AUTOCORRECTOR DE TILDES  (se enciende y apaga en "Gestos y escritura")
+
+   QUE HACE
+   Cuando terminas una palabra (espacio, punto, coma, Enter...) mira si esa
+   palabra esta en una lista de palabras que casi siempre llevan tilde y la
+   corrige: "tambien" -> "también", "psicologia" -> "psicología". Funciona en
+   TODOS los cuadros de texto de la app: titulos, editores con formato,
+   nombres, aclaraciones, etc.
+
+   POR QUE UNA LISTA CERRADA Y NO "ADIVINAR"
+   En espanol muchisimas palabras sin tilde TAMBIEN existen: esta/está,
+   como/cómo, que/qué, el/él, tu/tú, si/sí, se/sé, aun/aún, termino/terminó,
+   hablo/habló, hacia/hacía, sabia/sabía, seria/sería. Un corrector que las
+   cambiara solo se equivocaria a cada frase y acabaria estorbando. Asi que
+   esas se dejan en paz A PROPOSITO: solo se corrige lo que casi nunca puede
+   ser otra cosa. Si algun dia falta una palabra, se anade a AC_OK.
+
+   COMO SE CONSTRUYE LA LISTA
+   Solo se escriben las palabras BIEN escritas (con su tilde). El codigo
+   calcula solo la version sin tildes, que es lo que hay que buscar. Asi es
+   imposible equivocarse escribiendo los pares a mano.
+
+   SI SE EQUIVOCA
+   Pulsando Retroceso justo despues de la correccion, la palabra vuelve a
+   como tu la escribiste (igual que en el iPhone).
+
+   DONDE NO ACTUA
+   En los buscadores y filtros (llevan autocorrect="off"), en los campos de
+   numero/color, y en cualquier cuadro marcado con data-noac: buscar
+   "analisis" tiene que buscar "analisis" y no otra cosa.
+   ══════════════════════════════════════════════════════════════════ */
+
+let acOn=localStorage.getItem('lp_autocorr')!=='0';   // encendido por defecto
+function saveAutocorr(){try{localStorage.setItem('lp_autocorr',acOn?'1':'0')}catch(e){}}
+
+/* Palabras BIEN escritas. La clave que se busca (sin tildes) se calcula sola.
+   La ñ NO se toca: "espanol" no se corrige, "compañía" si. */
+const AC_OK=(`
+también además así aquí ahí allí allá acá adiós después atrás detrás jamás
+quizá quizás según más día días demás ojalá todavía
+será serán estará estarán están estáis habrá habrán podrá podrán tendrá tendrán
+hará harán dirá dirán vendrá vendrán deberá deberán sabrá querrá
+habría habrían podría podrían tendría tendrían haría harían diría dirían
+estaría estarían serían daría darían gustaría deberían
+había habían tenía tenían podía podían debía debían quería querían decía decían
+venía creía creían seguía seguían sentía sentían vivía vivían ponía ponían
+salía salían leía traía caía oía veía volvía existía existían permitía servía
+acción actuación adaptación administración afección alteración ampliación
+animación aplicación apreciación aproximación argumentación asociación atención
+atribución autorización calificación cognición colaboración combinación
+comparación compensación competición composición comprensión comunicación
+concentración concepción conclusión condición conexión confirmación confusión
+conservación consideración constitución construcción contaminación contradicción
+contribución conversación conversión cooperación coordinación corrección
+correlación creación decisión declaración dedicación definición deformación
+degradación demostración denominación depresión derivación descripción desviación
+determinación dimensión dirección discriminación discusión disposición distinción
+distribución diversión división documentación duración edición educación ejecución
+elaboración elección eliminación emisión emoción especialización especificación
+estimación evaluación evolución exclusión excepción exposición expresión extensión
+fijación formación formulación función generación gestión identificación ilusión
+imaginación implicación impresión inclusión indicación información iniciación
+innovación inspiración instrucción integración interacción interpretación
+intervención introducción intuición investigación justificación lección limitación
+localización manifestación medición mediación misión modificación motivación
+narración negación obligación observación obsesión ocasión operación opinión
+oposición organización orientación participación pasión percepción planificación
+población posición precisión predicción preparación presentación presión
+prevención producción profesión programación progresión proporción protección
+publicación radiación razón reacción realización recepción reducción reflexión
+regulación relación religión repetición representación reproducción resolución
+reunión revisión revolución satisfacción sección selección sensación separación
+sesión significación situación socialización solución sucesión superación
+supervisión televisión tensión tradición traducción transformación transmisión
+unión valoración variación versión visión vocación votación
+teoría filosofía psicología sociología antropología biología metodología
+epistemología ideología economía autonomía energía categoría mayoría minoría
+geografía fisiología patología psiquiatría pedagogía tecnología cronología
+alegría compañía garantía policía fotografía bibliografía biografía anatomía
+análisis síntesis hipótesis énfasis párrafo capítulo capítulos título títulos
+artículo artículos índice ítem método métodos
+público pública práctica prácticas práctico teórico teórica físico física
+químico química biológico psicológico sociológico histórico económico
+político política básico básica clásico clásica crítico crítica
+específico específica técnico técnica médico médica psicólogo psicóloga
+pedagógico didáctico metodológico epistemológico semántico lingüística lingüístico
+número números máximo máxima mínimo mínima óptimo óptima último última
+único única próximo próxima típico típica lógico lógica rápido rápida cómodo
+símbolo símbolos sílaba síntoma síntomas régimen síndrome área áreas época épocas
+ética éxito límite límites línea líneas música página páginas máquina mágico
+orgánico oxígeno plástico estadística estadísticas matemáticas gramática
+dinámica dinámico automático académico informático fonética semiótica pragmática
+difícil difíciles fácil fáciles útil útiles inútil débil ágil hábil móvil frágil
+jóvenes exámenes imágenes orígenes márgenes resúmenes volúmenes regímenes
+corazón común botón montón rincón camión avión canción patrón león jardín
+país países francés inglés portugués estrés cortés través interés
+estímulo estímulos fenómeno fenómenos diagnóstico pronóstico psíquico
+psiquiátrico patológico crónico traumático genético genética empatía apatía
+neurológico hábito hábitos ámbito ámbitos vínculo vínculos génesis
+café sofá mamá papá bebé teléfono cámara película década sábado miércoles
+jamón limón azúcar árbol lápiz lápices mayúscula minúscula
+España América Perú México París Japón
+`).trim().split(/\s+/);
+
+/* Erratas frecuentes y palabras que se escriben separadas. No se pueden
+   deducir de la lista de arriba, asi que van a mano. */
+const AC_FIX={qeu:'que',aunqeu:'aunque',porqeu:'porque',tambein:'también',
+  dijieron:'dijeron',haci:'así',dle:'del',esque:'es que',apartir:'a partir',
+  aveces:'a veces',talvez:'tal vez',sinembargo:'sin embargo',
+  deacuerdo:'de acuerdo',porfavor:'por favor',sobretodo:'sobre todo'};
+
+const AC_TILDE={'á':'a','é':'e','í':'i','ó':'o','ú':'u','ü':'u'};
+function acStrip(w){return w.replace(/[áéíóúü]/g,c=>AC_TILDE[c])}
+const AC_DICT={};
+AC_OK.forEach(w=>{const k=acStrip(w.toLowerCase());if(k!==w)AC_DICT[k]=w});
+Object.keys(AC_FIX).forEach(k=>{AC_DICT[k]=AC_FIX[k]});
+
+const AC_SEP=' .,;:!?)]}"»…\t';                      // cierran palabra
+const AC_LET=/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/;
+let acBusy=false;      // evita que las correcciones se corrijan a si mismas
+let acLast=null;       // ultima correccion, para poder deshacerla con Retroceso
+
+/* Respeta las mayusculas que hayas escrito: TAMBIEN->TAMBIÉN, Tambien->También */
+function acCase(orig,rep){
+  const up=orig.toUpperCase();
+  if(orig===up&&orig!==orig.toLowerCase()&&orig.length>1)return rep.toUpperCase();
+  if(orig.charAt(0)===up.charAt(0)&&orig.charAt(0)!==orig.charAt(0).toLowerCase())
+    return rep.charAt(0).toUpperCase()+rep.slice(1);
+  return rep;
+}
+/* Que clase de cuadro de texto es (o null si no hay que tocarlo) */
+function acKind(el){
+  if(!el||!acOn)return null;
+  if(el.getAttribute&&(el.getAttribute('autocorrect')||'').toLowerCase()==='off')return null;
+  if(el.closest&&el.closest('[data-noac]'))return null;
+  const tag=(el.tagName||'').toUpperCase();
+  if(tag==='TEXTAREA')return 'val';
+  if(tag==='INPUT'){const t=(el.type||'text').toLowerCase();return (t==='text'||t==='search')?'val':null}
+  if(el.isContentEditable)return 'rich';
+  return null;
+}
+/* La palabra que acaba justo antes del cursor (o null) */
+function acWordAt(text,pos){
+  if(pos<=0||!AC_LET.test(text.charAt(pos-1)))return null;
+  let start=pos;
+  while(start>0&&AC_LET.test(text.charAt(start-1)))start--;
+  const word=text.slice(start,pos);
+  if(word.length<2||word.length>24)return null;
+  return {start,word};
+}
+function acLookup(word){
+  const rep=AC_DICT[word.toLowerCase()];
+  if(!rep)return null;
+  const out=acCase(word,rep);
+  return out===word?null:out;
+}
+/* Sustituye [start,end) por texto. Se usa execCommand para que el "deshacer"
+   del propio cuadro (Ctrl+Z) siga funcionando y para que salte el evento
+   'input' que dispara el guardado automatico. Si el navegador lo rechaza,
+   plan B a mano + evento 'input' fabricado. */
+function acPutVal(el,start,end,txt){
+  el.setSelectionRange(start,end);
+  let ok=false;
+  try{ok=document.execCommand('insertText',false,txt)}catch(e){}
+  if(!ok){
+    const v=el.value;
+    el.value=v.slice(0,start)+txt+v.slice(end);
+    const c=start+txt.length;
+    el.setSelectionRange(c,c);
+    el.dispatchEvent(new Event('input',{bubbles:true}));
+  }
+}
+function acPutRich(el,node,start,end,txt){
+  const sel=window.getSelection();
+  const r=document.createRange();
+  r.setStart(node,start);r.setEnd(node,end);
+  sel.removeAllRanges();sel.addRange(r);
+  let ok=false;
+  try{ok=document.execCommand('insertText',false,txt)}catch(e){}
+  if(!ok){
+    const v=node.nodeValue||'';
+    node.nodeValue=v.slice(0,start)+txt+v.slice(end);
+    const r2=document.createRange();
+    r2.setStart(node,start+txt.length);r2.collapse(true);
+    sel.removeAllRanges();sel.addRange(r2);
+    el.dispatchEvent(new Event('input',{bubbles:true}));
+  }
+}
+/* Corrige la palabra que acabas de terminar. sep = lo que la cierra
+   (el espacio o el signo); con Enter va vacio porque el salto lo pone
+   despues el navegador. Devuelve true si ha cambiado algo. */
+function acCorrect(el,kind,sep){
+  try{
+    if(kind==='val'){
+      if(el.selectionStart==null||el.selectionStart!==el.selectionEnd)return false;
+      const pos=el.selectionStart,w=acWordAt(el.value,pos);
+      if(!w)return false;
+      const rep=acLookup(w.word);
+      if(!rep)return false;
+      acBusy=true;acPutVal(el,w.start,pos,rep+sep);acBusy=false;
+      acLast={kind:'val',el,start:w.start,rep,sep,word:w.word};
+      return true;
+    }
+    const sel=window.getSelection();
+    if(!sel||!sel.isCollapsed)return false;
+    const node=sel.anchorNode;
+    if(!node||node.nodeType!==3)return false;
+    const pos=sel.anchorOffset,w=acWordAt(node.nodeValue||'',pos);
+    if(!w)return false;
+    const rep=acLookup(w.word);
+    if(!rep)return false;
+    acBusy=true;acPutRich(el,node,w.start,pos,rep+sep);acBusy=false;
+    /* execCommand puede haber cambiado el nodo de texto: se apunta el nuevo */
+    const s2=window.getSelection(),n2=s2&&s2.anchorNode;
+    const off=s2?s2.anchorOffset:0,ini=off-(rep.length+sep.length);
+    acLast=(n2&&n2.nodeType===3&&ini>=0)
+      ?{kind:'rich',el,node:n2,start:ini,rep,sep,word:w.word}:null;
+    return true;
+  }catch(e){acBusy=false;return false}
+}
+/* Retroceso justo despues de una correccion = devolver la palabra original */
+function acUndo(e,L){
+  try{
+    const ins=L.rep+L.sep,end=L.start+ins.length;
+    if(L.kind==='val'){
+      const el=L.el;
+      if(document.activeElement!==el)return false;
+      if(el.selectionStart!==end||el.selectionEnd!==end)return false;
+      if(el.value.slice(L.start,end)!==ins)return false;
+      e.preventDefault();
+      acBusy=true;acPutVal(el,L.start,end,L.word+L.sep);acBusy=false;
+      return true;
+    }
+    const node=L.node;
+    if(!node||!document.contains(node))return false;
+    /* Ojo: al escribir un espacio al final de un editor con formato, el
+       navegador guarda un "espacio duro" (nbsp) en vez de un espacio normal.
+       Sin igualar los dos, la comprobacion fallaba y no se podia deshacer. */
+    if((node.nodeValue||'').slice(L.start,end).replace(/\u00a0/g,' ')!==ins)return false;
+    const sel=window.getSelection();
+    if(!sel||!sel.isCollapsed||sel.anchorNode!==node||sel.anchorOffset!==end)return false;
+    e.preventDefault();
+    acBusy=true;acPutRich(L.el,node,L.start,end,L.word+L.sep);acBusy=false;
+    return true;
+  }catch(err){acBusy=false;return false}
+}
+
+/* Se escucha 'beforeinput' y no las teclas: en el iPad el teclado en pantalla
+   no manda teclas fiables (llegan como "Unidentified"), pero este evento si
+   llega siempre y dice exactamente que se va a escribir. */
+document.addEventListener('beforeinput',e=>{
+  if(acBusy||!acOn)return;
+  const L=acLast;acLast=null;
+  /* Si el navegador no deja cancelar el evento (teclados con prediccion,
+     dictado...) no se toca NADA: mas vale no corregir que escribir el
+     espacio dos veces. */
+  if(!e.cancelable)return;
+  if(e.inputType==='deleteContentBackward'&&L){acUndo(e,L);return}
+  if(e.inputType!=='insertText')return;
+  const d=e.data;
+  if(!d||d.length!==1||AC_SEP.indexOf(d)<0)return;
+  const kind=acKind(e.target);
+  if(!kind)return;
+  /* Se escribe la palabra corregida Y el separador de una vez, por eso hay
+     que impedir el separador que iba a poner el navegador (si no, saldria dos
+     veces). Solo se impide cuando de verdad hay correccion. */
+  if(acCorrect(e.target,kind,d))e.preventDefault();
+},true);
+
+/* Enter va aparte: se corrige la palabra y se deja que el Enter siga su
+   camino normal (salto de parrafo o guardar, segun donde estes). Al ir en
+   fase de captura, la correccion ocurre ANTES de que nadie guarde el texto. */
+document.addEventListener('keydown',e=>{
+  if(acBusy||!acOn||e.key!=='Enter')return;
+  const kind=acKind(e.target);
+  if(kind)acCorrect(e.target,kind,'');
+  acLast=null;
+},true);
+/* Al cambiar de sitio o de cuadro, la correccion ya no se puede deshacer */
+document.addEventListener('pointerdown',()=>{acLast=null},true);
+document.addEventListener('focusin',()=>{acLast=null},true);
+
+const acSwitch=document.getElementById('g-autocorr');
+acSwitch.checked=acOn;
+acSwitch.addEventListener('change',e=>{acOn=e.target.checked;acLast=null;saveAutocorr()});
 
 /* ══ NAV ══ */
 const pageObs=new IntersectionObserver(entries=>{entries.forEach(en=>{if(en.isIntersecting){const pid=parseInt(en.target.dataset.page);const pos=posOfPid(pid);if(pos&&pos!==curPage){curPage=pos;updateNav();saveLastPage()}}})},{root:canvasWrap,threshold:.5});
