@@ -1289,8 +1289,9 @@ body.fullscreen #gid-bar{bottom:20px}
   </div>
   <div id="resumen-body" class="sp-body"></div>
   <div style="padding:0 12px 12px;flex-shrink:0;display:flex;gap:8px">
-    <button id="resumen-refresh" class="sp-action-btn" style="background:var(--bg2);flex:1">↻ Actualizar</button>
-    <button id="resumen-export" class="sp-action-btn" style="flex:1">Exportar</button>
+    <button id="resumen-refresh" class="sp-action-btn" style="background:var(--bg2);flex:0 0 auto;padding:9px 14px;font-size:13px" title="Volver a generar el resumen">↻</button>
+    <button id="resumen-export-pdf" class="sp-action-btn" style="flex:1;padding:9px;font-size:13px">Exportar PDF</button>
+    <button id="resumen-export" class="sp-action-btn" style="flex:1;padding:9px;font-size:13px;background:var(--bg2)">Texto</button>
   </div>
 </div>
 
@@ -1780,7 +1781,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v105'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v106'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -6265,14 +6266,27 @@ async function buildResumenBlocks(){
       x0:Math.min(h.x,h.x+h.w),x1:Math.max(h.x,h.x+h.w),
       y0:Math.min(h.y,h.y+h.h),y1:Math.max(h.y,h.y+h.h)}));
     linesByPage[pg].forEach(l=>{
-      if(l.fh<med*1.25)return;                     // no es más grande que el cuerpo
       if(l.text.length<2||l.text.length>90)return; // los títulos son cortos
       const subrayada=boxes.some(b=>
         Math.min(b.x1,l.x1)-Math.max(b.x0,l.x0)>0 &&
         Math.min(b.y1,l.bottom)-Math.max(b.y0,l.top)>0);
       if(subrayada)return;                         // es un subrayado, no un título
       const r=l.fh/med;
-      headings.push({text:l.text,ord:ord(pg,l.base),level:r>=1.7?1:r>=1.4?2:3});
+      if(r>=1.25){                                 // letra más grande que el cuerpo
+        headings.push({text:l.text,ord:ord(pg,l.base),level:r>=1.7?1:r>=1.4?2:3});
+        return;
+      }
+      /* Un título no siempre es más grande. Dos pistas más, del propio texto,
+         que casi nunca se equivocan (y con la letra del cuerpo, así que van
+         como nivel 3, el más discreto):
+           · la línea entera en MAYÚSCULAS, con al menos dos palabras
+           · empieza numerada tipo "3", "3.2" o "3.2.1" y es corta
+         Los títulos en negrita del mismo tamaño NO se detectan: el PDF no da
+         esa información de forma fiable y preferimos no inventar. */
+      const t=l.text.trim();
+      const mayus=t.length>=6&&t.split(/\s+/).length>=2&&t===t.toUpperCase()&&/[A-ZÁÉÍÓÚÑ]/.test(t);
+      const numerado=/^\d+(\.\d+)*[.\-–)]?\s+\S/.test(t)&&t.length<=70;
+      if(mayus||numerado)headings.push({text:t,ord:ord(pg,l.base),level:3});
     });
   }
   headings.sort((a,b)=>a.ord-b.ord);
@@ -6343,41 +6357,137 @@ async function renderResumen(){
   });
 }
 
-/* descarga el resumen como .txt respetando títulos y saltos */
-function exportResumenText(){
-  if(!resumenBlocks.length||!resumenBlocks.some(b=>b.type==='hl')){
-    showTip('No hay subrayados que exportar');return;
+/* ══════════════════════════════════════════════════════════════════
+   EL RESUMEN, EN PROSA
+   El panel enseña una frase por línea (así se puede tocar cada una para ir
+   a su página). Pero eso, en papel, es un listado de frases sueltas y no
+   se lee. Al exportar se hila todo en PÁRRAFOS:
+
+   · Los subrayados seguidos se funden en un mismo párrafo.
+   · Si un subrayado empieza en minúscula, es la continuación de la frase
+     anterior: se pega con un espacio, sin inventar un punto.
+   · Si empieza en mayúscula y el anterior no cerraba, se pega con punto y
+     seguido.
+   · Si el anterior acaba en guion, es una palabra partida por el salto de
+     línea del PDF: se une sin espacio y sin guion.
+   · Un salto de página NO corta el párrafo cuando la frase venía a medias.
+   Los títulos del documento abren siempre párrafo nuevo.
+   ══════════════════════════════════════════════════════════════════ */
+function resFraseCierra(t){return /[.:;!?…»"')\]]\s*$/.test(String(t||''))}
+function resFraseSigueMinuscula(t){return /^[a-záéíóúüñ¡¿("'«]/.test(String(t||'').trim())}
+/* cómo se pega una frase con la que va delante */
+function resUnion(prev,txt){
+  const p=String(prev||'').trim();
+  if(!p)return '';
+  if(/[-‐‑–]$/.test(p))return '';                 // palabra partida: se sutura
+  if(resFraseCierra(p))return ' ';
+  if(resFraseSigueMinuscula(txt))return ' ';
+  return '. ';
+}
+/* bloques del panel → lista de {type:'heading'} y {type:'para',frases:[…]} */
+function resumenParrafos(blocks){
+  const out=[];let cur=null;
+  const siguienteHl=i=>{for(let k=i+1;k<blocks.length;k++){if(blocks[k].type==='hl')return blocks[k];if(blocks[k].type==='heading')return null}return null};
+  blocks.forEach((b,i)=>{
+    if(b.type==='heading'){cur=null;out.push({type:'heading',text:b.text,level:b.level});return}
+    if(b.type==='break'){
+      const ultima=cur&&cur.frases.length?cur.frases[cur.frases.length-1].text:null;
+      const prox=siguienteHl(i);
+      /* frase cortada a caballo entre dos páginas: no se parte el párrafo */
+      if(ultima&&prox&&!resFraseCierra(ultima)&&resFraseSigueMinuscula(prox.text))return;
+      cur=null;return;
+    }
+    if(!cur){cur={type:'para',frases:[]};out.push(cur)}
+    cur.frases.push({text:b.text,color:b.color,pg:b.pg});
+  });
+  return out.filter(x=>x.type!=='para'||x.frases.length);
+}
+/* Un color de subrayado es demasiado claro para leerlo como texto sobre
+   blanco. Se le baja la luminosidad y se le sube el color, PERO conservando
+   el tono: si solo se oscureciera multiplicando, todos los pasteles acababan
+   en el mismo gris pardo y ya no se distinguía el rosa del verde. Así el
+   rosa sigue siendo rosa, en oscuro. */
+function colorLegible(c){
+  const rgb=parseColorRGB(c)||[74,68,88];
+  const [r,g,b]=rgb.map(v=>v/255);
+  const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;
+  let h=0;
+  if(d){
+    if(mx===r)h=((g-b)/d+(g<b?6:0));
+    else if(mx===g)h=(b-r)/d+2;
+    else h=(r-g)/d+4;
+    h/=6;
   }
-  const sep='═'.repeat(52);
-  let out=`RESUMEN\n${currentFileName}\n${new Date().toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric'})}\n${sep}\n\n`;
-  resumenBlocks.forEach(b=>{
+  const l0=(mx+mn)/2;
+  if(l0<=.36&&d>0)return rgb;                 // ya es oscuro: se deja como está
+  const s0=d?(l0>.5?d/(2-mx-mn):d/(mx+mn)):0;
+  const L=.33, S=d?Math.max(.55,Math.min(.9,s0)):0;
+  const q=L<.5?L*(1+S):L+S-L*S, p=2*L-q;
+  const canal=t=>{
+    t=(t+1)%1;
+    if(t<1/6)return p+(q-p)*6*t;
+    if(t<1/2)return q;
+    if(t<2/3)return p+(q-p)*(2/3-t)*6;
+    return p;
+  };
+  return [canal(h+1/3),canal(h),canal(h-1/3)].map(v=>Math.max(0,Math.min(255,Math.round(v*255))));
+}
+function rgbHex(a){return '#'+a.map(v=>('0'+v.toString(16)).slice(-2)).join('')}
+
+/* el resumen hilado, en PDF */
+function resumenExportPDF(){
+  const bloques=resumenBlocks;
+  const nHl=bloques.filter(b=>b.type==='hl').length;
+  conPDF(nHl,'No hay subrayados que exportar',P=>{
+    P.portada('Resumen',nHl+(nHl===1?' subrayado':' subrayados'));
+    let ultimaPg=null;
+    resumenParrafos(bloques).forEach(b=>{
+      if(b.type==='heading'){P.titulo(b.text,b.level);return}
+      /* cada frase con el color de su subrayado, oscurecido para leerse */
+      const runs=[];
+      b.frases.forEach((f,i)=>{
+        const union=i?resUnion(b.frases[i-1].text,f.text):'';
+        if(union)runs.push({t:union,color:runs.length?runs[runs.length-1].color:null});
+        runs.push({t:f.text.trim(),color:rgbHex(colorLegible(f.color))});
+      });
+      const pg=b.frases[0].pg;
+      const marca=(pg!==ultimaPg)?String(pageLabel(pg)):null;
+      ultimaPg=b.frases[b.frases.length-1].pg;
+      P.parrafos([{bullet:null,sangria:0,runs}],null,10.4,marca);
+    });
+    P.guardar('Resumen','Resumen exportado en PDF');
+  });
+}
+
+/* el mismo resumen hilado, en texto plano */
+function exportResumenText(){
+  const nHl=resumenBlocks.filter(b=>b.type==='hl').length;
+  if(!nHl){showTip('No hay subrayados que exportar');return}
+  let out=txtCabecera('Resumen',nHl+(nHl===1?' subrayado':' subrayados'))+'\n';
+  let ultimaPg=null;
+  resumenParrafos(resumenBlocks).forEach(b=>{
     if(b.type==='heading'){
       out+='\n';
-      if(b.level===1)      out+=b.text.toUpperCase()+'\n'+'═'.repeat(Math.min(44,Math.max(8,b.text.length)))+'\n';
-      else if(b.level===2) out+=b.text+'\n'+'─'.repeat(Math.min(44,Math.max(6,b.text.length)))+'\n';
-      else                 out+='· '+b.text+'\n';
-      out+='\n';
-    }else if(b.type==='break'){
-      out+='\n';
-    }else{
-      /* envolver a ~72 columnas para que se lea bien en cualquier editor */
-      const words=b.text.split(/\s+/);let line='•';
-      words.forEach(w=>{
-        if((line+' '+w).length>72){out+=line+'\n';line='  '+w}
-        else line+=(line==='•'?' ':' ')+w;
-      });
-      out+=line+`   (p.${pageLabel(b.pg)})\n`;
+      if(b.level===1)      out+=b.text.toUpperCase()+'\n'+'═'.repeat(Math.min(52,Math.max(8,b.text.length)))+'\n\n';
+      else if(b.level===2) out+=b.text+'\n'+'─'.repeat(Math.min(52,Math.max(6,b.text.length)))+'\n\n';
+      else                 out+='· '+b.text+'\n\n';
+      return;
     }
+    let txt='';
+    b.frases.forEach((f,i)=>{txt+=(i?resUnion(b.frases[i-1].text,f.text):'')+f.text.trim()});
+    const pg=b.frases[0].pg;
+    if(pg!==ultimaPg)out+='[p.'+pageLabel(pg)+']\n';
+    ultimaPg=b.frases[b.frases.length-1].pg;
+    out+=txtWrap(txt,'')+'\n';
   });
-  out+='\n'+sep+'\n';
-  downloadBlob(new Blob([out],{type:'text/plain;charset=utf-8'}),currentFileName+'_resumen.txt');
-  showTip('Resumen exportado',1600);
+  txtGuardar(out,'Resumen','Resumen exportado en texto');
 }
 
 document.getElementById('tb-resumen').onclick=()=>{openPanel('resumen-panel');renderResumen()};
 document.querySelector('#resumen-panel .sp-close').onclick=()=>closePanel('resumen-panel');
 document.getElementById('resumen-refresh').onclick=()=>renderResumen();
 document.getElementById('resumen-export').onclick=()=>exportResumenText();
+document.getElementById('resumen-export-pdf').onclick=()=>resumenExportPDF();
 addPanelSwipe('resumen-panel');
 
 /* ══ BOOKMARKS ══ */
@@ -8651,11 +8761,13 @@ function pdfExport(){
   const nivel=p=>PDF_LV[Math.min(p||0,PDF_LV.length-1)];
   const xDe=p=>ML+nivel(p).ind+(p>4?(p-4)*12:0);
 
-  /* ── párrafos con formato ── */
-  const dibujarRico=(html,x,size,colorBase)=>{
-    const paras=richToRuns(html);
-    if(!paras.length)return;
+  /* ── párrafos ya troceados en {bullet, sangria, runs:[{t,b,i,u,color}]} ──
+     `marca` es un texto que se pinta en el margen izquierdo a la altura de la
+     primera línea (lo usa el resumen para los números de página). */
+  const dibujarParrafos=(paras,x,size,colorBase,marca)=>{
+    if(!paras||!paras.length)return;
     const lh=size*1.42;
+    let pendiente=marca||null;
     /* `y` llega en el borde superior del hueco, pero jsPDF dibuja sobre la
        línea base: sin este empujón la primera línea se montaría encima del
        rótulo que va justo arriba */
@@ -8671,6 +8783,11 @@ function pdfExport(){
       const soltar=()=>{
         if(!linea.length)return;
         sitio(lh);
+        if(pendiente){                                // número de página al margen
+          doc.setFont('helvetica','normal');doc.setFontSize(7.6);tinta(INK3);
+          doc.text(pendiente,Math.max(16,bx-30),y);
+          pendiente=null;
+        }
         if(primera&&p.bullet){
           fuente(false,false);doc.setFontSize(size);tinta(INK3);
           doc.text(p.bullet,bx,y);
@@ -8698,6 +8815,7 @@ function pdfExport(){
       y+=size*.4;                                   // aire entre párrafos
     });
   };
+  const dibujarRico=(html,x,size,colorBase)=>dibujarParrafos(richToRuns(html),x,size,colorBase);
 
   /* ── rótulo de un apartado ──
      o = {titulo, num, prof, color, pagina, extra} */
@@ -8771,6 +8889,107 @@ function pdfExport(){
     cuerpo(html,prof,size){
       if(html==null||!String(html).trim())return;
       dibujarRico(html,xDe(prof)+13,size||((prof||0)<=1?10:9.6),INK2);
+    },
+    /* párrafos ya troceados a mano (los usa el resumen, que colorea frase a
+       frase); `marca` va al margen izquierdo de la primera línea */
+    parrafos(paras,x,size,marca){dibujarParrafos(paras,x==null?ML+13:x,size||10.4,INK,marca)},
+    /* título del documento original dentro del resumen: sin banda ni punto,
+       como el encabezado de un libro */
+    titulo(texto,nivelT){
+      const tam=nivelT===1?15:nivelT===2?12.4:11;
+      doc.setFont('helvetica','bold');doc.setFontSize(tam);
+      const lineas=doc.splitTextToSize(String(texto||''),RIGHT-ML);
+      const lh=tam*1.3;
+      y+=nivelT===1?22:16;
+      sitio(lineas.length*lh+40);
+      tinta(INK);
+      lineas.forEach(ln=>{y+=lh;doc.text(ln,ML,y)});
+      if(nivelT<=2){
+        y+=5;doc.setDrawColor(nivelT===1?176:214,nivelT===1?168:208,nivelT===1?200:226);
+        doc.setLineWidth(nivelT===1?1.2:.7);doc.line(ML,y,RIGHT,y);
+      }
+      y+=4;
+    },
+    /* El DIAGRAMA de un proceso, tal como se ve en el panel: mismas cajas y
+       mismas flechas (incluidas las que vuelven atrás, en discontinuo), y
+       respetando las cajas que se hayan movido a mano. Se encoge entero si no
+       cabe a lo ancho de la hoja. Sin esto, un proceso en papel es una lista
+       de pasos y se pierde justo lo que lo hace un proceso. */
+    diagrama(steps,prof){
+      const pasos=(steps||[]).filter(s=>s&&s.id);
+      if(!pasos.length)return;
+      const bw=150,bh=46,gx=24,gy=46;
+      const{pos,backEdges}=procAutoLayout(pasos);
+      const colsByLayer={};
+      pasos.forEach(s=>{const p=pos[s.id];colsByLayer[p.layer]=Math.max(colsByLayer[p.layer]||0,p.cols)});
+      const maxCols=Math.max(1,...Object.values(colsByLayer));
+      const totalW=maxCols*(bw+gx)-gx;
+      const co={};
+      pasos.forEach(s=>{
+        if(s.x!=null&&s.y!=null){co[s.id]={x:s.x,y:s.y};return}
+        const p=pos[s.id];
+        const rowW=p.cols*(bw+gx)-gx;
+        co[s.id]={x:(totalW-rowW)/2+p.col*(bw+gx),y:p.layer*(bh+gy)};
+      });
+      const minX=Math.min(...pasos.map(s=>co[s.id].x));
+      const minY=Math.min(...pasos.map(s=>co[s.id].y));
+      const padD=backEdges.size?60:6;
+      const anchoD=Math.max(...pasos.map(s=>co[s.id].x))-minX+bw+padD;
+      const altoD=Math.max(...pasos.map(s=>co[s.id].y))-minY+bh;
+      const x0=xDe(prof)+13;
+      const k=Math.min(1,(RIGHT-x0)/anchoD,(PH-MB-MT-20)/altoD);
+      const X=v=>x0+(v-minX)*k, Y=v=>y+(v-minY)*k;
+
+      y+=12;sitio(altoD*k+14);
+      /* flechas primero, para que las cajas queden por encima */
+      const byId={};pasos.forEach(s=>byId[s.id]=s);
+      doc.setDrawColor(163,157,178);doc.setFillColor(163,157,178);
+      pasos.forEach(s=>{
+        (s.from||[]).forEach(fid=>{
+          if(!byId[fid])return;
+          const atras=backEdges.has(fid+'>'+s.id);
+          const c1=co[fid],c2=co[s.id];
+          let p0,p1,p2,p3;
+          if(atras){
+            const rx=Math.max(c1.x+bw,c2.x+bw)+44;
+            p0={x:c1.x+bw,y:c1.y+bh/2};p3={x:c2.x+bw,y:c2.y+bh/2};
+            p1={x:rx,y:p0.y};p2={x:rx,y:p3.y};
+          }else{
+            p0={x:c1.x+bw/2,y:c1.y+bh};p3={x:c2.x+bw/2,y:c2.y};
+            const my=(p0.y+p3.y)/2;
+            p1={x:p0.x,y:my};p2={x:p3.x,y:my};
+          }
+          /* la curva se traza a trocitos: jsPDF no dibuja bézier suelta */
+          doc.setLineWidth(Math.max(.6,1.4*k));
+          const N=18;let px=null,py=null;
+          for(let i=0;i<=N;i++){
+            const t=i/N,u=1-t;
+            const bxp=u*u*u*p0.x+3*u*u*t*p1.x+3*u*t*t*p2.x+t*t*t*p3.x;
+            const byp=u*u*u*p0.y+3*u*u*t*p1.y+3*u*t*t*p2.y+t*t*t*p3.y;
+            if(px!==null&&(!atras||i%2===0))doc.line(X(px),Y(py),X(bxp),Y(byp));
+            px=bxp;py=byp;
+          }
+          /* punta de flecha, orientada según la llegada */
+          const ang=atras?Math.PI:Math.PI/2;      // de retroceso llega por la derecha; el resto, por arriba
+          const ax=X(p3.x),ay=Y(p3.y),L=Math.max(3.5,6*k);
+          if(atras)doc.triangle(ax,ay,ax+L*1.6,ay-L*.8,ax+L*1.6,ay+L*.8,'F');
+          else doc.triangle(ax,ay,ax-L*.8,ay-L*1.6,ax+L*.8,ay-L*1.6,'F');
+        });
+      });
+      /* cajas */
+      pasos.forEach((s,i)=>{
+        const c=co[s.id];
+        const bx=X(c.x),by=Y(c.y),bwk=bw*k,bhk=bh*k;
+        doc.setFillColor(250,249,252);doc.setDrawColor(206,199,222);doc.setLineWidth(Math.max(.5,k));
+        doc.roundedRect(bx,by,bwk,bhk,4,4,'FD');
+        doc.setFont('helvetica','bold');
+        const ts=Math.max(6.2,Math.min(8.4,8.4*Math.max(k,.75)));
+        doc.setFontSize(ts);tinta(INK);
+        const ls=doc.splitTextToSize(String(s.title||''),bwk-8).slice(0,3);
+        let ty=by+bhk/2-((ls.length-1)*ts*1.15)/2+ts*.35;
+        ls.forEach(ln=>{doc.text(ln,bx+bwk/2,ty,{align:'center'});ty+=ts*1.15});
+      });
+      y+=altoD*k+8;
     },
     /* apunte pequeño en gris (una referencia, un aviso…) */
     apunte(txt,prof){
@@ -9047,6 +9266,7 @@ function procExportPDF(){
         P.apartado({titulo:pr.title,num:nt+'.'+(j+1),prof:1,color:temaColor(g.theme)});
         const byId={};(pr.steps||[]).forEach(s=>byId[s.id]=s);
         if(!(pr.steps||[]).length)P.apunte('(sin pasos todavía)',1);
+        P.diagrama(pr.steps,1);              // el dibujo, igual que en el panel
         (pr.steps||[]).forEach((s,k)=>{
           P.apartado({titulo:s.title,num:nt+'.'+(j+1)+'.'+(k+1),prof:2,color:'#CFE3F5'});
           P.cuerpo(s.desc,2);
