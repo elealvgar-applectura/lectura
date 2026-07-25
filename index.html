@@ -126,7 +126,7 @@ input,textarea{user-select:text!important;-webkit-user-select:text!important}
 #file-input,#backup-input{display:none}
 
 /* reader toolbar */
-#reader-toolbar{background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 4px;height:56px;flex-shrink:0;gap:0;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;transition:transform .25s,opacity .25s}
+#reader-toolbar{background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 4px;height:56px;flex-shrink:0;gap:0;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;transition:transform .25s,opacity .25s,margin-right .26s cubic-bezier(.4,0,.2,1)}
 #reader-toolbar::-webkit-scrollbar{display:none}
 /* Trazo 1.6 y radio 12, como el resto del set de iconos: antes iba a 1.7-2px
    y cantaba al lado de los nuevos. Hover explicito (en PC hay cursor). */
@@ -144,7 +144,7 @@ input,textarea{user-select:text!important;-webkit-user-select:text!important}
 .tsep{width:1px;height:26px;background:var(--border);margin:0 4px;flex-shrink:0}
 
 /* color bar */
-#color-bar{background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:0;padding:4px 6px 5px;flex-shrink:0;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;transition:transform .25s,opacity .25s}
+#color-bar{background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:0;padding:4px 6px 5px;flex-shrink:0;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;transition:transform .25s,opacity .25s,margin-right .26s cubic-bezier(.4,0,.2,1)}
 #color-bar::-webkit-scrollbar{display:none}
 .cchip{display:flex;flex-direction:column;align-items:center;gap:2px;border:none;background:transparent;cursor:pointer;padding:3px 5px;border-radius:10px;flex-shrink:0;min-width:52px}
 .cchip:active{background:var(--bg2)}
@@ -170,8 +170,41 @@ input,textarea{user-select:text!important;-webkit-user-select:text!important}
    arrastrando su asa y no hay un número fijo que valga siempre.
    Solo se aplica a paneles ACOPLADOS: en modo ventana el panel flota por en
    medio de la pantalla y apartar la hoja no arreglaría nada. */
-body.panel-docked #canvas-wrap{margin-right:var(--panw,0px)}
-body.panel-dragging #canvas-wrap{transition:none}
+body.panel-docked #canvas-wrap,
+body.panel-docked #reader-toolbar,
+body.panel-docked #color-bar,
+body.panel-docked #reader-bottom{margin-right:var(--panw,0px)}
+body.panel-dragging #canvas-wrap,
+body.panel-dragging #reader-toolbar,
+body.panel-dragging #color-bar,
+body.panel-dragging #reader-bottom{transition:none}
+
+/* ═══ FLECHAS PARA LLEGAR A LAS HERRAMIENTAS QUE NO CABEN ═══
+   Las dos barras de arriba se desplazan de lado cuando no caben todos los
+   botones. En el iPad se arrastran con el dedo, pero en el PC no había forma
+   de llegar a lo que quedaba fuera: la barra de desplazamiento está escondida
+   a propósito (scrollbar-width:none), así que las herramientas del final eran
+   inalcanzables con el ratón.
+   Las flechas van pegadas a los extremos de la propia barra con
+   position:sticky, DENTRO del contenedor que se desplaza: así no hace falta
+   envolver las barras en otro div ni tocar el modo de pantalla completa.
+   Salen solo donde hay ratón, y solo del lado donde queda algo escondido; en
+   el iPad no aparecen para no tapar botones, porque allí se arrastra con el
+   dedo. */
+.bar-arrow{display:none}
+@media (hover:hover) and (pointer:fine){
+  .bar-arrow{position:sticky;z-index:8;flex-shrink:0;width:24px;align-self:stretch;
+    border:none;padding:0;cursor:pointer;background:var(--bg);color:var(--ink2);
+    display:flex;align-items:center;justify-content:center;transition:color .14s}
+  .bar-arrow.l{left:0;box-shadow:9px 0 9px -3px var(--bg)}
+  .bar-arrow.r{right:0;box-shadow:-9px 0 9px -3px var(--bg)}
+  .bar-arrow:hover{color:var(--ink)}
+  .bar-arrow:active{opacity:.6}
+  .bar-arrow svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2.4;
+    stroke-linecap:round;stroke-linejoin:round}
+  /* nada escondido de ese lado → la flecha desaparece */
+  .bar-arrow.off{display:none}
+}
 #pages-inner{display:flex;flex-direction:column;align-items:center;padding:14px 10px;gap:14px;min-width:100%;transform-origin:center top;will-change:transform}
 .page-wrap{position:relative;background:#fff;border-radius:4px;overflow:hidden;box-shadow:0 3px 20px rgba(120,100,140,.15);flex-shrink:0;touch-action:none}
 .page-wrap canvas{display:block;touch-action:none}
@@ -239,7 +272,7 @@ body.panel-dragging #canvas-wrap{transition:none}
 .np-empty{text-align:center;color:var(--ink3);font-size:14px;padding:30px 10px;line-height:1.6}
 
 /* reader bottom */
-#reader-bottom{background:var(--bg);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:12px;padding:8px 14px;padding-bottom:max(8px,env(safe-area-inset-bottom));flex-shrink:0}
+#reader-bottom{background:var(--bg);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:12px;padding:8px 14px;padding-bottom:max(8px,env(safe-area-inset-bottom));flex-shrink:0;transition:margin-right .26s cubic-bezier(.4,0,.2,1)}
 #reader-bottom.min{display:none}
 #rd-bottom-min{background:transparent;border:none;color:var(--ink3);cursor:pointer;padding:6px;display:flex;align-items:center;border-radius:8px;flex-shrink:0}
 #rd-bottom-min svg{width:20px;height:20px;stroke:currentColor;stroke-width:2;fill:none}
@@ -1846,7 +1879,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v112'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v113'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2298,7 +2331,10 @@ function setColorBold(c,on){boldByColor[(c||'').toLowerCase()]=on;saveBoldByColo
 
 /* ══ SCREENS ══ */
 const screens={browser:document.getElementById('screen-browser'),reader:document.getElementById('screen-reader'),loading:document.getElementById('screen-loading'),backup:document.getElementById('screen-backup')};
-function showScreen(n){Object.values(screens).forEach(s=>s.classList.add('hidden'));screens[n].classList.remove('hidden')}
+function showScreen(n){Object.values(screens).forEach(s=>s.classList.add('hidden'));screens[n].classList.remove('hidden');
+  /* con la pantalla del lector oculta las barras no miden nada, así que sus
+     flechas no sabían si sobraba sitio: se revisan al mostrarla */
+  if(n==='reader'&&typeof refreshBarArrows==='function')refreshBarArrows()}
 let tipTimer;const tipEl=document.getElementById('tip');
 function showTip(m,ms=2400){tipEl.textContent=m;tipEl.classList.remove('hidden');clearTimeout(tipTimer);tipTimer=setTimeout(()=>tipEl.classList.add('hidden'),ms)}
 function setLoading(t){document.getElementById('loading-text').textContent=t;showScreen('loading')}
@@ -2888,6 +2924,9 @@ function buildColorBar(){
     colorBar.appendChild(b);
   });
   syncColorBar();
+  /* las fichas nuevas se han añadido al final, detrás de la flecha derecha:
+     hay que devolverla a su sitio */
+  refreshBarArrows();
 }
 function syncColorBar(){colorBar.querySelectorAll('.cchip').forEach(el=>el.classList.toggle('on',(el.dataset.c||'').toLowerCase()===curColor.toLowerCase()))}
 
@@ -5206,8 +5245,60 @@ function syncPanelShift(){
   if(w&&innerWidth-w<320)w=0;
   document.body.style.setProperty('--panw',Math.round(w)+'px');
   document.body.classList.toggle('panel-docked',w>0);
+  /* las barras de arriba también se estrechan: hay que revisar si ahora sobra
+     o falta sitio para sus herramientas */
+  refreshBarArrows();
 }
 addEventListener('resize',syncPanelShift);
+
+/* ══ FLECHAS DE LAS BARRAS DE ARRIBA ══
+   Ver el comentario largo del CSS (.bar-arrow). Aquí solo se crean los dos
+   botones, se enganchan al desplazamiento de la barra y se esconden cuando no
+   queda nada oculto de ese lado.
+   Las flechas viven DENTRO de la barra, así que hay que cuidar dos cosas: la
+   de la izquierda va siempre la primera y la de la derecha siempre la última.
+   La barra de colores se reconstruye entera al cambiar de paleta y añade sus
+   fichas AL FINAL, lo que dejaría la flecha derecha en medio: por eso
+   refreshBarArrows la vuelve a mandar al final cada vez. */
+const BARS_ARROW=[];
+function setupBarArrows(bar){
+  if(!bar)return;
+  const mk=dir=>{
+    const b=document.createElement('button');
+    b.className='bar-arrow '+(dir<0?'l':'r');
+    b.type='button';
+    b.title=dir<0?'Ver lo que queda a la izquierda':'Ver lo que queda a la derecha';
+    b.innerHTML='<svg viewBox="0 0 24 24"><polyline points="'+
+      (dir<0?'15 18 9 12 15 6':'9 18 15 12 9 6')+'"/></svg>';
+    /* un toque desplaza casi una pantalla de barra, con un mínimo por si la
+       barra es muy estrecha */
+    b.onclick=()=>bar.scrollBy({left:dir*Math.max(150,bar.clientWidth*.75),behavior:'smooth'});
+    return b;
+  };
+  const L=mk(-1),R=mk(1);
+  bar.insertBefore(L,bar.firstChild);
+  bar.appendChild(R);
+  bar._arrL=L;bar._arrR=R;
+  bar.addEventListener('scroll',()=>updBarArrows(bar),{passive:true});
+  BARS_ARROW.push(bar);
+  updBarArrows(bar);
+}
+function updBarArrows(bar){
+  const L=bar._arrL,R=bar._arrR;if(!L)return;
+  const max=bar.scrollWidth-bar.clientWidth;
+  L.classList.toggle('off',bar.scrollLeft<=2);
+  R.classList.toggle('off',bar.scrollLeft>=max-2);
+}
+function refreshBarArrows(){
+  BARS_ARROW.forEach(bar=>{
+    if(bar._arrL&&bar.firstChild!==bar._arrL)bar.insertBefore(bar._arrL,bar.firstChild);
+    if(bar._arrR&&bar.lastChild!==bar._arrR)bar.appendChild(bar._arrR);
+    updBarArrows(bar);
+  });
+}
+addEventListener('resize',refreshBarArrows);
+setupBarArrows(document.getElementById('reader-toolbar'));
+setupBarArrows(document.getElementById('color-bar'));
 
 /* ══ ANCHO DEL PANEL ACOPLADO ══
    Un único ancho para todos los paneles (lp_panelw). Si no hay nada guardado
