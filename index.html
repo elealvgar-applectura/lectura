@@ -155,7 +155,23 @@ input,textarea{user-select:text!important;-webkit-user-select:text!important}
 .cchip.on .tag{color:var(--ink);font-weight:600}
 
 /* canvas area */
-#canvas-wrap{flex:1;overflow:auto;background:var(--bg2);-webkit-overflow-scrolling:touch;position:relative;touch-action:pan-x pan-y}
+#canvas-wrap{flex:1;overflow:auto;background:var(--bg2);-webkit-overflow-scrolling:touch;position:relative;touch-action:pan-x pan-y;
+  transition:margin-right .26s cubic-bezier(.4,0,.2,1)}
+/* ═══ EL HUECO GRIS QUE SOBRABA A LA IZQUIERDA ═══
+   Los paneles laterales se dibujan ENCIMA de la hoja (position:fixed): no
+   empujan nada. Como la hoja se centraba respecto a la pantalla ENTERA, su
+   lado derecho quedaba escondido debajo del panel y sobraba exactamente ese
+   mismo hueco gris a la izquierda, sin usar.
+   Con esto la zona de lectura se estrecha justo hasta donde empieza el panel,
+   y la hoja se recentra sola en el espacio que queda (de eso ya se encarga el
+   align-items:center de #pages-inner). No se cambia el zoom: la letra sigue
+   igual de grande, solo deja de esconderse nada bajo el panel.
+   El ancho lo pone el JS en --panw, porque el panel se puede ensanchar a mano
+   arrastrando su asa y no hay un número fijo que valga siempre.
+   Solo se aplica a paneles ACOPLADOS: en modo ventana el panel flota por en
+   medio de la pantalla y apartar la hoja no arreglaría nada. */
+body.panel-docked #canvas-wrap{margin-right:var(--panw,0px)}
+body.panel-dragging #canvas-wrap{transition:none}
 #pages-inner{display:flex;flex-direction:column;align-items:center;padding:14px 10px;gap:14px;min-width:100%;transform-origin:center top;will-change:transform}
 .page-wrap{position:relative;background:#fff;border-radius:4px;overflow:hidden;box-shadow:0 3px 20px rgba(120,100,140,.15);flex-shrink:0;touch-action:none}
 .page-wrap canvas{display:block;touch-action:none}
@@ -1830,7 +1846,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v111'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v112'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -5168,8 +5184,30 @@ function openPanel(id){
   closeAllPanels(id);
   const el=document.getElementById(id);
   if(el){applyDockWidth(el);el.classList.add('open')}
+  syncPanelShift();
   return el;
 }
+
+/* ══ APARTAR LA HOJA CUANDO HAY UN PANEL ACOPLADO ══
+   Mide el panel abierto y se lo cuenta al CSS en --panw (ver la regla
+   body.panel-docked de arriba). Hay que llamarla en todo lo que pueda cambiar
+   ese ancho: abrir, cerrar, pasar a ventana y volver, arrastrar el asa del
+   ancho y girar el iPad.
+   El tope de 320px es una red de seguridad: si el panel se ha ensanchado
+   hasta comerse casi toda la pantalla, apartar la hoja la dejaría en una
+   rendija ilegible, así que en ese caso no se aparta nada y se vuelve al
+   comportamiento de siempre. */
+function syncPanelShift(){
+  let w=0;
+  document.querySelectorAll('.side-panel.open').forEach(p=>{
+    if(p.classList.contains('floating'))return;
+    w=Math.max(w,p.getBoundingClientRect().width);
+  });
+  if(w&&innerWidth-w<320)w=0;
+  document.body.style.setProperty('--panw',Math.round(w)+'px');
+  document.body.classList.toggle('panel-docked',w>0);
+}
+addEventListener('resize',syncPanelShift);
 
 /* ══ ANCHO DEL PANEL ACOPLADO ══
    Un único ancho para todos los paneles (lp_panelw). Si no hay nada guardado
@@ -5212,6 +5250,7 @@ function closePanel(id){
   p.style.left='';p.style.top='';p.style.width='';p.style.height='';p.style.transform='';
   const btn=p.querySelector('.panel-win-btn');
   if(btn){btn.innerHTML=svg('winExpand');btn.title='Ver en ventana grande'}
+  syncPanelShift();
 }
 function togglePanelWindow(p){
   const floating=p.classList.toggle('floating');
@@ -5234,6 +5273,7 @@ function togglePanelWindow(p){
     /* al volver a acoplarlo recupera el ancho que Elena dejó arrastrando */
     applyDockWidth(p);
   }
+  syncPanelShift();
 }
 /* Prepara UN panel: botón de ventana en la cabecera, asa de redimensión,
    arrastre por la cabecera y cierre que limpia el modo ventana. */
@@ -5319,17 +5359,23 @@ function setupPanelWindow(id){
     e.stopPropagation();e.preventDefault();
     dk={sx:e.clientX,startW:p.getBoundingClientRect().width};
     p.style.transition='none';
+    /* la hoja también sigue al dedo sin retraso mientras se arrastra: con la
+       transición puesta iba medio segundo por detrás del panel */
+    document.body.classList.add('panel-dragging');
     dz.setPointerCapture&&dz.setPointerCapture(e.pointerId);
   });
   dz.addEventListener('pointermove',e=>{
     if(!dk)return;
     const max=Math.floor(innerWidth*.94);
     p.style.width=Math.max(300,Math.min(max,dk.startW+(dk.sx-e.clientX)))+'px';
+    syncPanelShift();
   });
   const endDock=()=>{
     if(!dk)return;dk=null;
     p.style.transition='';
+    document.body.classList.remove('panel-dragging');
     savePanelW(p.getBoundingClientRect().width);
+    syncPanelShift();
   };
   dz.addEventListener('pointerup',endDock);
   dz.addEventListener('pointercancel',endDock);
