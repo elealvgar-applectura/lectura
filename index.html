@@ -1789,15 +1789,15 @@ body.fullscreen #gid-bar{bottom:20px}
     </div>
     <div class="gest-row" style="border-top:1px solid var(--border)">
       <div class="gest-info">
-        <div class="gest-name">Autocorrector de tildes</div>
-        <div class="gest-desc">Al terminar una palabra le pone la tilde que le falta (tambien → también). Si se equivoca, pulsa Retroceso justo después y la deja como la escribiste.</div>
+        <div class="gest-name">Autocorrector</div>
+        <div class="gest-desc">Al terminar una palabra le pone la tilde que le falta (tambien → también) y la mayúscula al empezar frase. Si se equivoca, pulsa Retroceso justo después y la deja como la escribiste.</div>
       </div>
       <label class="gswitch"><input type="checkbox" id="g-autocorr" checked><span class="gslider"></span></label>
     </div>
     <div class="gest-row" id="dicc-open" style="cursor:pointer">
       <div class="gest-info">
         <div class="gest-name">Mi diccionario</div>
-        <div class="gest-desc">Tus propias palabras: las que quieres que corrija y las que quieres que deje en paz.</div>
+        <div class="gest-desc">Tus propias palabras: las que quieres que corrija y las que quieres que deje en paz. También se abre dejando el dedo pulsado sobre una palabra.</div>
       </div>
       <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><polyline points="9.5 5.5 16 12 9.5 18.5"/></svg>
     </div>
@@ -1830,7 +1830,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v110'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v111'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -10424,7 +10424,9 @@ function acWordAt(text,pos){
   let start=pos;
   while(start>0&&AC_LET.test(text.charAt(start-1)))start--;
   const word=text.slice(start,pos);
-  if(word.length<2||word.length>24)return null;
+  /* Vale hasta con una sola letra, porque "y luego..." tambien tiene que
+     poder recibir la mayuscula de principio de frase. */
+  if(!word.length||word.length>24)return null;
   return {start,word};
 }
 /* Como se escribe de verdad esa palabra (o null si se deja como esta):
@@ -10473,6 +10475,41 @@ function acPutRich(el,node,start,end,txt){
     el.dispatchEvent(new Event('input',{bubbles:true}));
   }
 }
+/* ══ MAYUSCULA Y MINUSCULA CUANDO CORRESPONDE ══
+   Detras de estas abreviaturas NO empieza frase: "etc." o "pág." llevan punto
+   pero la frase sigue. Sin esto, media frase se llenaria de mayusculas. */
+const AC_ABREV=/(^|[\s(])(etc|ej|p|pp|dr|dra|sr|sra|pág|pag|cap|art|fig|vol|núm|num|ed|ss)\.$/i;
+/* Todo el texto que hay delante de la palabra, para saber si abre frase. */
+function acTextBefore(el,kind,node,start){
+  if(kind==='val')return el.value.slice(0,start);
+  const block=(node.parentElement&&node.parentElement.closest('div,p,li,td'))||el;
+  const r=document.createRange();
+  r.selectNodeContents(block);
+  try{r.setEnd(node,start)}catch(e){return null}   // ante la duda, no tocar
+  return r.toString();
+}
+function acStartsSentence(before){
+  if(before===null)return false;
+  if(!/\S/.test(before))return true;                    // primera palabra
+  const t=before.replace(/[ \t\u00a0]+$/,'');
+  if(AC_ABREV.test(t))return false;                     // ...etc. sigue igual
+  return /[.!?…\n\r]$/.test(t);
+}
+/* Palabra final = la tilde del diccionario + la mayuscula/minuscula que toque.
+   La minuscula solo arregla un caso: la tecla Mayus mantenida de mas (HOla ->
+   Hola). NO se quitan mayusculas a media frase, porque ahi casi siempre son
+   nombres propios, autores o teorias y se equivocaria constantemente. */
+function acFinal(word,before){
+  let out=acLookup(word)||word;
+  if(out.length>=4&&/^[A-ZÁÉÍÓÚÜÑ]{2}[a-záéíóúüñ]+$/.test(out))
+    out=out.charAt(0)+out.slice(1).toLowerCase();
+  if(acStartsSentence(before)){
+    const f=out.charAt(0);
+    if(f!==f.toUpperCase())out=f.toUpperCase()+out.slice(1);
+  }
+  return out===word?null:out;
+}
+
 /* Corrige la palabra que acabas de terminar. sep = lo que la cierra
    (el espacio o el signo); con Enter va vacio porque el salto lo pone
    despues el navegador. Devuelve true si ha cambiado algo. */
@@ -10482,7 +10519,7 @@ function acCorrect(el,kind,sep){
       if(el.selectionStart==null||el.selectionStart!==el.selectionEnd)return false;
       const pos=el.selectionStart,w=acWordAt(el.value,pos);
       if(!w)return false;
-      const rep=acLookup(w.word);
+      const rep=acFinal(w.word,acTextBefore(el,kind,null,w.start));
       if(!rep)return false;
       acBusy=true;acPutVal(el,w.start,pos,rep+sep);acBusy=false;
       acLast={kind:'val',el,start:w.start,rep,sep,word:w.word};
@@ -10494,7 +10531,7 @@ function acCorrect(el,kind,sep){
     if(!node||node.nodeType!==3)return false;
     const pos=sel.anchorOffset,w=acWordAt(node.nodeValue||'',pos);
     if(!w)return false;
-    const rep=acLookup(w.word);
+    const rep=acFinal(w.word,acTextBefore(el,kind,node,w.start));
     if(!rep)return false;
     acBusy=true;acPutRich(el,node,w.start,pos,rep+sep);acBusy=false;
     /* execCommand puede haber cambiado el nodo de texto: se apunta el nuevo */
@@ -10687,18 +10724,17 @@ function acWordUnder(el,kind,x,y){
   if(!node||node.nodeType!==3)return null;
   return acWordAround(node.nodeValue||'',off);
 }
-document.addEventListener('contextmenu',e=>{
-  if(!acOn)return;
-  const kind=acKind(e.target);
-  if(!kind)return;
-  const w=acCleanWord(acWordUnder(e.target,kind,e.clientX,e.clientY));
-  if(!w)return;                       // sin palabra debajo: menu del navegador
+/* Arma y abre el menu para la palabra que hay en (x,y). Devuelve false si ahi
+   no habia ninguna palabra, para que el navegador haga lo suyo. */
+function acShowWordMenu(el,kind,x,y){
+  const w=acCleanWord(acWordUnder(el,kind,x,y));
+  if(!w)return false;
   const low=w.toLowerCase(),key=acStrip(low),items=[];
   /* Al poner menu propio se pierde el del navegador, asi que Copiar y Pegar
      tienen que estar aqui: si no, en el PC no se podria pegar con el raton.
      Hay que devolver el foco y la seleccion al cuadro, porque al pulsar en el
      menu el cuadro los ha perdido. */
-  const el=e.target,hasSel=kind==='val'
+  const hasSel=kind==='val'
     ?el.selectionEnd>el.selectionStart
     :!!(window.getSelection()&&!window.getSelection().isCollapsed);
   const selA=kind==='val'?el.selectionStart:0,selB=kind==='val'?el.selectionEnd:0;
@@ -10727,9 +10763,47 @@ document.addEventListener('contextmenu',e=>{
   else                                // sin tilde: se abre para escribirla bien
     items.push({icon:'plus',label:'Añadir «'+w+'» al diccionario…',action:()=>openDicc(w)});
   items.push({icon:'book',label:'Mi diccionario…',action:()=>openDicc('')});
-  e.preventDefault();
-  showCtx(e.clientX,e.clientY,items);
+  showCtx(x,y,items);
+  return true;
+}
+/* PC: boton derecho. */
+document.addEventListener('contextmenu',e=>{
+  if(!acOn)return;
+  const kind=acKind(e.target);
+  if(!kind)return;
+  if(acShowWordMenu(e.target,kind,e.clientX,e.clientY))e.preventDefault();
 },true);
+
+/* ══ PULSACION LARGA (iPad) ══
+   En el iPad no hay boton derecho: dejar el dedo medio segundo encima de una
+   palabra abre el mismo menu. No se cancela ningun evento del sistema, a
+   proposito: asi el cursor se coloca solo donde tocas (que es de donde
+   sacamos la palabra) y no se estropea escribir ni seleccionar. Si mueves el
+   dedo o lo levantas antes de tiempo, no pasa nada. */
+let acHold=null;
+function acHoldOff(){if(acHold){clearTimeout(acHold.timer);acHold=null}}
+document.addEventListener('touchstart',e=>{
+  acHoldOff();
+  if(!acOn||e.touches.length!==1)return;
+  const el=e.target,kind=acKind(el);
+  if(!kind)return;
+  const x=e.touches[0].clientX,y=e.touches[0].clientY;
+  acHold={x,y,timer:setTimeout(()=>{
+    acHold=null;
+    if(!acShowWordMenu(el,kind,x,y))return;
+    /* El dedo sigue apoyado: al levantarlo llega un "click" que cerraria el
+       menu recien abierto. showCtx ignora los cierres de los primeros 150 ms;
+       adelantando su reloj le damos medio segundo mas de margen. */
+    ctxMenu._openedAt=Date.now()+400;
+  },550)};
+},{passive:true,capture:true});
+document.addEventListener('touchmove',e=>{
+  if(!acHold)return;
+  const t=e.touches[0];
+  if(!t||Math.abs(t.clientX-acHold.x)>12||Math.abs(t.clientY-acHold.y)>12)acHoldOff();
+},{passive:true,capture:true});
+document.addEventListener('touchend',acHoldOff,{passive:true,capture:true});
+document.addEventListener('touchcancel',acHoldOff,{passive:true,capture:true});
 
 /* ══ NAV ══ */
 const pageObs=new IntersectionObserver(entries=>{entries.forEach(en=>{if(en.isIntersecting){const pid=parseInt(en.target.dataset.page);const pos=posOfPid(pid);if(pos&&pos!==curPage){curPage=pos;updateNav();saveLastPage()}}})},{root:canvasWrap,threshold:.5});
