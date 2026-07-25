@@ -1879,7 +1879,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v113'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v114'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2641,11 +2641,33 @@ function showCtx(x,y,items){
   const mw=ctxMenu.offsetWidth,mh=ctxMenu.offsetHeight;
   ctxMenu.style.left=Math.min(x,innerWidth-mw-8)+'px';ctxMenu.style.top=Math.min(y,innerHeight-mh-8)+'px';
 }
+function hideCtx(){ctxMenu.classList.add('hidden')}
 document.addEventListener('click',e=>{
   if(ctxMenu.contains(e.target))return;
   if(Date.now()-(ctxMenu._openedAt||0)<150)return;   // es el clic que lo abrio
-  ctxMenu.classList.add('hidden');
+  hideCtx();
 });
+/* El menu tambien tiene que poder cerrarse SIN pulsar una de sus opciones.
+   Antes solo se cerraba con un clic izquierdo que llegara hasta document: si
+   lo abrias sin querer encima del PDF o de un panel (que se quedan con el
+   clic), o si volvias a pulsar el boton derecho (que NO genera un "click"),
+   no habia manera de quitarlo. Ahora se cierra al empezar a pulsar en
+   cualquier otro sitio, con otro clic derecho y con Escape. Va en fase de
+   captura para que nadie pueda quedarse el evento antes. */
+document.addEventListener('pointerdown',e=>{
+  if(ctxMenu.classList.contains('hidden')||ctxMenu.contains(e.target))return;
+  if(Date.now()-(ctxMenu._openedAt||0)<150)return;   // es el toque que lo abrio
+  hideCtx();
+},true);
+document.addEventListener('contextmenu',e=>{
+  if(ctxMenu.classList.contains('hidden')||ctxMenu.contains(e.target))return;
+  hideCtx();      // si hay que volver a abrirlo, ya lo hara quien corresponda
+},true);
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Escape'||ctxMenu.classList.contains('hidden'))return;
+  hideCtx();
+  e.stopPropagation();          // Escape cierra el menu, no lo que hay debajo
+},true);
 
 /* ══ PALETTE SHEET ══ */
 const modalPal=document.getElementById('modal-palette');
@@ -10569,16 +10591,63 @@ function acWordAt(text,pos){
 /* Como se escribe de verdad esa palabra (o null si se deja como esta):
    1º lo que TU hayas dicho que no se toque, 2º el diccionario, 3º las
    terminaciones que siempre llevan tilde. */
-function acLookup(word){
-  const low=word.toLowerCase();
-  if(acNever.indexOf(low)>=0)return null;
+/* Busqueda cruda, sin mirar tus excepciones: la usan el corrector Y las
+   sugerencias del menu (ahi si interesa proponer la palabra aunque hayas
+   dicho que no se corrija sola). */
+function acRaw(low){
   let rep=AC_DICT[low];
   if(!rep)for(let i=0;i<AC_RULES.length;i++){
     if(AC_RULES[i][0].test(low)){rep=low.replace(AC_RULES[i][0],AC_RULES[i][1]);break}
   }
+  return rep||null;
+}
+function acLookup(word){
+  const low=word.toLowerCase();
+  if(acNever.indexOf(low)>=0)return null;
+  const rep=acRaw(low);
   if(!rep)return null;
   const out=acCase(word,rep);
   return out===word?null:out;
+}
+/* ── SUGERENCIAS (las del menu del boton derecho / dedo pulsado) ──
+   Distancia de edicion recortada: en cuanto se pasa del maximo deja de
+   contar, que es lo que hace que recorrer el diccionario entero sea
+   instantaneo. */
+function acDist(a,b,max){
+  if(Math.abs(a.length-b.length)>max)return max+1;
+  let prev=[],cur=[];
+  for(let j=0;j<=b.length;j++)prev[j]=j;
+  for(let i=1;i<=a.length;i++){
+    cur[0]=i;let best=i;
+    for(let j=1;j<=b.length;j++){
+      const c=a.charAt(i-1)===b.charAt(j-1)?0:1;
+      cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+c);
+      if(cur[j]<best)best=cur[j];
+    }
+    if(best>max)return max+1;
+    const t=prev;prev=cur;cur=t;
+  }
+  return prev[b.length];
+}
+/* Como podria escribirse esa palabra. Si el diccionario ya sabe como se
+   escribe, esa Y NO MAS: cualquier otra cosa seria ruido. Si no la conoce,
+   se buscan erratas de una letra de mas o de menos ("analiss" → "análisis").
+   NO se aceptan cambios de letra (casa → caía): con un diccionario que solo
+   tiene las palabras con tilde, eso llenaria de sugerencias absurdas
+   cualquier palabra bien escrita. */
+function acSuggest(word){
+  const low=word.toLowerCase(),key=acStrip(low),out=[];
+  const dir=acRaw(low);
+  if(dir)return dir.toLowerCase()===low?[]:[dir];
+  const near=[];
+  for(const k in AC_DICT){
+    if(Math.abs(k.length-key.length)!==1)continue;
+    if(acDist(key,k,1)>1)continue;
+    near.push(AC_DICT[k]);
+  }
+  near.sort((a,b)=>a.length-b.length||a.localeCompare(b,'es'));
+  near.forEach(w=>{if(out.length<3&&out.indexOf(w)<0&&w.toLowerCase()!==low)out.push(w)});
+  return out;
 }
 /* Sustituye [start,end) por texto. Se usa execCommand para que el "deshacer"
    del propio cuadro (Ctrl+Z) siga funcionando y para que salte el evento
@@ -10836,17 +10905,20 @@ function acWordAround(text,pos){
   let s=pos,e=pos;
   while(s>0&&AC_LET.test(text.charAt(s-1)))s--;
   while(e<text.length&&AC_LET.test(text.charAt(e)))e++;
-  return text.slice(s,e);
+  return {word:text.slice(s,e),start:s,end:e};
 }
-function acWordUnder(el,kind,x,y){
+/* Devuelve la palabra que hay debajo del dedo o del raton Y sus posiciones,
+   para poder sustituirla si eliges una sugerencia. */
+function acWordSpot(el,kind,x,y){
   if(kind==='val'){
     const a=el.selectionStart,b=el.selectionEnd;
     if(a==null)return null;
-    if(b>a)return el.value.slice(a,b);
-    return acWordAround(el.value,a);
+    if(b>a){                              // hay texto seleccionado: manda el
+      const sel=el.value.slice(a,b);
+      if(AC_WORD_RE.test(sel))return {word:sel,start:a,end:b,node:null};
+    }
+    const r=acWordAround(el.value,a);r.node=null;return r;
   }
-  const sel=window.getSelection();
-  if(sel&&!sel.isCollapsed){const t=sel.toString();if(t.trim())return t}
   let node=null,off=0;
   if(document.caretRangeFromPoint){
     const r=document.caretRangeFromPoint(x,y);
@@ -10855,18 +10927,33 @@ function acWordUnder(el,kind,x,y){
     const p=document.caretPositionFromPoint(x,y);
     if(p){node=p.offsetNode;off=p.offset}
   }
+  const sel=window.getSelection();
   if((!node||node.nodeType!==3)&&sel&&sel.anchorNode&&sel.anchorNode.nodeType===3){
     node=sel.anchorNode;off=sel.anchorOffset;
   }
   if(!node||node.nodeType!==3)return null;
-  return acWordAround(node.nodeValue||'',off);
+  const r=acWordAround(node.nodeValue||'',off);r.node=node;return r;
 }
 /* Arma y abre el menu para la palabra que hay en (x,y). Devuelve false si ahi
    no habia ninguna palabra, para que el navegador haga lo suyo. */
 function acShowWordMenu(el,kind,x,y){
-  const w=acCleanWord(acWordUnder(el,kind,x,y));
-  if(!w)return false;
+  const spot=acWordSpot(el,kind,x,y);
+  const w=spot&&acCleanWord(spot.word);
+  if(!w||w!==spot.word)return false;     // si no es una palabra limpia, nada
   const low=w.toLowerCase(),key=acStrip(low),items=[];
+  /* Cambiar la palabra por la sugerencia elegida. Se hace por las mismas
+     funciones que usa el corrector, asi que el guardado automatico se entera
+     y el "deshacer" del cuadro sigue funcionando. */
+  const aplicar=txt=>{
+    el.focus();
+    acLast=null;
+    if(kind==='val')acPutVal(el,spot.start,spot.end,txt);
+    else acPutRich(el,spot.node,spot.start,spot.end,txt);
+  };
+  acSuggest(w).forEach(s=>{
+    const t=acCase(w,s);
+    if(t!==w)items.push({icon:'quill',label:t,action:()=>aplicar(t)});
+  });
   /* Al poner menu propio se pierde el del navegador, asi que Copiar y Pegar
      tienen que estar aqui: si no, en el PC no se podria pegar con el raton.
      Hay que devolver el foco y la seleccion al cuadro, porque al pulsar en el
