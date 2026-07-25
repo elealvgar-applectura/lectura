@@ -834,6 +834,12 @@ body.fullscreen #fs-hint{display:block!important}
 .emb-ic .ico{width:14px;height:14px}
 .emb-title{flex:1;font-size:13px;font-weight:700;color:var(--ink);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .emb-del{font-size:16px;color:var(--ink3);cursor:pointer;padding:2px 4px;line-height:1;flex-shrink:0;touch-action:manipulation}
+/* lápiz de la cabecera: una ficha plasmada no se edita encima del documento,
+   se edita en el panel de su herramienta */
+.emb-edit{color:var(--ink3);cursor:pointer;padding:2px 4px;flex-shrink:0;
+  display:inline-flex;align-items:center;touch-action:manipulation}
+.emb-edit .ico{width:14px;height:14px}
+.emb-edit:active{transform:scale(.9)}
 .emb-body{display:none;padding:2px 11px 10px}
 .emb-body.open{display:block;flex:1;min-height:0;overflow-y:auto}
 .emb-text{font-size:12.5px;color:var(--ink2);line-height:1.5;white-space:pre-wrap;margin-bottom:8px}
@@ -894,13 +900,19 @@ body.fullscreen #fs-hint{display:block!important}
 .aclar-head .ac-close,.aclar-head .ac-del{cursor:pointer;font-size:15px;line-height:1;
   padding:2px 5px;flex-shrink:0;touch-action:manipulation;color:#0b6b60}
 .aclar-head .ac-del{color:var(--danger)}
+.aclar-head .ac-edit{cursor:pointer;flex-shrink:0;padding:2px 4px;color:#0b6b60;
+  display:flex;align-items:center;touch-action:manipulation}
+.aclar-head .ac-edit .ico{width:15px;height:15px}
+.aclar-head .ac-edit:active{transform:scale(.9)}
 .aclar-body{display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:0 9px 9px}
-.aclar-body textarea,.aclar-ed{width:100%;flex:1;background:rgba(255,255,255,.7);border:none;border-radius:8px;
-  outline:none;resize:none;font-family:inherit;font-size:13px;line-height:1.5;color:#123;
-  padding:7px;min-height:64px;touch-action:auto;pointer-events:all;overflow-y:auto}
-.aclar-ed:empty:before{content:attr(data-ph);color:#7fa9a1}
-.aclar-body .rich-tb{margin-bottom:6px}
-.aclar-body .rich-tb button,.aclar-body .rich-tb input[type=color]{min-width:26px;height:26px;padding:0 5px}
+/* Texto de la aclaración EN LA PÁGINA: solo lectura. Antes aquí había un
+   editor con formato y su barra de botones, que ocupaba casi toda la viñeta
+   y no dejaba ver la propia aclaración. Ahora se lee aquí y se escribe en el
+   panel lateral, con el lápiz de la cabecera. */
+.aclar-ro{width:100%;flex:1;background:rgba(255,255,255,.7);border-radius:8px;
+  font-size:13px;line-height:1.5;color:#123;padding:7px;min-height:34px;
+  overflow-y:auto;-webkit-user-select:text;user-select:text}
+.aclar-ro.empty{color:#7fa9a1}
 .aclar-resize{position:absolute;right:0;bottom:0;width:20px;height:20px;cursor:nwse-resize;
   touch-action:none;z-index:3;background:linear-gradient(135deg,transparent 50%,rgba(0,120,110,.4) 50%);
   border-bottom-right-radius:12px}
@@ -1754,7 +1766,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v102'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v103'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -5738,7 +5750,12 @@ function buildEmbedCard(emb,data,nl){
   const ic=document.createElement('span');ic.className='emb-ic';ic.innerHTML=svg(data.ic);
   const title=document.createElement('span');title.className='emb-title';title.textContent=data.title||'(sin título)';
   const del=document.createElement('span');del.className='emb-del';del.textContent='×';
-  hd.append(arrow,ic,title,del);
+  /* lápiz siempre a la vista: lleva a la herramienta de origen, que es el
+     único sitio donde se edita el contenido (aquí es solo lectura) */
+  const edB=document.createElement('span');edB.className='emb-edit';edB.innerHTML=svg('pencil');
+  edB.title='Editar en su panel';
+  if(!data.openPanel)edB.style.display='none';
+  hd.append(arrow,ic,title,edB,del);
 
   const body=document.createElement('div');body.className='emb-body'+(emb.mini?'':' open');
   if(emb.kind==='cmap'){
@@ -5800,6 +5817,10 @@ function buildEmbedCard(emb,data,nl){
   arrow.addEventListener('pointerdown',e=>e.stopPropagation());
   arrow.addEventListener('click',toggleFold);
 
+  /* el lápiz abre el panel de la herramienta de la que salió la ficha */
+  edB.addEventListener('pointerdown',e=>e.stopPropagation());
+  edB.addEventListener('click',e=>{e.stopPropagation();if(data.openPanel)openSourcePanel(data.openPanel)});
+
   /* eliminar el embed (no borra el nodo/definición original) */
   del.addEventListener('pointerdown',e=>e.stopPropagation());
   del.addEventListener('click',e=>{
@@ -5836,7 +5857,7 @@ function buildEmbedCard(emb,data,nl){
     el.addEventListener('pointerup',()=>{if(dragging){dragging=false;const arr=loadEmbeds();const x=arr.find(z=>z.id===emb.id);if(x){x.x=emb.x;x.y=emb.y}saveEmbeds(arr)}});
     el.addEventListener('pointercancel',()=>{dragging=false});
   };
-  dragFrom(hd,e=>e.target!==arrow&&e.target!==del);
+  dragFrom(hd,e=>!(e.target.closest&&e.target.closest('.emb-arrow,.emb-del,.emb-edit')));
   dragFrom(body,e=>e.target===body||e.target===acts);
   dragFrom(card,e=>e.target===card);
 
@@ -7084,7 +7105,7 @@ function renderAclarList(){
 }
 
 function buildAclarCard(a){
-  const card=document.createElement('div');card.className='ent-card';
+  const card=document.createElement('div');card.className='ent-card';card.dataset.aid=a.id;
   const hd=document.createElement('div');hd.className='ent-hd';
   const arrow=document.createElement('span');arrow.className='ent-arrow';arrow.textContent='›';
   const dot=document.createElement('div');dot.className='ent-dot';dot.style.background=a.color||'#00C2AE';
@@ -7105,6 +7126,7 @@ function buildAclarCard(a){
   const mkA=(icon,title,fn)=>{
     const b=document.createElement('button');
     b.className='nd-btn';b.title=title;b.innerHTML=svg(icon);
+    b.dataset.act=icon;                 // el lápiz de la página busca el botón 'pencil'
     b.onclick=e=>{e.stopPropagation();fn(e)};
     return b;
   };
@@ -7138,6 +7160,26 @@ function buildAclarCard(a){
   card.append(hd,bd);
   hd.onclick=()=>{const o=bd.classList.toggle('open');arrow.classList.toggle('open',o)};
   return card;
+}
+
+/* Abre el panel lateral justo en UNA aclaración y arranca su edición ahí.
+   Lo usa el lápiz de la viñeta de la página: sobre el documento la aclaración
+   solo se lee; se escribe siempre en el panel. Hay que desplegar su grupo de
+   tema y limpiar el buscador, porque si la ficha está filtrada u oculta no
+   existe en la lista y no habría nada que abrir. */
+function openAclarInPanel(id){
+  const a=loadAclars().find(z=>z.id===id);if(!a)return;
+  panelSearch.aclar='';
+  themeGroupOpen['aclar:'+(a.themeId||'')]=true;
+  openPanel('aclar-panel');refreshAclarPanel();
+  const inp=document.querySelector('#aclar-ent-static .panel-search input');
+  if(inp)inp.value='';                  // el buscador es fijo: hay que vaciarlo a mano
+  setTimeout(()=>{
+    const card=document.querySelector('#aclar-ent-list .ent-card[data-aid="'+id+'"]');
+    if(!card){showTip('Abre la aclaración desde la lista');return}
+    try{card.scrollIntoView({block:'center',behavior:'smooth'})}catch(_){}
+    const b=card.querySelector('.nd-btn[data-act="pencil"]');if(b)b.click();
+  },140);
 }
 
 function exportAclars(){
@@ -7398,27 +7440,22 @@ function renderAclar(nl,a,num){
 
   const head=document.createElement('div');head.className='aclar-head';
   const t=document.createElement('span');t.className='ac-t';t.textContent=a.ref||'Aclaración';t.title=a.ref||'';
+  const edB=document.createElement('span');edB.className='ac-edit';edB.innerHTML=svg('pencil');
+  edB.title='Editar en el panel de Aclaraciones';
   const close=document.createElement('span');close.className='ac-close';close.textContent='▾';close.title='Plegar';
   const del=document.createElement('span');del.className='ac-del';del.textContent='×';del.title='Eliminar aclaración';
-  head.append(t,close,del);
+  head.append(t,edB,close,del);
 
   const body=document.createElement('div');body.className='aclar-body';
-  /* barra de formato + editor con formato (contenteditable), como en nodos */
-  const tb=document.createElement('div');tb.className='rich-tb';
-  tb.innerHTML='<button type="button" data-cmd="bold"><b>B</b></button>'
-    +'<button type="button" data-cmd="italic"><i>I</i></button>'
-    +'<button type="button" data-cmd="underline"><u>U</u></button>'
-    +'<button type="button" data-cmd="insertUnorderedList">•</button>'
-    +'<button type="button" data-cmd="insertOrderedList">1.</button>'
-    +'<input type="color" data-cmd="foreColor" value="#c0392b">'
-    +'<button type="button" data-cmd="richLink" title="Vincular con una ficha">'+svg('link')+'</button>';
-  const ed=document.createElement('div');ed.className='aclar-ed rich-content';ed.contentEditable='true';
-  ed.setAttribute('data-ph','Escribe la aclaración…');ed.innerHTML=richHTML(a.text||'');
-  ed.addEventListener('pointerdown',e=>e.stopPropagation());
-  let txtT=null;
-  ed.addEventListener('input',()=>{a.text=ed.innerHTML;clearTimeout(txtT);txtT=setTimeout(()=>patchAclar(a.id,{text:a.text}),350)});
-  body.append(tb,ed);
-  wireRichToolbar(tb,ed);
+  /* SOLO LECTURA sobre la página: aquí la aclaración se lee. Antes había un
+     editor con formato (contenteditable) y su barra de botones, que ocupaban
+     casi toda la viñeta y tapaban la propia nota. Para cambiarla está el lápiz
+     de la cabecera, que la abre en el panel lateral. */
+  const ro=document.createElement('div');ro.className='aclar-ro rich-content';
+  if(a.text&&String(a.text).trim())ro.innerHTML=richHTML(a.text);
+  else{ro.classList.add('empty');ro.textContent='(vacía) — pulsa el lápiz para escribirla'}
+  ro.addEventListener('pointerdown',e=>e.stopPropagation());  // seleccionar/desplazar sin arrastrar la viñeta
+  body.appendChild(ro);
   bub.append(head,body);
 
   const rz=document.createElement('div');rz.className='aclar-resize';rz.title='Ampliar';
@@ -7429,6 +7466,10 @@ function renderAclar(nl,a,num){
   mk.addEventListener('click',e=>{e.stopPropagation();setMini(!a.mini)});
   close.addEventListener('pointerdown',e=>e.stopPropagation());
   close.addEventListener('click',e=>{e.stopPropagation();setMini(true)});
+
+  /* lápiz: se edita en el panel lateral, no encima del documento */
+  edB.addEventListener('pointerdown',e=>e.stopPropagation());
+  edB.addEventListener('click',e=>{e.stopPropagation();openAclarInPanel(a.id)});
 
   /* eliminar (el subrayado NO se toca) */
   del.addEventListener('pointerdown',e=>e.stopPropagation());
@@ -7441,7 +7482,7 @@ function renderAclar(nl,a,num){
   /* arrastrar la viñeta por la cabecera (persistir solo al soltar) */
   let dg=false,ox,oy;
   head.addEventListener('pointerdown',e=>{
-    if(e.target===close||e.target===del)return;
+    if(e.target.closest&&e.target.closest('.ac-close,.ac-del,.ac-edit'))return;
     dg=true;head.setPointerCapture(e.pointerId);
     const r=bub.getBoundingClientRect();ox=e.clientX-r.left;oy=e.clientY-r.top;e.preventDefault();
   },{passive:false});
