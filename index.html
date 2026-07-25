@@ -1846,7 +1846,7 @@ body.fullscreen #gid-bar{bottom:20px}
     <div class="gest-row" id="dicc-open" style="cursor:pointer">
       <div class="gest-info">
         <div class="gest-name">Mi diccionario</div>
-        <div class="gest-desc">Tus propias palabras: las que quieres que corrija y las que quieres que deje en paz. También se abre dejando el dedo pulsado sobre una palabra.</div>
+        <div class="gest-desc">Tus propias palabras: las que quieres que corrija y las que quieres que deje en paz. En el iPad, dejando el dedo pulsado sobre una palabra; en el ordenador, con Ctrl + botón derecho (el botón derecho a secas sigue siendo el del navegador, con su corrector).</div>
       </div>
       <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><polyline points="9.5 5.5 16 12 9.5 18.5"/></svg>
     </div>
@@ -1858,7 +1858,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <div class="modal-bg hidden" id="modal-dicc">
   <div class="modal">
     <h3>Mi diccionario</h3>
-    <p style="font-size:13px;color:var(--ink2);margin-bottom:14px;line-height:1.5">Escribe la palabra <b>bien escrita, con su tilde</b>. A partir de ahora, cuando la escribas sin tilde se corregirá sola. También vale para nombres propios (Bandura, Piaget): los pondrá en mayúscula.</p>
+    <p style="font-size:13px;color:var(--ink2);margin-bottom:14px;line-height:1.5">Escribe la palabra <b>bien escrita, con su tilde</b>. A partir de ahora, cuando la escribas sin tilde se corregirá sola. También vale para nombres propios (Bandura, Piaget): los pondrá en mayúscula.<br><span style="opacity:.8">Para las faltas normales usa el botón derecho de siempre: el corrector del navegador conoce todo el español.</span></p>
     <div style="display:flex;gap:8px">
       <input id="dicc-new" type="text" placeholder="ej: técnicas" maxlength="30"
              autocorrect="off" autocapitalize="off" spellcheck="false" style="flex:1;margin-bottom:0">
@@ -1879,7 +1879,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v114'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v115'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -10487,6 +10487,14 @@ crédito débito déficit mérito tópico
 café sofá mamá papá bebé teléfono micrófono cámara película década
 sábado miércoles jamón limón azúcar lápiz mayúscula minúscula
 parámetro kilómetro diámetro perímetro termómetro centímetro milímetro
+metáfora metafórico símil alegoría analogía análogo análoga analógico ironía
+irónico retórico epíteto sinónimo antónimo homónimo prototípico esquemático
+taxonomía jerarquía jerárquico corpóreo corpórea híbrido híbrida diálogo
+explícito explícita implícito implícita espontáneo espontánea instantáneo
+íntimo íntima tímido tímida cómico pánico obstáculo fórmula género múltiple
+héroe índole carácter estándar etcétera trámite íntegro ánimo máscara cápsula
+cráneo médula estómago océano atmósfera fábrica lámpara católico célebre
+aéreo dígito
 España América Perú México París Japón Bélgica Bogotá
 `).trim().split(/\s+/);
 
@@ -10990,9 +10998,19 @@ function acShowWordMenu(el,kind,x,y){
   showCtx(x,y,items);
   return true;
 }
-/* PC: boton derecho. */
+/* ══ PC: Ctrl + boton derecho ══
+   OJO, esto es importante y costo un disgusto: el boton derecho a secas TIENE
+   QUE SEGUIR SIENDO EL DEL NAVEGADOR. Chrome lleva su propio corrector
+   ortografico con el espanol ENTERO (es el que subraya en rojo), y su menu es
+   el que ofrece las sugerencias buenas: "metaforas" → "metáforas",
+   "normalmernte" → "normalmente". Nuestro diccionario solo sabe de tildes y
+   de lo que anada la usuaria: taparlo con el nuestro le quitaba las
+   sugerencias de verdad y la dejaba peor que antes.
+   No hay forma de leer esas sugerencias desde la pagina (ningun navegador las
+   expone), asi que la unica solucion honesta es apartarse.
+   Nuestro menu queda en Ctrl (o Cmd) + boton derecho. */
 document.addEventListener('contextmenu',e=>{
-  if(!acOn)return;
+  if(!acOn||!(e.ctrlKey||e.metaKey))return;
   const kind=acKind(e.target);
   if(!kind)return;
   if(acShowWordMenu(e.target,kind,e.clientX,e.clientY))e.preventDefault();
