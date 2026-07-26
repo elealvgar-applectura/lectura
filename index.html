@@ -675,6 +675,16 @@ body.fullscreen #rd-bottom-show{display:none}
 .rich-content ul ul ul ul{list-style-type:disc}
 /* una sublista no lleva el margen de arriba/abajo: pegada a su punto padre */
 .rich-content li>ul,.rich-content li>ol{margin:2px 0 2px}
+/* GUIONES COMO MARCA. El CSS moderno deja poner cualquier texto de marca
+   (list-style-type:"– "), pero no funciona en los iPad más antiguos y ahí se
+   vería un punto redondo mientras que en el PDF saldría el guion. Con una
+   clase y ::before sale igual en todas partes. */
+.rich-content ul.lp-guion,.rich-content ul.lp-raya{list-style:none;padding-left:20px}
+.rich-content ul.lp-guion>li,.rich-content ul.lp-raya>li{position:relative}
+.rich-content ul.lp-guion>li::before,.rich-content ul.lp-raya>li::before{
+  position:absolute;left:-15px;color:inherit}
+.rich-content ul.lp-guion>li::before{content:'–'}
+.rich-content ul.lp-raya>li::before{content:'—'}
 .rich-content b,.rich-content strong{font-weight:700}
 .rich-content i,.rich-content em{font-style:italic}
 .rich-content u{text-decoration:underline}
@@ -1961,7 +1971,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v128'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v129'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2382,6 +2392,7 @@ const RICH_TB_HTML=`
 <span class="rt-sep"></span>
 <button type="button" data-cmd="insertUnorderedList" title="Lista con puntos">•</button>
 <button type="button" data-cmd="insertOrderedList" title="Lista numerada">1.</button>
+<button type="button" data-cmd="listOpts" title="Tipo de viñeta o numeración · continuar la numeración anterior"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6h11M9.5 12h11M9.5 18h11"/><circle cx="4.6" cy="6" r="1.4"/><path d="M3.2 12h2.8"/><rect x="3.4" y="16.8" width="2.6" height="2.6"/></svg></button>
 <button type="button" data-cmd="outdent" title="Menos margen (Mayús+Tab)">⇤</button>
 <button type="button" data-cmd="indent" title="Más margen (Tab)">⇥</button>
 <button type="button" data-cmd="align" title="Alineación"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h11M4 18h16"/></svg></button>
@@ -2508,6 +2519,94 @@ function richFixLists(ed){
     }catch(e){}
   }
 }
+/* ══════════════════════════════════════════════════════════════════
+   OPCIONES DE LA LISTA  (botón de la barra, al lado de • y 1.)
+   ──────────────────────────────────────────────────────────────────
+   Dos cosas que no se podían hacer y hacían falta:
+     · poner OTRA MARCA a una lista (un guion dentro de una numerada, por
+       ejemplo), en vez de tragar con la que tocara por nivel;
+     · CONTINUAR LA NUMERACIÓN de una lista de más atrás, en vez de empezar
+       otra vez desde 1 cada vez que se corta la lista con un párrafo.
+   Actúa siempre sobre la lista donde está el cursor (la más interior).
+   ══════════════════════════════════════════════════════════════════ */
+const RICH_MARCAS_OL=[
+  {t:'decimal',    l:'1.  2.  3.'},
+  {t:'lower-alpha',l:'a.  b.  c.'},
+  {t:'lower-roman',l:'i.  ii.  iii.'},
+  {t:'upper-alpha',l:'A.  B.  C.'},
+  {t:'upper-roman',l:'I.  II.  III.'}
+];
+const RICH_MARCAS_UL=[
+  {t:'disc',  l:'•   punto'},
+  {t:'circle',l:'◦   círculo'},
+  {t:'square',l:'▪   cuadrado'},
+  {t:'guion', l:'–   guion'},
+  {t:'raya',  l:'—   raya'}
+];
+/* la lista donde está el cursor, o null si el cursor no está en ninguna */
+function richListaDelCursor(ed){
+  const s=window.getSelection();
+  let n=s&&s.anchorNode;
+  if(n&&n.nodeType===3)n=n.parentElement;
+  if(!n||!n.closest||!ed.contains(n))return null;
+  const li=n.closest('li');
+  const lista=li?li.parentElement:n.closest('ol,ul');
+  return (lista&&/^(OL|UL)$/.test(lista.tagName))?lista:null;
+}
+/* qué marca se le ha puesto A MANO a esta lista ('' si ninguna: entonces
+   manda la del nivel, que la pone el CSS) */
+function richMarcaPuesta(lista){
+  if(lista.classList.contains('lp-guion'))return 'guion';
+  if(lista.classList.contains('lp-raya'))return 'raya';
+  return lista.style.listStyleType||'';
+}
+function richAplicaMarca(lista,tipo){
+  lista.classList.remove('lp-guion','lp-raya');
+  if(tipo==='guion'||tipo==='raya'){
+    lista.style.listStyleType='';
+    lista.classList.add(tipo==='guion'?'lp-guion':'lp-raya');
+  }else{
+    lista.style.listStyleType=tipo;
+  }
+}
+/* Número por el que se quedó la lista numerada ANTERIOR a ésta dentro del
+   mismo cuadro. Es lo que permite "recuperar el número de más atrás" cuando
+   una lista se ha cortado con un párrafo por el medio. */
+function richNumAnterior(ed,lista){
+  const todas=[...ed.querySelectorAll('ol')];
+  const i=todas.indexOf(lista);
+  for(let j=i-1;j>=0;j--){
+    const ol=todas[j];
+    if(ol.contains(lista))continue;          // ésa envuelve a la nuestra, no cuenta
+    const puntos=[...ol.children].filter(c=>c.tagName==='LI').length;
+    if(!puntos)continue;
+    return (parseInt(ol.getAttribute('start'),10)||1)+puntos-1;
+  }
+  return null;
+}
+function openListOpts(btn,ed){
+  const lista=richListaDelCursor(ed);
+  if(!lista){showTip('Pon el cursor dentro de una lista y vuelve a tocar',2600);return}
+  const esOl=lista.tagName==='OL';
+  const puesta=richMarcaPuesta(lista);
+  const restore=richKeepSel(ed);
+  const items=(esOl?RICH_MARCAS_OL:RICH_MARCAS_UL).map(m=>({
+    label:m.l+(puesta===m.t?'   ✓':''),
+    action:()=>{restore();richAplicaMarca(lista,m.t)}
+  }));
+  if(esOl){
+    const prev=richNumAnterior(ed,lista);
+    if(prev!=null)items.push({icon:'jump',
+      label:'Continuar la numeración anterior (seguir en '+(prev+1)+')',
+      action:()=>{restore();lista.setAttribute('start',String(prev+1))}});
+    if(lista.getAttribute('start'))items.push({icon:'refresh',
+      label:'Empezar a numerar de nuevo en 1',
+      action:()=>{restore();lista.removeAttribute('start')}});
+  }
+  const r=btn.getBoundingClientRect();
+  showCtx(r.left,r.bottom+6,items);
+}
+
 /* guarda dónde estaba la selección antes de tocar un menú, y la devuelve
    después: al pulsar en un menú el cuadro pierde el foco y con él la selección */
 function richKeepSel(ed){
@@ -2795,6 +2894,7 @@ function wireRichToolbar(tb,ed){
       if(cmd==='lineH'){openRichLineH(btn,ed);return}
       if(cmd==='table'){openRichTable(btn,ed);return}
       if(cmd==='image'){richInsertImage(ed);return}
+      if(cmd==='listOpts'){openListOpts(btn,ed);return}
       if(cmd==='align'){
         const restore=richKeepSel(ed);
         const r=btn.getBoundingClientRect();
@@ -9885,6 +9985,9 @@ function parseColorRGB(c){
 const RICH_OL_NIVEL=['decimal','lower-alpha','lower-roman'];
 const RICH_UL_NIVEL=['disc','circle','square'];
 function richTipoLista(node,esOl,nivel){
+  /* las marcas de guion van por clase, no por list-style-type (ver el CSS) */
+  if(node.classList&&node.classList.contains('lp-guion'))return '"–"';
+  if(node.classList&&node.classList.contains('lp-raya'))return '"—"';
   const t=(node.style&&node.style.listStyleType)||node.getAttribute('type')||'';
   if(t)return t;
   return (esOl?RICH_OL_NIVEL:RICH_UL_NIVEL)[(nivel||0)%3];
