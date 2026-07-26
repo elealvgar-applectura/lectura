@@ -1930,7 +1930,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v123'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v124'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -6988,12 +6988,7 @@ function exportSummaryText(tab){
       i++;
       out+=`${String(i).padStart(2,'0')}. ${noteTitle(n).toUpperCase()}\n`;
       out+=`    ${'─'.repeat(44)}\n`;
-      const words=richToPlain(n.text||'').split(/\s+/);let line='';
-      words.forEach(w=>{
-        if((line+' '+w).trim().length>72){out+='    '+line.trim()+'\n';line=w}
-        else line+=' '+w;
-      });
-      if(line.trim())out+='    '+line.trim()+'\n';
+      out+=txtWrap(richToPlain(n.text||''),'    ');   // parte y justifica
       out+=`    → Página ${pageLabel(pg)}\n\n`;
     });
   }
@@ -8169,9 +8164,7 @@ async function exportAclars(){
     const th=a.themeId?themeById(a.themeId):null;
     out+=`${String(i+1).padStart(2,'0')}. ${(a.ref||'Aclaración').toUpperCase()}\n`;
     out+=`    ${'─'.repeat(44)}\n`;
-    const words=richToPlain(a.text||'').split(/\s+/);let line='';
-    words.forEach(w=>{if((line+' '+w).trim().length>72){out+='    '+line.trim()+'\n';line=w}else line+=' '+w});
-    if(line.trim())out+='    '+line.trim()+'\n';
+    out+=txtWrap(richToPlain(a.text||''),'    ');     // parte y justifica
     out+=`    → Página ${pageLabel(a.page)}${th?'  ·  '+(th.num?th.num+' · ':'')+(th.name||''):''}\n\n`;
   });
   out+=sep+'\n';
@@ -9306,13 +9299,8 @@ async function exportEnts(kind){
   sorted.forEach((g,i)=>{
     out+=`${String(i+1).padStart(2,'0')}. ${g.title.toUpperCase()}\n`;
     out+=`    ${'─'.repeat(44)}\n`;
-    /* cuerpo ajustado a ~72 col con sangría, para que se lea bien */
-    const words=richToPlain(g.body||'').split(/\s+/);let line='';
-    words.forEach(w=>{
-      if((line+' '+w).trim().length>72){out+='    '+line.trim()+'\n';line=w}
-      else line+=' '+w;
-    });
-    if(line.trim())out+='    '+line.trim()+'\n';
+    /* cuerpo ajustado a ~72 col con sangría y justificado, para que se lea bien */
+    out+=txtWrap(richToPlain(g.body||''),'    ');
     out+=`    → Página ${pageLabel(g.page)}${g.manual?'  (manual)':''}\n\n`;
   });
   out+=sep+'\n';
@@ -9677,8 +9665,32 @@ function pdfExport(){
       const pal=[];
       p.runs.forEach(r=>r.t.split(/(\s+)/).forEach(w=>{if(w!=='')pal.push({t:w,st:r})}));
       let linea=[],ancho=0,primera=true;
-      const soltar=()=>{
+      /* `ultima` = es el último renglón del párrafo (no se justifica). */
+      const soltar=(ultima)=>{
         if(!linea.length)return;
+        /* la línea puede acabar en el espacio que la separaba de la palabra
+           que ya no cabía: no se ve, pero estorba al repartir el hueco */
+        while(linea.length&&!linea[linea.length-1].t.trim())linea.pop();
+        if(!linea.length)return;
+        /* ── JUSTIFICADO ──
+           El hueco que sobra al final del renglón se reparte entre sus
+           espacios, así todos los renglones acaban a la misma altura.
+           Dos excepciones, o queda peor que sin justificar:
+           · el ÚLTIMO renglón del párrafo (si no, tres palabras sueltas
+             quedarían separadas por medio folio);
+           · los renglones que van muy cortos porque la palabra siguiente era
+             larguísima y no cabía. */
+        let extra=0;
+        if(!ultima){
+          let usado=0,huecos=0;
+          linea.forEach(seg=>{
+            fuente(seg.st.b,seg.st.i);doc.setFontSize(size);
+            usado+=doc.getTextWidth(seg.t);
+            if(!seg.t.trim())huecos++;
+          });
+          const sobra=maxW-usado;
+          if(huecos>0&&sobra>0&&sobra<maxW*.32)extra=sobra/huecos;
+        }
         sitio(lh);
         if(pendiente){                                // número de página al margen
           doc.setFont('helvetica','normal');doc.setFontSize(7.6);tinta(INK3);
@@ -9697,18 +9709,19 @@ function pdfExport(){
           doc.text(seg.t,cx,y);
           const w=doc.getTextWidth(seg.t);
           if(seg.st.u){doc.setDrawColor(col[0],col[1],col[2]);doc.setLineWidth(.5);doc.line(cx,y+1.6,cx+w,y+1.6)}
-          cx+=w;
+          /* el reparto del justificado se suma DESPUÉS de cada espacio */
+          cx+=w+(extra&&!seg.t.trim()?extra:0);
         });
         y+=lh;linea=[];ancho=0;primera=false;
       };
       pal.forEach(w=>{
         fuente(w.st.b,w.st.i);doc.setFontSize(size);
         const ww=doc.getTextWidth(w.t);
-        if(ancho+ww>maxW&&linea.length&&w.t.trim())soltar();
+        if(ancho+ww>maxW&&linea.length&&w.t.trim())soltar(false);
         if(!linea.length&&!w.t.trim())return;      // ninguna línea empieza por un espacio
         linea.push(w);ancho+=ww;
       });
-      soltar();
+      soltar(true);                                 // el último renglón, sin estirar
       y+=size*.4;                                   // aire entre párrafos
     });
   };
@@ -10062,16 +10075,43 @@ async function cmapExportPDF(){
 /* ── exportaciones en texto plano: piezas compartidas ── */
 /* parte un texto en líneas de ~76 columnas con sangría, respetando los
    saltos de párrafo que ya traía */
+/* ── JUSTIFICAR UN RENGLÓN ──
+   En un archivo de texto no hay medias letras: la única forma de que todos los
+   renglones acaben a la misma altura es repartir espacios de más entre las
+   palabras. Es como se ha hecho siempre en texto plano.
+   El resto de la división se reparte de izquierda a derecha, un espacio más a
+   los primeros huecos: así no se acumula todo el hueco al final.
+   Si la línea tiene una sola palabra, se deja como está (estirar una palabra
+   sola no significa nada). */
+function txtJust(linea,ancho){
+  const pal=String(linea).trim().split(/\s+/);
+  if(pal.length<2)return pal.join(' ');
+  const letras=pal.reduce((n,w)=>n+w.length,0);
+  const huecos=pal.length-1;
+  const total=ancho-letras;
+  if(total<huecos)return pal.join(' ');        // no cabe ni con un espacio: se deja
+  const base=Math.floor(total/huecos),resto=total%huecos;
+  let out='';
+  pal.forEach((w,i)=>{
+    out+=w;
+    if(i<huecos)out+=' '.repeat(base+(i<resto?1:0));
+  });
+  return out;
+}
+/* parte un texto en líneas de ~76 columnas con sangría, respetando los
+   saltos de párrafo que ya traía. Las líneas van JUSTIFICADAS (todas acaban a
+   la misma altura) menos la última de cada párrafo, que sería absurdo estirar. */
 function txtWrap(txt,sangria){
   let res='';
+  const ancho=76-sangria.length;
   String(txt||'').split('\n').forEach(lin=>{
     if(!lin.trim()){res+='\n';return}
     const palabras=lin.trim().split(/\s+/);let l='';
     palabras.forEach(w=>{
-      if((l+' '+w).trim().length>76-sangria.length){res+=sangria+l.trim()+'\n';l=w}
+      if((l+' '+w).trim().length>ancho){res+=sangria+txtJust(l,ancho)+'\n';l=w}
       else l+=' '+w;
     });
-    if(l.trim())res+=sangria+l.trim()+'\n';
+    if(l.trim())res+=sangria+l.trim()+'\n';      // última línea: sin estirar
   });
   return res;
 }
