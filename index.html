@@ -704,6 +704,22 @@ body.fullscreen #rd-bottom-show{display:none}
    puede salir como <blockquote>; se le quita la raya y el relleno de serie */
 .rich-content blockquote{margin:4px 0 4px 26px;padding:0;border:none}
 .rich-content img{max-width:100%;height:auto;display:block;border-radius:8px;margin:6px 0}
+/* ══ AJUSTE DEL TEXTO ALREDEDOR DE LA IMAGEN (como en Word) ══
+   Va en una CLASE de la propia imagen, no en un estilo suelto, para que
+   viaje dentro de la ficha y se vea igual en el panel, en el editor y al
+   restaurar una copia de seguridad. */
+.rich-content img.lp-centro{display:block;margin:8px auto}
+.rich-content img.lp-izq{float:left;margin:4px 14px 8px 0}
+.rich-content img.lp-der{float:right;margin:4px 0 8px 14px}
+/* con imágenes flotando, el texto de después podría montarse en el hueco de
+   al lado sin querer; los párrafos de un cuadro se quedan donde deben */
+.rich-content::after{content:'';display:block;clear:both}
+/* Dentro del cuadro de escribir la imagen se toca para seleccionarla.
+   OJO: la imagen seleccionada NO se marca con una clase ni con un atributo.
+   De la ficha se guarda tal cual lo que hay dentro del cuadro (getRich
+   devuelve el innerHTML), así que cualquier marca de "esto está
+   seleccionado" acabaría guardada en los apuntes. El marco va por fuera. */
+.rich-ed img{cursor:pointer}
 .rich-content table{border-collapse:collapse;width:100%;table-layout:fixed;margin:8px 0}
 .rich-content td,.rich-content th{border:1px solid var(--border);padding:6px 8px;
   font-size:14px;vertical-align:top;word-break:break-word;min-width:0}
@@ -712,6 +728,33 @@ body.fullscreen #rd-bottom-show{display:none}
    del texto plano de siempre. Cuando el contenido YA es HTML con formato, los
    saltos van en <br>/<div>, y pre-wrap los duplicaría dejando huecos enormes. */
 .ent-text.rich-content,.emb-text.rich-content{white-space:normal}
+/* ═══ IMAGEN SELECCIONADA: MARCO, TIRADORES Y BARRITA ═══
+   Todo esto vive FUERA del cuadro de escribir (colgado del body) y se coloca
+   encima con position:fixed. Si estuviera dentro, se guardaría dentro de la
+   ficha, porque de la ficha se guarda todo el contenido del cuadro. */
+.rimg-box{position:fixed;z-index:4000;border:2px solid var(--acento);border-radius:6px;
+  pointer-events:none}
+.rimg-box.hidden,.rimg-tb.hidden{display:none}
+/* tiradores generosos: en el iPad hay que poder cogerlos con el dedo */
+.rimg-h{position:absolute;width:18px;height:18px;background:#fff;border:2px solid var(--acento);
+  border-radius:50%;pointer-events:auto;touch-action:none;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.rimg-h.nw{left:-10px;top:-10px;cursor:nwse-resize}
+.rimg-h.ne{right:-10px;top:-10px;cursor:nesw-resize}
+.rimg-h.sw{left:-10px;bottom:-10px;cursor:nesw-resize}
+.rimg-h.se{right:-10px;bottom:-10px;cursor:nwse-resize}
+.rimg-tb{position:fixed;z-index:4001;display:flex;align-items:center;gap:2px;
+  background:var(--card);border:1px solid var(--border);border-radius:14px;padding:5px;
+  box-shadow:0 8px 26px rgba(120,100,140,.3);max-width:calc(100vw - 16px);flex-wrap:wrap}
+.rimg-tb button{background:transparent;border:none;border-radius:9px;padding:0 9px;
+  min-height:34px;font-size:12px;color:var(--ink);cursor:pointer;font-family:inherit;
+  display:flex;align-items:center;gap:5px;touch-action:manipulation;white-space:nowrap}
+.rimg-tb button:active{transform:scale(.94)}
+.rimg-tb button.on{background:var(--rosa);font-weight:700}
+.rimg-tb button.del{color:var(--danger)}
+.rimg-tb .rimg-sep{width:1px;height:22px;background:var(--border);margin:0 4px;flex-shrink:0}
+.rimg-tb .rimg-pct{font-size:12px;font-weight:700;color:var(--ink2);min-width:44px;text-align:center}
+.rimg-tb .ico{width:15px;height:15px}
+
 /* barra de formato + área editable en los modales */
 .rich-tb{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:6px}
 .rich-tb button{min-width:32px;height:30px;padding:0 8px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--ink);font-size:14px;cursor:pointer;font-family:inherit;line-height:1;touch-action:manipulation}
@@ -1984,7 +2027,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v130'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v131'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2811,7 +2854,7 @@ function richCase(ed,modo){
    adjuntada. `restore` devuelve el cursor a su sitio: hace falta porque leer
    y encoger la imagen tarda un momento y para entonces la selección puede
    haberse perdido (sobre todo al volver del selector de archivos). */
-function richPutImage(blob,restore){
+function richPutImage(blob,restore,ed){
   const fr=new FileReader();
   fr.onload=()=>{
     const img=new Image();
@@ -2826,7 +2869,17 @@ function richPutImage(blob,restore){
       const data=cv.toDataURL('image/jpeg',0.78);
       if(data.length>900000){showTip('Esa imagen es demasiado grande incluso reducida');return}
       if(restore)restore();
-      document.execCommand('insertHTML',false,'<img src="'+data+'" alt="">');
+      /* Se inserta con un id de usar y tirar SOLO para poder localizarla
+         justo después (insertHTML no devuelve el nodo) y dejarla ya
+         seleccionada, como hace Word. El id se quita en el acto: si se
+         quedara, se guardaría dentro de la ficha. */
+      const marca='lpimg'+Date.now();
+      document.execCommand('insertHTML',false,'<img id="'+marca+'" src="'+data+'" alt="">');
+      const nueva=document.getElementById(marca);
+      if(nueva){
+        nueva.removeAttribute('id');
+        if(ed&&ed.contains(nueva))setTimeout(()=>imgSelect(ed,nueva),30);
+      }
     };
     img.onerror=()=>showTip('No he podido leer esa imagen');
     img.src=fr.result;
@@ -2834,13 +2887,223 @@ function richPutImage(blob,restore){
   fr.onerror=()=>showTip('No he podido leer esa imagen');
   fr.readAsDataURL(blob);
 }
+/* ══════════════════════════════════════════════════════════════════
+   IMÁGENES DENTRO DEL TEXTO: MOVER Y REDIMENSIONAR (como en Word)
+   ──────────────────────────────────────────────────────────────────
+   Antes una imagen insertada se quedaba como estaba y no había forma de
+   tocarla: ni hacerla más pequeña, ni ponerla a un lado con el texto
+   rodeándola, ni cambiarla de sitio si te habías equivocado de renglón.
+
+   Al TOCAR una imagen dentro del cuadro de escribir sale un marco con cuatro
+   tiradores y una barrita con las opciones. Funciona así:
+     · arrastrar un tirador  → cambia el tamaño (mantiene la proporción)
+     · botones 25/50/75/100  → tamaños redondos de un toque
+     · ajuste del texto      → en línea / centrada / rodear por un lado
+     · flechas ↑ ↓           → mueve la imagen un bloque arriba o abajo
+     · papelera o Supr       → la quita
+     · tocar fuera o Escape  → deselecciona
+
+   DOS DECISIONES IMPORTANTES:
+
+   1. EL MARCO VA POR FUERA DEL CUADRO. De una ficha se guarda TODO lo que
+      hay dentro del cuadro de escribir (getRich devuelve su innerHTML). Si
+      el marco y los tiradores estuvieran dentro, acabarían guardados dentro
+      de tus apuntes. Por eso cuelgan del body y se colocan encima con
+      position:fixed, siguiendo a la imagen al hacer scroll.
+
+   2. EL TAMAÑO SE GUARDA EN PORCENTAJE, no en píxeles. El mismo apunte se ve
+      en el PC con el panel ancho y en el iPad con el panel estrecho: en
+      píxeles, una imagen que en el PC ocupa media línea en el iPad se saldría.
+      En porcentaje se comporta igual en los dos.
+   ══════════════════════════════════════════════════════════════════ */
+let imgSel=null;                    // {ed,img} de la imagen seleccionada
+const imgBox=document.createElement('div');
+imgBox.className='rimg-box hidden';
+imgBox.innerHTML=['nw','ne','sw','se'].map(p=>`<i class="rimg-h ${p}" data-p="${p}"></i>`).join('');
+document.body.appendChild(imgBox);
+const imgTb=document.createElement('div');
+imgTb.className='rimg-tb hidden';
+document.body.appendChild(imgTb);
+
+const IMG_AJUSTES=[
+  {k:'linea', l:'En línea',  t:'La imagen ocupa su propio renglón, alineada a la izquierda'},
+  {k:'centro',l:'Centrada',  t:'En su propio renglón, centrada'},
+  {k:'izq',   l:'Izquierda', t:'A la izquierda, con el texto rodeándola por la derecha'},
+  {k:'der',   l:'Derecha',   t:'A la derecha, con el texto rodeándola por la izquierda'}
+];
+function imgAjusteDe(img){
+  if(img.classList.contains('lp-izq'))return 'izq';
+  if(img.classList.contains('lp-der'))return 'der';
+  if(img.classList.contains('lp-centro'))return 'centro';
+  return 'linea';
+}
+/* ancho útil del cuadro (sin los rellenos), que es sobre el que se calcula
+   el porcentaje de la imagen */
+function imgAnchoCaja(ed){
+  const cs=getComputedStyle(ed);
+  const w=ed.clientWidth-(parseFloat(cs.paddingLeft)||0)-(parseFloat(cs.paddingRight)||0);
+  return w>20?w:(ed.clientWidth||300);
+}
+function imgPctActual(){
+  if(!imgSel)return 100;
+  const w=imgSel.img.getBoundingClientRect().width;
+  /* Una imagen recién insertada todavía no se ha pintado y mide 0. Sin esta
+     salvaguarda el porcentaje aparecía como 5% y, al tocar "+", la imagen se
+     encogía de golpe en vez de crecer. */
+  if(w<4)return 100;
+  return Math.max(5,Math.min(100,Math.round(w/imgAnchoCaja(imgSel.ed)*100)));
+}
+function imgSetPct(pct){
+  if(!imgSel)return;
+  pct=Math.max(5,Math.min(100,Math.round(pct)));
+  imgSel.img.style.width=pct+'%';
+  imgSel.img.style.height='auto';
+  imgSyncBox();
+  const et=imgTb.querySelector('.rimg-pct');
+  if(et)et.textContent=pct+'%';
+}
+/* coloca el marco y la barrita encima de la imagen */
+function imgSyncBox(){
+  if(!imgSel)return;
+  /* si la imagen ya no existe (la has borrado escribiendo), se suelta */
+  if(!imgSel.img.isConnected||!imgSel.ed.isConnected){imgDeselect();return}
+  const r=imgSel.img.getBoundingClientRect();
+  imgBox.style.left=r.left+'px';imgBox.style.top=r.top+'px';
+  imgBox.style.width=r.width+'px';imgBox.style.height=r.height+'px';
+  const th=imgTb.offsetHeight||42;
+  let ty=r.top-th-8;
+  if(ty<8)ty=Math.min(r.bottom+8,innerHeight-th-8);
+  imgTb.style.top=ty+'px';
+  imgTb.style.left=Math.max(8,Math.min(r.left,innerWidth-(imgTb.offsetWidth||260)-8))+'px';
+  /* si la imagen se ha ido de la pantalla al hacer scroll, el marco se
+     esconde (pero la imagen sigue seleccionada) */
+  const fuera=r.bottom<40||r.top>innerHeight-20;
+  imgBox.classList.toggle('hidden',fuera);
+  imgTb.classList.toggle('hidden',fuera);
+}
+function imgDeselect(){
+  imgSel=null;
+  imgBox.classList.add('hidden');
+  imgTb.classList.add('hidden');
+}
+function imgSelect(ed,img){
+  imgSel={ed,img};
+  imgBuildTb();
+  imgBox.classList.remove('hidden');
+  imgTb.classList.remove('hidden');
+  imgSyncBox();
+  /* si aún se está cargando, el marco se coloca donde no es y el porcentaje
+     sale mal: se repasa en cuanto termine */
+  if(!img.complete||!img.naturalWidth){
+    img.addEventListener('load',()=>{
+      if(imgSel&&imgSel.img===img){imgBuildTb();imgSyncBox()}
+    },{once:true});
+  }
+}
+/* mueve la imagen un bloque arriba o abajo dentro del cuadro */
+function imgMover(dir){
+  if(!imgSel)return;
+  const img=imgSel.img, ed=imgSel.ed;
+  /* el "bloque" es el hijo directo del cuadro que la contiene: así la imagen
+     salta párrafos enteros y no se queda a mitad de una palabra */
+  let nodo=img;
+  while(nodo.parentNode&&nodo.parentNode!==ed)nodo=nodo.parentNode;
+  const vecino=dir<0?nodo.previousElementSibling:nodo.nextElementSibling;
+  if(!vecino){showTip(dir<0?'Ya está arriba del todo':'Ya está abajo del todo',1400);return}
+  if(nodo===img){
+    /* la imagen va suelta: se mueve ella sola al otro lado del vecino */
+    ed.insertBefore(img,dir<0?vecino:vecino.nextSibling);
+  }else{
+    ed.insertBefore(nodo,dir<0?vecino:vecino.nextSibling);
+  }
+  imgSyncBox();
+}
+function imgBuildTb(){
+  imgTb.innerHTML='';
+  const mk=(txt,titulo,fn,cls)=>{
+    const b=document.createElement('button');
+    b.type='button';b.title=titulo||'';b.innerHTML=txt;
+    if(cls)b.className=cls;
+    /* pointerdown preventDefault: si no, tocar la barrita le quita el foco al
+       cuadro de escribir y se pierde dónde estabas */
+    b.addEventListener('pointerdown',e=>e.preventDefault());
+    b.onclick=e=>{e.preventDefault();fn()};
+    imgTb.appendChild(b);
+    return b;
+  };
+  const sep=()=>{const s=document.createElement('span');s.className='rimg-sep';imgTb.appendChild(s)};
+
+  /* ajuste del texto */
+  const actual=imgAjusteDe(imgSel.img);
+  IMG_AJUSTES.forEach(a=>{
+    const b=mk(a.l,a.t,()=>{
+      imgSel.img.classList.remove('lp-izq','lp-der','lp-centro');
+      if(a.k!=='linea')imgSel.img.classList.add('lp-'+a.k);
+      imgBuildTb();imgSyncBox();
+    });
+    if(actual===a.k)b.classList.add('on');
+  });
+  sep();
+  /* tamaño */
+  mk('−','Más pequeña',()=>imgSetPct(imgPctActual()-10));
+  const pct=document.createElement('span');
+  pct.className='rimg-pct';pct.textContent=imgPctActual()+'%';
+  imgTb.appendChild(pct);
+  mk('+','Más grande',()=>imgSetPct(imgPctActual()+10));
+  [25,50,100].forEach(p=>mk(p+'%','Ocupar el '+p+'% del ancho',()=>imgSetPct(p)));
+  sep();
+  /* mover */
+  mk(svg('chevUp'),'Subirla un bloque',()=>imgMover(-1));
+  mk(svg('chevDown'),'Bajarla un bloque',()=>imgMover(1));
+  sep();
+  mk(svg('trash'),'Quitar la imagen',()=>{
+    const img=imgSel.img;imgDeselect();
+    if(img.parentNode)img.parentNode.removeChild(img);
+  },'del');
+}
+/* ── arrastrar los tiradores ── */
+imgBox.querySelectorAll('.rimg-h').forEach(h=>{
+  h.addEventListener('pointerdown',e=>{
+    if(!imgSel)return;
+    e.preventDefault();e.stopPropagation();
+    try{h.setPointerCapture(e.pointerId)}catch(err){}
+    const r=imgSel.img.getBoundingClientRect();
+    const x0=e.clientX, ancho0=r.width;
+    /* los tiradores de la izquierda crecen al arrastrar hacia la izquierda */
+    const signo=(h.dataset.p==='ne'||h.dataset.p==='se')?1:-1;
+    const caja=imgAnchoCaja(imgSel.ed);
+    const mover=ev=>{
+      const nuevo=ancho0+(ev.clientX-x0)*signo;
+      imgSetPct(nuevo/caja*100);
+    };
+    const soltar=()=>{
+      h.removeEventListener('pointermove',mover);
+      h.removeEventListener('pointerup',soltar);
+      h.removeEventListener('pointercancel',soltar);
+    };
+    h.addEventListener('pointermove',mover);
+    h.addEventListener('pointerup',soltar);
+    h.addEventListener('pointercancel',soltar);
+  });
+});
+/* el marco sigue a la imagen al hacer scroll o al cambiar el tamaño */
+addEventListener('scroll',()=>imgSyncBox(),true);
+addEventListener('resize',()=>imgSyncBox());
+/* tocar fuera deselecciona (pero no al tocar el marco o la barrita) */
+document.addEventListener('pointerdown',e=>{
+  if(!imgSel)return;
+  if(imgBox.contains(e.target)||imgTb.contains(e.target))return;
+  if(e.target===imgSel.img)return;
+  imgDeselect();
+},true);
+
 function richInsertImage(ed){
   const restore=richKeepSel(ed);
   const inp=document.createElement('input');
   inp.type='file';inp.accept='image/*';
   inp.onchange=()=>{
     const f=inp.files&&inp.files[0];if(!f)return;
-    richPutImage(f,restore);
+    richPutImage(f,restore,ed);
   };
   inp.click();
 }
@@ -2941,6 +3204,32 @@ function wireRichToolbar(tb,ed){
   ed.addEventListener('mouseup',()=>richUpdateState(tb,ed));
   ed.addEventListener('input',()=>richUpdateState(tb,ed));
 
+  /* ── IMÁGENES ──
+     Tocar una imagen la selecciona y saca el marco con los tiradores (ver el
+     bloque grande de arriba). Tocar en cualquier otro sitio del texto la
+     suelta. */
+  ed.addEventListener('click',e=>{
+    if(e.target&&e.target.tagName==='IMG'&&ed.contains(e.target)){imgSelect(ed,e.target);return}
+    if(imgSel&&imgSel.ed===ed)imgDeselect();
+  });
+  /* Con una imagen seleccionada: Escape la suelta y Supr/Retroceso la quita.
+     Se corta la propagación para que ese Escape no cierre además el cuadro
+     entero (primero sueltas la imagen, y si vuelves a pulsar, se cierra). */
+  ed.addEventListener('keydown',e=>{
+    if(!imgSel||imgSel.ed!==ed)return;
+    if(e.key==='Escape'){
+      e.preventDefault();e.stopPropagation();imgDeselect();return;
+    }
+    if(e.key==='Delete'||e.key==='Backspace'){
+      e.preventDefault();e.stopPropagation();
+      const img=imgSel.img;imgDeselect();
+      if(img.parentNode)img.parentNode.removeChild(img);
+    }
+  });
+  /* al escribir, la imagen puede cambiar de sitio o desaparecer: el marco se
+     recoloca solo (y se suelta si ya no existe) */
+  ed.addEventListener('input',()=>{if(imgSel&&imgSel.ed===ed)imgSyncBox()});
+
   /* ── TABULADOR ──
      Dentro de una tabla salta a la celda siguiente (como en Word). Fuera,
      mete o quita margen. Sin esto el tabulador se llevaba el foco fuera del
@@ -2989,7 +3278,7 @@ function wireRichToolbar(tb,ed){
       if(f){
         e.preventDefault();
         /* la selección se guarda AHORA: encoger la imagen tarda un momento */
-        richPutImage(f,richKeepSel(ed));
+        richPutImage(f,richKeepSel(ed),ed);
         return;
       }
     }
