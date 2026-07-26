@@ -71,6 +71,11 @@ body.dark .annot-cv,
 body.dark .thumb-canvas{filter:var(--pdf-filter)}
 body.dark input[type=color]{background:var(--bg2)}
 /* Las notas adhesivas y nodos son DOM, no canvas: ya heredan las variables. */
+/* El azul chillón de serie al seleccionar texto (cuadros de escritura, fichas,
+   paneles…) se cambia por el rosa de la casa. Es lo único que quedaba con un
+   color ajeno al de la app. */
+::selection{background:var(--rosa);color:var(--ink)}
+::-moz-selection{background:var(--rosa);color:var(--ink)}
 html,body{height:100%;height:100dvh;overflow:hidden}
 body{font-family:var(--font);background:var(--bg);display:flex;flex-direction:column;
   user-select:none;color:var(--ink);touch-action:manipulation;
@@ -339,6 +344,10 @@ body.fullscreen #rd-bottom-show{display:none}
 .mbtn.cancel{background:var(--bg2);color:var(--ink)}
 .mbtn.ok{background:var(--rosa);color:var(--ink)}
 .mbtn.danger{background:var(--danger);color:#fff}
+/* botón "apagado": la acción que destruye algo cuando el aviso está para
+   protegerte. No lleva relleno para no atraer el dedo, pero la letra en rojo
+   deja claro lo que hace. */
+.mbtn.quiet{background:transparent;color:var(--danger);border:1px solid var(--border)}
 .mbtn:active{opacity:.75}
 /* palette */
 .pal-tabs{display:flex;gap:6px;margin-bottom:14px;background:var(--bg2);border-radius:12px;padding:4px}
@@ -1537,8 +1546,10 @@ body.fullscreen #gid-bar{bottom:20px}
       ↑↓ elegir · 1-9 atajo · <b>Enter</b> confirmar · <b>Esc</b> volver
     </div>
     <div class="modal-btns">
-      <button class="mbtn cancel" id="theme-back">Volver</button>
-      <button class="mbtn ok" id="theme-skip" style="background:var(--bg2)">Sin tema</button>
+      <!-- los dos botones dicen lo que hacen: "Volver" no aclaraba si se
+           guardaba la ficha o no (no se guarda) -->
+      <button class="mbtn cancel" id="theme-back">Cancelar</button>
+      <button class="mbtn ok" id="theme-skip" style="background:var(--bg2)">Guardar sin tema</button>
     </div>
   </div>
 </div>
@@ -1891,7 +1902,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v119'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v120'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2804,7 +2815,7 @@ function askInlineEdit(host,title,text,opts){return new Promise(res=>{
   const salir=()=>{
     if(done)return true;
     if(foto()===foto0){finish(null);return true}
-    askConfirm(DIRTY_MSG).then(ok=>{if(ok)finish(null)});
+    askConfirm(DIRTY_MSG,DIRTY_BTNS).then(ok=>{if(ok)finish(null)});
     return false;
   };
   closeInlineEdit=salir;
@@ -2858,7 +2869,11 @@ function askInlineEdit(host,title,text,opts){return new Promise(res=>{
    DE TECLADO, MODAL_CANCEL), así que basta con vigilar ese botón para cubrir
    las dos salidas.
    ══════════════════════════════════════════════════════════════════ */
-const DIRTY_MSG='Has escrito algo y no lo has guardado. ¿Seguro que quieres salir y perderlo?';
+const DIRTY_MSG='Has escrito algo y no lo has guardado. ¿Qué hacemos?';
+/* Cada botón dice lo que hace, y el rosa se lo lleva "Seguir escribiendo":
+   la mano va al botón de color, así que el destacado tiene que ser el que NO
+   pierde el texto. Salir sin guardar queda apagado, a propósito. */
+const DIRTY_BTNS={ok:'Salir sin guardar',cancel:'Seguir escribiendo',safe:true};
 const DIRTY_EDS=[
   {m:'modal-embed-edit',c:'emb-edit-cancel',  f:['emb-edit-title','emb-edit-text','emb-edit-theme']},
   {m:'modal-node',      c:'modal-node-cancel',f:['node-title-in','node-body-in','node-theme-in']},
@@ -2888,7 +2903,7 @@ DIRTY_EDS.forEach(cfg=>{
     if(cfg.saltar)return;                              // es el clic relanzado
     if(cfg.snap===undefined||edSnap(cfg.f)===cfg.snap)return;   // nada que perder
     e.preventDefault();e.stopImmediatePropagation();
-    askConfirm(DIRTY_MSG).then(ok=>{
+    askConfirm(DIRTY_MSG,DIRTY_BTNS).then(ok=>{
       if(!ok)return;                                   // sigue editando
       cfg.saltar=true;b.click();cfg.saltar=false;
     });
@@ -2990,7 +3005,36 @@ function askTheme(kindLabel){
 let confRes=null;const mConf=document.getElementById('modal-confirm');
 document.getElementById('modal-confirm-cancel').onclick=()=>{mConf.classList.add('hidden');confRes&&confRes(false)};
 document.getElementById('modal-confirm-ok').onclick=()=>{mConf.classList.add('hidden');confRes&&confRes(true)};
-function askConfirm(msg){return new Promise(r=>{confRes=r;document.getElementById('modal-confirm-msg').textContent=msg;mConf.classList.remove('hidden')})}
+/* Aviso de "¿seguro?".
+   1. LOS BOTONES DICEN LO QUE HACEN. Antes ponía siempre "Cancelar /
+      Eliminar", viniera de donde viniera: en un aviso de "vas a perder lo
+      escrito", un botón que pone "Eliminar" no significa nada y hay que
+      adivinar cuál es cuál.
+   2. EL BOTÓN DE COLOR ES AL QUE VA EL DEDO. Por eso, cuando el aviso está
+      para PROTEGERTE de perder algo (no lo has pedido tú), el color se lo
+      lleva la opción segura y la que destruye se queda apagada. Cuando el
+      borrado SÍ lo has pedido tú, manda el rojo como siempre.
+
+   opts = {ok, cancel, danger, safe}. Sin opts se comporta como siempre.
+   · danger:false → botón principal en rosa en vez de rojo (no destruye nada).
+   · safe:true    → el rosa va al botón de cancelar; el otro queda discreto. */
+function askConfirm(msg,opts){
+  const o=opts||{};
+  const bOk=document.getElementById('modal-confirm-ok');
+  const bCan=document.getElementById('modal-confirm-cancel');
+  bOk.textContent=o.ok||'Eliminar';
+  bCan.textContent=o.cancel||'Cancelar';
+  if(o.safe){
+    bCan.className='mbtn ok';          // rosa: lo que NO pierde nada
+    bOk.className='mbtn quiet';        // apagado, con la letra en rojo
+    mConf.dataset.safe='1';            // …y Enter tampoco destruye (ver ATAJOS)
+  }else{
+    bCan.className='mbtn cancel';
+    bOk.className='mbtn '+(o.danger===false?'ok':'danger');
+    mConf.dataset.safe='';
+  }
+  return new Promise(r=>{confRes=r;document.getElementById('modal-confirm-msg').textContent=msg;mConf.classList.remove('hidden')});
+}
 
 const ctxMenu=document.getElementById('ctx-menu');
 function showCtx(x,y,items){
@@ -3814,7 +3858,8 @@ async function openBackupScreen(){
 document.getElementById('bk-export').onclick=runExport;
 document.getElementById('bk-merge').onclick=()=>{document.getElementById('backup-input').dataset.mode='merge';document.getElementById('backup-input').click()};
 document.getElementById('bk-replace').onclick=async()=>{
-  const ok=await askConfirm('⚠️ Borrará TODO lo que hay ahora y lo reemplazará con la copia. ¿Continuar?');
+  const ok=await askConfirm('⚠️ Borrará TODO lo que hay ahora y lo reemplazará con la copia. ¿Continuar?',
+    {ok:'Restaurar la copia',cancel:'Dejarlo como está'});
   if(!ok)return;document.getElementById('backup-input').dataset.mode='replace';document.getElementById('backup-input').click();
 };
 /* ══════════════════════════════════════════════════════════════════════════
@@ -10550,6 +10595,10 @@ window.addEventListener('keydown',e=>{
       if(cb&&!cb.classList.contains('hidden')){clickIfEnabled('custom-apply');return}
       clickIfEnabled('pal-close');return;
     }
+    /* Aviso que está para protegerte (safe): Enter NO puede ser el que
+       destruye. Un Enter de más al salir de una ficha te borraría el texto.
+       Enter hace lo seguro; para lo otro hay que pulsar el botón a propósito. */
+    if(m.id==='modal-confirm'&&mConf.dataset.safe==='1'){clickIfEnabled('modal-confirm-cancel');return}
     clickIfEnabled(MODAL_OK[m.id]);
     return;
   }
@@ -12142,7 +12191,8 @@ function wrapText(ctx,text,maxW){const words=text.split(/\s+/),lines=[];let line
    Los trazos hechos antes de la simplificacion siguen con sus cientos de puntos
    y sus 15 decimales. Esto los adelgaza in situ, sin cambiar como se ven. */
 async function compactAllAnnotations(){
-  const ok=await askConfirm('¿Compactar las anotaciones?\n\nReduce el tamaño de los trazos sin cambiar cómo se ven. Recomendado si la sincronización falla por tamaño.');
+  const ok=await askConfirm('¿Compactar las anotaciones?\n\nReduce el tamaño de los trazos sin cambiar cómo se ven. Recomendado si la sincronización falla por tamaño.',
+    {ok:'Compactar',danger:false});
   if(!ok)return;
   showTip('Compactando…',2000);
   const r1=v=>Math.round(v*10)/10;
@@ -12746,7 +12796,8 @@ async function flushPending(){
    Estos dos botones resuelven el empate a mano. */
 async function forcePush(){
   if(!fbUser)return;
-  const ok=await askConfirm('¿Subir TODAS las anotaciones de este dispositivo a la nube?\n\nSobrescribirá lo que haya en la nube para estos documentos.');
+  const ok=await askConfirm('¿Subir TODAS las anotaciones de este dispositivo a la nube?\n\nSobrescribirá lo que haya en la nube para estos documentos.',
+    {ok:'Subir a la nube',cancel:'No subir nada'});
   if(!ok)return;
   syncBusy=true;updateSyncUI();
   let n=0,skip=0;const failed=[];
@@ -12789,7 +12840,8 @@ async function forcePush(){
 }
 async function forcePull(){
   if(!fbUser)return;
-  const ok=await askConfirm('¿Bajar TODAS las anotaciones de la nube?\n\nSobrescribirá lo que tengas en este dispositivo.');
+  const ok=await askConfirm('¿Bajar TODAS las anotaciones de la nube?\n\nSobrescribirá lo que tengas en este dispositivo.',
+    {ok:'Bajar de la nube',cancel:'No bajar nada'});
   if(!ok)return;
   syncBusy=true;updateSyncUI();
   let n=0,skip=0;const failed=[];
