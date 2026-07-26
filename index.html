@@ -242,6 +242,24 @@ body.panel-dragging #reader-bottom{transition:none}
   background:rgba(255,213,0,.40);box-shadow:0 0 0 1px rgba(190,145,0,.45)}
 .find-hl.cur{background:rgba(255,142,0,.55);box-shadow:0 0 0 2px rgba(214,105,0,.8)}
 
+/* ══ SELECCIÓN DE TEXTO ══
+   La banda azul va SUELTA dentro de .page-wrap, por el mismo motivo que los
+   resaltados del buscador: la capa de notas se vacía al redibujar la página y
+   se llevaría las bandas por delante. Nunca recibe toques: si los recibiera,
+   taparía el lápiz y el desplazamiento de la página. */
+.sel-hl{position:absolute;pointer-events:none;border-radius:2px;z-index:5;
+  background:rgba(255,166,203,.45);box-shadow:0 0 0 1px rgba(240,130,175,.35)}
+/* pastilla flotante para copiar lo seleccionado (en el iPad no hay Ctrl+C) */
+#sel-copy{position:fixed;z-index:900;display:none;align-items:center;gap:7px;
+  background:var(--card);border:1px solid var(--border);border-radius:12px;
+  box-shadow:0 6px 24px rgba(120,100,140,.22);padding:9px 13px;cursor:pointer;
+  font-family:inherit;font-size:14px;font-weight:600;color:var(--ink);
+  touch-action:manipulation;user-select:none}
+#sel-copy.on{display:flex}
+#sel-copy:active{transform:scale(.95)}
+#sel-copy svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;
+  stroke-linecap:round;stroke-linejoin:round}
+
 /* sticky notes */
 .stnote{position:absolute;width:180px;background:var(--mante);border-radius:10px;box-shadow:2px 3px 14px rgba(120,100,140,.25);border:1px solid rgba(0,0,0,.05);z-index:10;pointer-events:all;overflow:hidden;display:flex;flex-direction:column}
 .stnote-resize{position:absolute;right:0;bottom:0;width:22px;height:22px;cursor:nwse-resize;touch-action:none;z-index:5;background:linear-gradient(135deg,transparent 50%,rgba(120,100,140,.35) 50%);border-bottom-right-radius:10px}
@@ -1874,12 +1892,17 @@ body.fullscreen #gid-bar{bottom:20px}
 <div id="pencil-badge" class="hidden">Apple Pencil</div>
 <div class="ctx-menu hidden" id="ctx-menu"></div>
 <div id="tip" class="hidden"></div>
+<!-- sale junto al texto seleccionado del PDF -->
+<button id="sel-copy" type="button" title="Copiar el texto seleccionado">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+  Copiar
+</button>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v115'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v116'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -3978,6 +4001,10 @@ async function openReader(fileId,fileName){
        2 segundos. */
     strokeCancelers.length=0;
     clearFindResults();findIndex={};
+    /* la selección de texto y los recuadros de cada letra son de ESTE
+       documento: si no se vacían, al abrir otro se leerían posiciones ajenas
+       (las claves son pid y se repiten entre documentos, igual que textCache) */
+    clearTextSel();selBoxes={};
     pageDims=[null];
     marginCfg=loadMargin();
     for(let i=1;i<=pdfPages;i++){const vp=(await pdfDoc.getPage(i)).getViewport({scale:1});pageDims[i]={w:vp.width,h:vp.height}}
@@ -4067,7 +4094,7 @@ function unrenderPage(num){
 }
 const lazyObs=new IntersectionObserver(entries=>{entries.forEach(en=>{const num=parseInt(en.target.dataset.page);if(en.isIntersecting)queueRender(num);else unrenderPage(num)})},{root:canvasWrap,rootMargin:'150% 0px 150% 0px'});
 let scrollSettle=null;
-canvasWrap.addEventListener('scroll',()=>{clearTimeout(scrollSettle);scrollSettle=setTimeout(renderVisiblePages,120)},{passive:true});
+canvasWrap.addEventListener('scroll',()=>{clearTimeout(scrollSettle);scrollSettle=setTimeout(()=>{renderVisiblePages();repaintTextSel()},120)},{passive:true});
 function renderVisiblePages(){
   /* el rect del contenedor se calcula UNA vez, no dentro del bucle: antes se
      llamaba a getBoundingClientRect() dos veces por página (forzando recálculo
@@ -4080,7 +4107,7 @@ function renderVisiblePages(){
     if(r.bottom>top&&r.top<bottom)queueRender(parseInt(w.dataset.page));
   });
 }
-async function rerenderAll(){pagesInner.querySelectorAll('.page-wrap').forEach(w=>{w.dataset.rscale='';sizePageShell(w,parseInt(w.dataset.page))});renderVisiblePages();scheduleAnchors();repaintFindHl()}
+async function rerenderAll(){pagesInner.querySelectorAll('.page-wrap').forEach(w=>{w.dataset.rscale='';sizePageShell(w,parseInt(w.dataset.page))});renderVisiblePages();scheduleAnchors();repaintFindHl();repaintTextSel()}
 
 /* ── redraw ── */
 function roundRect(ctx,x,y,w,h,r){const x0=Math.min(x,x+w),y0=Math.min(y,y+h);const W=Math.abs(w),H=Math.abs(h);r=Math.min(r,W/2,H/2);ctx.beginPath();ctx.moveTo(x0+r,y0);ctx.arcTo(x0+W,y0,x0+W,y0+H,r);ctx.arcTo(x0+W,y0+H,x0,y0+H,r);ctx.arcTo(x0,y0+H,x0,y0,r);ctx.arcTo(x0,y0,x0+W,y0,r);ctx.closePath()}
@@ -4734,6 +4761,12 @@ function setupPageEvents(wrap,aCv,nl,num){
   strokeCancelers.push(cancelStroke);
 
   aCv.addEventListener('pointerdown',e=>{
+    /* BOTON DERECHO MANTENIDO = seleccionar texto, en cualquier herramienta y
+       sin cambiarla. Aqui solo se "arma": si pulsas y sueltas sin mover, no
+       pasa nada y sale el menu del navegador de siempre. La seleccion arranca
+       en el primer movimiento (ver el pointermove global). */
+    if(e.pointerType==='mouse'&&e.button===2){selArmRight(e);return}
+
     /* Solo el boton principal dibuja. Los laterales del raton (3=atras,
        4=adelante), el derecho (2) y el central (1) NO deben subrayar:
        llegaban aqui y se trataban como un trazo. */
@@ -4782,8 +4815,17 @@ function setupPageEvents(wrap,aCv,nl,num){
       renderNote(nl,nd,num,true);scheduleSave();scheduleAnchors();return;
     }
 
-    /* select = no dibuja */
-    if(curTool==='select')return;
+    /* select = no dibuja: con el raton o con el Pencil se SELECCIONA TEXTO.
+       El dedo no llega hasta aqui (mas arriba se ha quedado desplazando la
+       hoja), asi que el desplazamiento con el dedo sigue igual que siempre. */
+    if(curTool==='select'){
+      if(selStart(e)){
+        e.preventDefault();
+        /* el Pencil esta seleccionando: la palma apoyada no debe mover nada */
+        if(e.pointerType==='pen'){penActive=true;penActiveT=Date.now()}
+      }
+      return;
+    }
 
     e.preventDefault();
     aCv.setPointerCapture(e.pointerId);
@@ -11089,7 +11131,7 @@ Object.entries(toolMap).forEach(([id,tool])=>{
   document.getElementById(id).onclick=()=>{
     if(curTool===tool&&CONFIGURABLE.includes(tool)){openSettings(tool);return}
     curTool=tool;Object.keys(toolMap).forEach(k=>document.getElementById(k).classList.remove('on'));document.getElementById(id).classList.add('on');
-    const tips={select:'Dedo = scroll · Lápiz = selección',highlight:'Sigue el texto · baja para subrayar varias líneas · toca 2x para el grosor',pen:'Lápiz fino · mantén quieto para línea recta',note:'Toca el PDF para añadir una nota',cover:'Arrastra para tapar · toca la tapa para destapar · mantén para eliminar',eraser:'Pasa por encima para borrar · toca 2x para ajustes'};
+    const tips={select:'Dedo = desplazar · Lápiz o ratón = seleccionar texto',highlight:'Sigue el texto · baja para subrayar varias líneas · toca 2x para el grosor',pen:'Lápiz fino · mantén quieto para línea recta',note:'Toca el PDF para añadir una nota',cover:'Arrastra para tapar · toca la tapa para destapar · mantén para eliminar',eraser:'Pasa por encima para borrar · toca 2x para ajustes'};
     showTip(tips[tool],2800);
   };
 });
@@ -11331,6 +11373,318 @@ window.addEventListener('keydown',e=>{
   if(e.key!=='f'&&e.key!=='F')return;
   if(screens.reader.classList.contains('hidden'))return;
   e.preventDefault();openFind();
+},true);
+
+/* ══════════════════════════════════════════════════════════════════
+   SELECCIONAR TEXTO DEL PDF (para copiarlo)
+
+   POR QUÉ HAY QUE HACERLO A MANO. El PDF se DIBUJA en un lienzo: en la
+   pantalla no hay letras de verdad, así que el navegador no tiene nada que
+   seleccionar. Por eso antes, en el modo selección, arrastrar con el ratón
+   no hacía absolutamente nada.
+
+   CÓMO SE HACE. Con el texto que la app ya extrae del PDF (el mismo que usan
+   el buscador y el subrayado guiado):
+   1. Se reutiliza el índice del buscador (buildFindIndex): sabe de qué
+      trocito viene cada letra y en qué posición. Con eso se calcula el
+      recuadro de cada letra y se sabe cuál hay debajo del puntero.
+   2. Para pintar la banda azul se usa findRects, que ya resolvía el mismo
+      problema (repartir el ancho de un trocito entre sus letras).
+   3. Se puede seleccionar de una página a la siguiente: además del pid se
+      guarda la POSICIÓN en el documento, que es la que dice cuál va antes
+      (el pid no sirve: las páginas insertadas llevan pid 10000+).
+
+   QUIÉN PUEDE SELECCIONAR:
+   · Ratón, botón izquierdo → solo en el modo selección/scroll.
+   · Apple Pencil           → solo en el modo selección/scroll.
+   · Ratón, botón DERECHO MANTENIDO → en CUALQUIER herramienta y sin cambiarla:
+     si pulsas y sueltas sin mover, sale el menú del navegador de siempre; si
+     arrastras, se selecciona texto y ese menú no aparece. Esto funciona
+     porque en Windows el menú del botón derecho se abre al SOLTAR, no al
+     pulsar (en un Mac saldría antes de que dé tiempo a arrastrar).
+   · El dedo NO selecciona: sigue desplazando la hoja, como siempre.
+   ══════════════════════════════════════════════════════════════════ */
+let selAnchor=null;      // {pid,pos,i} donde empezó la selección
+let selFocus=null;       // {pid,pos,i} donde va ahora
+let selDrag=null;        // arrastre en curso
+let selBoxes={};         // pid → recuadro de cada letra (se calcula una vez)
+let selEdgeTimer=null,selLastXY=null;
+const selCopyBtn=document.getElementById('sel-copy');
+
+/* texto de una página, indexado como el del buscador. null = aún no está */
+function selIdx(pid){
+  const items=textCache[pid];
+  if(!items||!items.length)return null;
+  if(!findIndex[pid])findIndex[pid]=buildFindIndex(items);
+  return{items,idx:findIndex[pid]};
+}
+/* pide el texto de una página si NUNCA se ha intentado extraer.
+   OJO: una página sin texto (escaneada) deja un array vacío en textCache. Sin
+   esta comprobación, pedirlo otra vez devolvería el vacío al instante y el
+   repintado se llamaría a sí mismo para siempre. */
+function selNeedText(pid){
+  if(textCache[pid]!==undefined)return;
+  ensurePageText(pid).then(()=>{if(!selEmpty())paintTextSel()});
+}
+/* recuadro de cada letra, en unidades del PDF */
+function selCharBoxes(pid){
+  if(selBoxes[pid])return selBoxes[pid];
+  const d=selIdx(pid);if(!d)return null;
+  const {items,idx}=d,out=new Array(idx.txt.length).fill(null);
+  for(let i=0;i<idx.txt.length;i++){
+    const ci=idx.mapChar[i];if(ci<0)continue;          // espacio de relleno
+    const it=items[idx.mapItem[i]];if(!it)continue;
+    const len=(it.str||'').length||1,w=it.x1-it.x0;
+    /* aproximación: el ancho del trocito se reparte entre sus letras. El PDF
+       no da la posición letra a letra; es lo mismo que hace el buscador. */
+    out[i]={x0:it.x0+w*(ci/len),x1:it.x0+w*((ci+1)/len),top:it.top,bottom:it.bottom};
+  }
+  selBoxes[pid]=out;return out;
+}
+/* punto (en unidades del PDF) → hueco entre letras más cercano */
+function selHit(pid,x,y){
+  const boxes=selCharBoxes(pid);if(!boxes)return null;
+  let best=-1,bestD=Infinity;
+  for(let i=0;i<boxes.length;i++){
+    const b=boxes[i];if(!b)continue;
+    /* primero manda el renglón (distancia vertical) y solo dentro de él la
+       distancia horizontal: así no se salta de línea por estar cerca del
+       margen. El x1000 es para que ninguna distancia horizontal (el ancho de
+       una página no llega a 1000) pueda ganarle a un renglón más cercano. */
+    const dy=y<b.top?b.top-y:(y>b.bottom?y-b.bottom:0);
+    const dx=x<b.x0?b.x0-x:(x>b.x1?x-b.x1:0);
+    const d=dy*1000+dx;
+    if(d<bestD){bestD=d;best=i}
+  }
+  if(best<0)return null;
+  const b=boxes[best];
+  return x>(b.x0+b.x1)/2?best+1:best;   // media letra pasada = ya entra
+}
+/* página que hay bajo un punto de la pantalla */
+function selPageAt(cx,cy){
+  const el=document.elementFromPoint(cx,cy);
+  const w=el&&el.closest?el.closest('.page-wrap'):null;
+  if(w)return w;
+  /* en el hueco entre dos páginas (o fuera de la ventana): se camina desde la
+     última página conocida, sin recorrer el documento entero */
+  let cur=selFocus?pagesInner.querySelector(`[data-page="${selFocus.pid}"]`):null;
+  for(let k=0;k<10&&cur;k++){
+    const r=cur.getBoundingClientRect();
+    if(cy<r.top&&cur.previousElementSibling)cur=cur.previousElementSibling;
+    else if(cy>r.bottom&&cur.nextElementSibling)cur=cur.nextElementSibling;
+    else break;
+  }
+  return cur;
+}
+/* punto de la pantalla → {pid,pos,i}. null si ahí no hay texto */
+function selPointAt(cx,cy){
+  const w=selPageAt(cx,cy);if(!w)return null;
+  const pid=parseInt(w.dataset.page),pos=posOfPid(pid);
+  const d=effDims(pid);if(!d||!pos)return null;
+  /* del rectángulo de la página se sacan las unidades del PDF directamente:
+     así da igual el zoom de la app, el del navegador o el pellizco */
+  const r=w.getBoundingClientRect();
+  if(!r.width||!r.height)return null;
+  const i=selHit(pid,(cx-r.left)*d.w/r.width,(cy-r.top)*d.h/r.height);
+  if(i==null){selNeedText(pid);return null}
+  return{pid,pos,i};
+}
+/* la selección, siempre ordenada de principio a fin del documento */
+function selRange(){
+  if(!selAnchor||!selFocus)return null;
+  const a=selAnchor,b=selFocus;
+  return(a.pos<b.pos||(a.pos===b.pos&&a.i<=b.i))?{from:a,to:b}:{from:b,to:a};
+}
+function selEmpty(){const r=selRange();return!r||(r.from.pos===r.to.pos&&r.from.i===r.to.i)}
+function clearSelHl(){pagesInner.querySelectorAll('.sel-hl').forEach(e=>e.remove())}
+function paintTextSel(){
+  clearSelHl();
+  const rg=selRange();if(!rg)return;
+  /* Solo se pinta lo que se puede ver (y un poco más). Una selección de
+     muchas páginas seguidas crearía miles de bandas invisibles y el arrastre
+     daría tirones. Al desplazarte se vuelve a pintar (ver el scroll). */
+  const cr=canvasWrap.getBoundingClientRect();
+  const vTop=cr.top-cr.height, vBot=cr.bottom+cr.height;
+  for(let pos=rg.from.pos;pos<=rg.to.pos;pos++){
+    const slot=pageOrder[pos-1];if(!slot||slot.type!=='pdf')continue;
+    const pid=slot.pid;
+    const wrap=pagesInner.querySelector(`[data-page="${pid}"]`);if(!wrap)continue;
+    const wr=wrap.getBoundingClientRect();
+    if(wr.bottom<vTop||wr.top>vBot)continue;
+    const d=selIdx(pid);
+    if(!d){selNeedText(pid);continue}
+    const a=pos===rg.from.pos?rg.from.i:0;
+    const b=pos===rg.to.pos?rg.to.i:d.idx.txt.length;
+    if(b<=a)continue;
+    findRects(d.items,d.idx,a,b).forEach(r=>{
+      const el=document.createElement('div');el.className='sel-hl';
+      el.style.left=(r.x*scale)+'px';el.style.top=(r.y*scale)+'px';
+      el.style.width=(r.w*scale)+'px';el.style.height=(r.h*scale)+'px';
+      wrap.appendChild(el);
+    });
+  }
+}
+function repaintTextSel(){if(!selEmpty())paintTextSel()}
+function clearTextSel(){
+  selAnchor=selFocus=selDrag=null;
+  clearSelHl();
+  selCopyBtn.classList.remove('on');
+  if(selEdgeTimer){clearInterval(selEdgeTimer);selEdgeTimer=null}
+}
+/* el texto TAL CUAL está en el PDF (el índice del buscador lo guarda sin
+   tildes y en minúsculas: eso solo vale para comparar, no para copiar) */
+function selRawText(items,idx,a,b){
+  let s='';
+  for(let i=a;i<b;i++){
+    const ci=idx.mapChar[i];
+    if(ci<0){s+=' ';continue}
+    const it=items[idx.mapItem[i]];if(!it)continue;
+    s+=(it.str||'')[ci]||'';
+  }
+  return s;
+}
+async function selGetText(){
+  const rg=selRange();if(!rg)return'';
+  const out=[];
+  for(let pos=rg.from.pos;pos<=rg.to.pos;pos++){
+    const slot=pageOrder[pos-1];
+    if(!slot||slot.type!=='pdf')continue;         // hojas insertadas: sin texto
+    const items=await ensurePageText(slot.pid);
+    const d=selIdx(slot.pid);if(!d)continue;
+    const a=pos===rg.from.pos?rg.from.i:0;
+    const b=pos===rg.to.pos?rg.to.i:d.idx.txt.length;
+    if(b>a)out.push(selRawText(d.items,d.idx,a,b));
+  }
+  return out.join('\n').replace(/[ \t]+/g,' ').trim();
+}
+async function selCopy(){
+  const t=await selGetText();
+  if(!t){showTip('Ahí no hay texto que copiar');return}
+  try{
+    await navigator.clipboard.writeText(t);
+    showTip('Texto copiado');
+  }catch(err){
+    /* sin permiso de portapapeles (o navegador antiguo): copia a la vieja
+       usanza, con un cuadro de texto invisible */
+    const ta=document.createElement('textarea');
+    ta.value=t;ta.style.cssText='position:fixed;top:0;left:0;opacity:0';
+    document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy');showTip('Texto copiado')}
+    catch(e2){showTip('No he podido copiar')}
+    ta.remove();
+  }
+}
+/* pastilla "Copiar" junto a donde has soltado, sin salirse de la pantalla */
+function showSelCopy(cx,cy){
+  selCopyBtn.classList.add('on');
+  const w=selCopyBtn.offsetWidth||110,h=selCopyBtn.offsetHeight||40;
+  selCopyBtn.style.left=Math.max(8,Math.min(cx-w/2,innerWidth-w-8))+'px';
+  selCopyBtn.style.top =Math.max(8,Math.min(cy+18 ,innerHeight-h-8))+'px';
+}
+selCopyBtn.addEventListener('click',()=>selCopy());
+
+/* ── arrastre ── */
+function selStart(e){
+  clearTextSel();
+  const p=selPointAt(e.clientX,e.clientY);
+  if(!p)return false;
+  selAnchor=p;selFocus={pid:p.pid,pos:p.pos,i:p.i};
+  selDrag={id:e.pointerId};selLastXY={x:e.clientX,y:e.clientY};
+  paintTextSel();
+  return true;
+}
+function selMoveTo(cx,cy){
+  if(!selDrag)return;
+  selLastXY={x:cx,y:cy};
+  const p=selPointAt(cx,cy);
+  if(p){selFocus=p;paintTextSel()}
+  /* cerca del borde la hoja se desplaza sola: sin esto no hay forma de llegar
+     a la página siguiente sin soltar el botón */
+  if(!selEdgeTimer)selEdgeTimer=setInterval(()=>{
+    if(!selDrag||!selLastXY){clearInterval(selEdgeTimer);selEdgeTimer=null;return}
+    const r=canvasWrap.getBoundingClientRect(),M=70;
+    let dy=0;
+    if(selLastXY.y<r.top+M)dy=selLastXY.y-(r.top+M);
+    else if(selLastXY.y>r.bottom-M)dy=selLastXY.y-(r.bottom-M);
+    if(!dy)return;
+    stopFling();
+    canvasWrap.scrollTop+=Math.max(-26,Math.min(26,dy*.5));
+    const q=selPointAt(selLastXY.x,selLastXY.y);
+    if(q){selFocus=q;paintTextSel()}
+  },40);
+}
+function selEnd(cx,cy){
+  if(!selDrag)return;
+  selDrag=null;
+  if(selEdgeTimer){clearInterval(selEdgeTimer);selEdgeTimer=null}
+  if(selEmpty()){clearTextSel();return}
+  showSelCopy(cx,cy);
+  /* si la selección cruzó páginas que aún no tenían el texto extraído, se
+     pintan en cuanto llegue */
+  const rg=selRange();
+  for(let pos=rg.from.pos;pos<=rg.to.pos;pos++){
+    const slot=pageOrder[pos-1];
+    if(slot&&slot.type==='pdf')selNeedText(slot.pid);
+  }
+}
+
+/* ── botón derecho mantenido ──
+   Aquí solo se "arma": mientras no muevas el ratón NO pasa nada, para que el
+   clic derecho de toda la vida siga funcionando igual. */
+let selRightArm=null,selRightUsed=false;
+function selArmRight(e){
+  selRightUsed=false;
+  selRightArm={x:e.clientX,y:e.clientY,e:{clientX:e.clientX,clientY:e.clientY,pointerId:e.pointerId}};
+}
+window.addEventListener('pointermove',e=>{
+  if(selRightArm){
+    if(!(e.buttons&2))selRightArm=null;                  // ya no está pulsado
+    else if(Math.abs(e.clientX-selRightArm.x)>6||Math.abs(e.clientY-selRightArm.y)>6){
+      const st=selRightArm;selRightArm=null;
+      if(selStart(st.e)){
+        selRightUsed=true;                               // al soltar, sin menú
+        showTip('Seleccionando texto',1500);
+      }
+    }
+  }
+  if(!selDrag)return;
+  /* si se ha perdido el "soltar" (pasa cuando el puntero sale de la ventana),
+     el ratón sin botones pulsados lo delata: se cierra la selección aquí */
+  if(e.pointerType==='mouse'&&!e.buttons){selEnd(e.clientX,e.clientY);return}
+  selMoveTo(e.clientX,e.clientY);
+},{passive:true,capture:true});
+window.addEventListener('pointerup',e=>{
+  selRightArm=null;
+  if(e.pointerType==='pen')releasePen();
+  if(selDrag)selEnd(e.clientX,e.clientY);
+  /* red de seguridad: si por lo que sea no llega el 'contextmenu' que este
+     aviso tenía que tapar, se olvida solo. Si no, se tragaría el menú del
+     SIGUIENTE clic derecho. */
+  setTimeout(()=>{selRightUsed=false},600);
+},{passive:true,capture:true});
+window.addEventListener('pointercancel',()=>{
+  selRightArm=null;
+  if(selDrag)selEnd(selLastXY?selLastXY.x:0,selLastXY?selLastXY.y:0);
+},{passive:true,capture:true});
+/* si has arrastrado con el botón derecho, el menú del navegador no debe salir */
+window.addEventListener('contextmenu',e=>{
+  if(!selRightUsed)return;
+  selRightUsed=false;
+  e.preventDefault();
+},true);
+/* tocar en cualquier otro sitio quita la selección, como en cualquier lector */
+window.addEventListener('pointerdown',e=>{
+  if(selEmpty())return;
+  if(selCopyBtn.contains(e.target))return;
+  clearTextSel();
+},true);
+window.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&!selEmpty()){clearTextSel();return}
+  if(!(e.ctrlKey||e.metaKey))return;
+  if(e.key!=='c'&&e.key!=='C')return;
+  if(isTypingEl(e.target))return;      // copiar de un cuadro de texto es del navegador
+  if(selEmpty())return;
+  e.preventDefault();selCopy();
 },true);
 
 /* ══ MANTENER LA PÁGINA AL CAMBIAR EL ZOOM DEL NAVEGADOR O DEL SISTEMA ══
