@@ -791,6 +791,17 @@ body.fullscreen #rd-bottom-show{display:none}
 .rt-size{height:30px;border:1px solid var(--border);background:var(--bg2);color:var(--ink);
   border-radius:8px;font-family:inherit;font-size:14px;cursor:pointer;touch-action:manipulation}
 .rt-size:active{transform:scale(.94)}
+/* tipo de letra: en columna y cada nombre escrito con SU propia letra, para
+   verla antes de elegirla (como en Word) */
+.rt-fonts{display:flex;flex-direction:column;gap:4px;min-width:180px}
+.rt-font{height:34px;border:1px solid var(--border);background:var(--bg2);color:var(--ink);
+  border-radius:8px;font-size:15px;cursor:pointer;touch-action:manipulation;text-align:left;padding:0 10px}
+.rt-font:active{transform:scale(.98)}
+/* superíndice y subíndice: sin line-height:0 el renglón que los lleva se
+   separa de los de al lado y el párrafo queda descuadrado */
+.rich-content sub,.rich-content sup{font-size:.72em;line-height:0;position:relative;vertical-align:baseline}
+.rich-content sup{top:-.5em}
+.rich-content sub{bottom:-.25em}
 .rt-tgrid{display:grid;grid-template-columns:repeat(6,26px);gap:4px}
 .rt-tcell{width:26px;height:22px;border:1px solid var(--border);background:var(--bg2);
   border-radius:4px;padding:0;cursor:pointer;touch-action:manipulation}
@@ -2027,7 +2038,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v132'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v133'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2439,7 +2450,10 @@ const RICH_TB_HTML=`
 <button type="button" data-cmd="italic" title="Cursiva (Ctrl+I)"><i>I</i></button>
 <button type="button" data-cmd="underline" title="Subrayado (Ctrl+U)"><u>U</u></button>
 <button type="button" data-cmd="strikeThrough" title="Tachado"><s>S</s></button>
+<button type="button" data-cmd="subscript" title="Subíndice (H₂O)">x<sub>2</sub></button>
+<button type="button" data-cmd="superscript" title="Superíndice (m²)">x<sup>2</sup></button>
 <span class="rt-sep"></span>
+<button type="button" class="rt-num" data-cmd="fontName" title="Tipo de letra">Letra</button>
 <button type="button" class="rt-col" data-cmd="foreColor" title="Color de la letra">A<i class="rt-sw"></i></button>
 <button type="button" class="rt-col" data-cmd="hiliteColor" title="Resaltar el fondo">R<i class="rt-sw"></i></button>
 <button type="button" data-cmd="fontSize" data-val="2" title="Letra más pequeña">A−</button>
@@ -2464,7 +2478,7 @@ const RICH_TB_HTML=`
 /* Botones que pueden salir "pulsados": el navegador sabe decirnos si el
    formato está puesto donde tienes el cursor (queryCommandState). */
 const RICH_STATE_CMDS=['bold','italic','underline','strikeThrough',
-  'insertUnorderedList','insertOrderedList'];
+  'subscript','superscript','insertUnorderedList','insertOrderedList'];
 /* comandos que tocan listas: después de cualquiera de ellos hay que repasar
    la estructura (ver richFixLists) */
 const RICH_CMD_LISTA=['insertUnorderedList','insertOrderedList','indent','outdent'];
@@ -2659,6 +2673,29 @@ function openListOpts(btn,ed){
       label:'Empezar a numerar de nuevo en 1',
       action:()=>{restore();lista.removeAttribute('start')}});
   }
+  /* ORDENAR (el botón A→Z de Word). Ordena SOLO los puntos de este nivel;
+     cada punto se lleva consigo su sublista, para no descolgar nada. */
+  const puntos=[...lista.children].filter(c=>c.tagName==='LI');
+  if(puntos.length>1){
+    const ordenar=al=>()=>{
+      restore();
+      const orden=[...lista.children].filter(c=>c.tagName==='LI');
+      orden.sort((a,b)=>{
+        /* se compara solo el texto PROPIO del punto, sin el de su sublista:
+           si no, un punto con muchos hijos se ordenaría por lo que cuelga */
+        const txt=li=>{
+          const c=li.cloneNode(true);
+          c.querySelectorAll('ul,ol').forEach(x=>x.remove());
+          return (c.textContent||'').trim();
+        };
+        return txt(a).localeCompare(txt(b),'es',{sensitivity:'base',numeric:true})*al;
+      });
+      orden.forEach(li=>lista.appendChild(li));
+      showTip('Lista ordenada',1200);
+    };
+    items.push({icon:'chevDown',label:'Ordenar A → Z',action:ordenar(1)});
+    items.push({icon:'chevUp',  label:'Ordenar Z → A',action:ordenar(-1)});
+  }
   const r=btn.getBoundingClientRect();
   showCtx(r.left,r.bottom+6,items);
 }
@@ -2746,6 +2783,48 @@ function richSetSize(ed,px){
   });
   /* Safari a veces no usa <font> sino un span con el tamaño "xxx-large" */
   ed.querySelectorAll('span[style*="xxx-large"]').forEach(s=>{s.style.fontSize=px+'px'});
+}
+/* ── TIPO DE LETRA ──
+   Solo letras que existen SEGURO en el iPad y en el PC. Si se pusiera una que
+   el iPad no tiene, el apunte se vería con una letra distinta en cada aparato
+   y no habría forma de saber por qué.
+   "Predeterminada" no borra nada: pone font-family:inherit, que devuelve la
+   letra de la app (no hay ningún comando de navegador para "quitar la letra"). */
+const RICH_FUENTES=[
+  {l:'Predeterminada',  f:''},
+  {l:'Georgia',         f:'Georgia, serif'},
+  {l:'Times New Roman', f:'"Times New Roman", Times, serif'},
+  {l:'Arial',           f:'Arial, Helvetica, sans-serif'},
+  {l:'Verdana',         f:'Verdana, Geneva, sans-serif'},
+  {l:'Trebuchet MS',    f:'"Trebuchet MS", sans-serif'},
+  {l:'Courier New',     f:'"Courier New", monospace'}
+];
+function richSetFont(ed,fam){
+  /* El mismo truco que el tamaño exacto: se marca la selección con algo que
+     el navegador SÍ sabe poner (una etiqueta <font>) y luego se cambia por un
+     span con el estilo de verdad. Marcar directamente con la familia buena no
+     vale: cada navegador la reescribe a su manera y luego no hay forma de
+     encontrarla. */
+  try{document.execCommand('styleWithCSS',false,false)}catch(e){}
+  document.execCommand('fontName',false,'__lpfont');
+  ed.querySelectorAll('font[face="__lpfont"]').forEach(f=>{
+    const s=document.createElement('span');
+    s.style.fontFamily=fam||'inherit';
+    while(f.firstChild)s.appendChild(f.firstChild);
+    f.parentNode.replaceChild(s,f);
+  });
+  /* Safari no usa <font> sino un span con la familia en el estilo */
+  ed.querySelectorAll('span[style*="__lpfont"]').forEach(s=>{s.style.fontFamily=fam||'inherit'});
+}
+function openRichFonts(btn,ed){
+  const restore=richKeepSel(ed);
+  showRichPop(btn,'<div class="rt-pop-t">Tipo de letra</div><div class="rt-fonts">'+
+    RICH_FUENTES.map((f,i)=>`<button type="button" class="rt-font" data-i="${i}" `+
+      `style="font-family:${f.f||'inherit'}">${esc(f.l)}</button>`).join('')+
+    '</div>');
+  richPop.querySelectorAll('.rt-font').forEach(b=>{
+    b.onclick=()=>{hideRichPop();restore();richSetFont(ed,RICH_FUENTES[+b.dataset.i].f)};
+  });
 }
 function openRichSizes(btn,ed){
   const restore=richKeepSel(ed);
@@ -3167,6 +3246,7 @@ function wireRichToolbar(tb,ed){
       }
       if(cmd==='foreColor'||cmd==='hiliteColor'){openRichColors(btn,cmd,ed);return}
       if(cmd==='fontPx'){openRichSizes(btn,ed);return}
+      if(cmd==='fontName'){openRichFonts(btn,ed);return}
       if(cmd==='lineH'){openRichLineH(btn,ed);return}
       if(cmd==='table'){openRichTable(btn,ed);return}
       if(cmd==='image'){richInsertImage(ed);return}
