@@ -1939,7 +1939,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v125'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v126'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2587,33 +2587,43 @@ function richCase(ed,modo){
    pequeño. Por eso la foto se reduce siempre antes de meterla (máximo 1000
    píxeles de lado y calidad de foto normal): una foto del móvil pasa de 4 MB
    a unos 150 KB. Si aun así sale enorme, no se mete y se avisa. */
+/* Mete una imagen (venga de un archivo o del portapapeles) en el cuadro de
+   texto: la reduce, la aplana sobre blanco y la inserta donde estaba el
+   cursor. Lo usan LOS DOS caminos, el botón de imagen y el pegado con Ctrl+V,
+   para que una imagen pegada pese y se vea exactamente igual que una
+   adjuntada. `restore` devuelve el cursor a su sitio: hace falta porque leer
+   y encoger la imagen tarda un momento y para entonces la selección puede
+   haberse perdido (sobre todo al volver del selector de archivos). */
+function richPutImage(blob,restore){
+  const fr=new FileReader();
+  fr.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      const MAX=1000;
+      let w=img.width,h=img.height;
+      if(w>MAX||h>MAX){const k=MAX/Math.max(w,h);w=Math.round(w*k);h=Math.round(h*k)}
+      const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+      const cx=cv.getContext('2d');
+      cx.fillStyle='#fff';cx.fillRect(0,0,w,h);      // fondo blanco (los PNG con transparencia se verían negros)
+      cx.drawImage(img,0,0,w,h);
+      const data=cv.toDataURL('image/jpeg',0.78);
+      if(data.length>900000){showTip('Esa imagen es demasiado grande incluso reducida');return}
+      if(restore)restore();
+      document.execCommand('insertHTML',false,'<img src="'+data+'" alt="">');
+    };
+    img.onerror=()=>showTip('No he podido leer esa imagen');
+    img.src=fr.result;
+  };
+  fr.onerror=()=>showTip('No he podido leer esa imagen');
+  fr.readAsDataURL(blob);
+}
 function richInsertImage(ed){
   const restore=richKeepSel(ed);
   const inp=document.createElement('input');
   inp.type='file';inp.accept='image/*';
   inp.onchange=()=>{
     const f=inp.files&&inp.files[0];if(!f)return;
-    const fr=new FileReader();
-    fr.onload=()=>{
-      const img=new Image();
-      img.onload=()=>{
-        const MAX=1000;
-        let w=img.width,h=img.height;
-        if(w>MAX||h>MAX){const k=MAX/Math.max(w,h);w=Math.round(w*k);h=Math.round(h*k)}
-        const cv=document.createElement('canvas');cv.width=w;cv.height=h;
-        const cx=cv.getContext('2d');
-        cx.fillStyle='#fff';cx.fillRect(0,0,w,h);      // fondo blanco (los PNG con transparencia se verían negros)
-        cx.drawImage(img,0,0,w,h);
-        const data=cv.toDataURL('image/jpeg',0.78);
-        if(data.length>900000){showTip('Esa imagen es demasiado grande incluso reducida');return}
-        restore();
-        document.execCommand('insertHTML',false,'<img src="'+data+'" alt="">');
-      };
-      img.onerror=()=>showTip('No he podido leer esa imagen');
-      img.src=fr.result;
-    };
-    fr.onerror=()=>showTip('No he podido leer esa imagen');
-    fr.readAsDataURL(f);
+    richPutImage(f,restore);
   };
   inp.click();
 }
@@ -2731,11 +2741,39 @@ function wireRichToolbar(tb,ed){
     richRun(e.shiftKey?'outdent':'indent');
   });
 
-  /* PEGADO LIMPIO: al pegar de una web o un PDF, el navegador mete fuentes,
-     tamaños y fondos ajenos que descuadran la ficha. Pegamos solo el texto
-     (respetando los saltos de línea) y que el formato lo ponga ella. */
+  /* PEGADO: imágenes con Ctrl+V, y el resto como texto limpio (ver dentro). */
   ed.addEventListener('paste',e=>{
-    const txt=(e.clipboardData||window.clipboardData)?.getData('text/plain');
+    const dt=e.clipboardData||window.clipboardData;
+    if(!dt)return;
+    const txt=dt.getData('text/plain');
+
+    /* ── PEGAR IMÁGENES CON CTRL+V ──
+       Una captura de pantalla o una imagen copiada de una web viaja en el
+       portapapeles como archivo. Antes se perdía (solo se miraba el texto) y
+       había que guardarla en el disco y adjuntarla con el botón de imagen.
+
+       OJO CON EL ORDEN: solo se trata como imagen si NO viene texto. Al copiar
+       de Word o de una web, el portapapeles trae MUCHAS veces las dos cosas
+       (el texto y una captura del texto). Si mirásemos la imagen primero,
+       pegar un párrafo normal metería un pegote de imagen en vez de letras. */
+    if(!txt){
+      const items=dt.items?[].slice.call(dt.items):[];
+      let f=null;
+      for(let i=0;i<items.length;i++){
+        if(items[i].kind==='file'&&/^image\//.test(items[i].type||'')){f=items[i].getAsFile();break}
+      }
+      if(!f&&dt.files&&dt.files[0]&&/^image\//.test(dt.files[0].type||''))f=dt.files[0];
+      if(f){
+        e.preventDefault();
+        /* la selección se guarda AHORA: encoger la imagen tarda un momento */
+        richPutImage(f,richKeepSel(ed));
+        return;
+      }
+    }
+
+    /* PEGADO LIMPIO: al pegar de una web o un PDF, el navegador mete fuentes,
+       tamaños y fondos ajenos que descuadran la ficha. Pegamos solo el texto
+       (respetando los saltos de línea) y que el formato lo ponga ella. */
     if(txt==null)return;
     e.preventDefault();
     document.execCommand('insertHTML',false,esc(txt).replace(/\r?\n/g,'<br>'));
