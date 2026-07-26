@@ -372,6 +372,15 @@ body.fullscreen #rd-bottom-show{display:none}
 .set-row input[type=range]{width:100%;accent-color:#C9A9DC;height:30px}
 #set-preview{height:60px;background:var(--bg2);border-radius:12px;margin-bottom:16px;overflow:hidden}
 #set-preview canvas{width:100%;height:100%}
+/* elegir temas al exportar */
+#ext-list{max-height:48vh;overflow-y:auto;display:flex;flex-direction:column;gap:4px;margin-bottom:14px}
+.ext-row{display:flex;align-items:center;gap:9px;padding:10px 11px;border-radius:10px;
+  background:var(--bg2);font-size:14px;color:var(--ink);cursor:pointer}
+.ext-row input{width:17px;height:17px;flex-shrink:0;accent-color:var(--rosa-fuerte)}
+.ext-row span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ext-row b{font-size:12px;color:var(--ink2);font-weight:600;flex-shrink:0}
+.ext-row.ext-all{background:var(--rosa-suave);font-weight:600;margin-bottom:2px}
+.ext-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0}
 /* ctx menu */
 .ctx-menu{position:fixed;background:var(--card);border-radius:16px;border:1px solid var(--border);z-index:950;overflow:hidden;min-width:200px;box-shadow:0 10px 36px rgba(120,100,140,.25)}
 /* selector de icono de carpeta */
@@ -1724,6 +1733,17 @@ body.fullscreen #gid-bar{bottom:20px}
     </div>
   </div>
 </div>
+<!-- elegir qué temas se exportan (sale solo si hay más de uno) -->
+<div class="modal-bg hidden" id="modal-export-themes">
+  <div class="modal">
+    <h3>¿Qué quieres exportar?</h3>
+    <div id="ext-list"></div>
+    <div class="modal-btns">
+      <button class="mbtn cancel" id="ext-cancel">Cancelar</button>
+      <button class="mbtn ok" id="ext-ok">Exportar</button>
+    </div>
+  </div>
+</div>
 <div class="modal-bg hidden" id="modal-confirm">
   <div class="modal">
     <h3 id="modal-confirm-msg">¿Eliminar?</h3>
@@ -1908,7 +1928,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v121'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v122'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -8049,9 +8069,11 @@ function openAclarInPanel(id){
   },140);
 }
 
-function exportAclars(){
-  const items=loadAclars();
+async function exportAclars(){
+  let items=loadAclars();
   if(!items.length){showTip('No hay aclaraciones que exportar todavía');return}
+  items=await filtrarPorTemas(items,x=>x.themeId);
+  if(!items||!items.length)return;
   const sorted=[...items].sort((a,b)=>posOfPid(a.page)-posOfPid(b.page));
   const sep='═'.repeat(52);
   let out=`ACLARACIONES\n${currentFileName}\n`;
@@ -9181,10 +9203,12 @@ function buildEntCard(kind,g){
 }
 
 /* exportación limpia y legible */
-function exportEnts(kind){
+async function exportEnts(kind){
   const K=ENT_KINDS[kind];
-  const items=loadEnts(kind);
+  let items=loadEnts(kind);
   if(!items.length){showTip('No hay nada que exportar todavía');return}
+  items=await filtrarPorTemas(items,x=>x.themeId);
+  if(!items||!items.length)return;
   const sorted=[...items].sort((a,b)=>
     kind==='glos' ? a.title.localeCompare(b.title,'es',{sensitivity:'base'})
                   : (a.page-b.page));
@@ -9832,6 +9856,76 @@ function conPDF(hayAlgo,vacio,fn){
 
 /* agrupa por tema igual que hacen los paneles: los temas por su número y,
    al final, lo que no tiene tema asignado */
+/* ══════════════════════════════════════════════════════════════════
+   ELEGIR QUÉ TEMAS SE EXPORTAN
+
+   Antes, exportar era siempre TODO. Ahora se puede sacar un tema suelto, unos
+   cuantos, o todo (que sigue siendo lo que viene marcado: si no tocas nada y
+   das a Exportar, se comporta como toda la vida).
+
+   El aviso NO sale cuando no hay nada que elegir (un solo tema, o ninguno):
+   ahí no tiene sentido molestar con una pregunta de una sola respuesta.
+
+   Devuelve la lista ya filtrada, o null si has cancelado. Lo usan las diez
+   exportaciones (texto y PDF de glosario, conclusiones, aclaraciones, nodos,
+   procesos y mapa conceptual).
+   ══════════════════════════════════════════════════════════════════ */
+let extRes=null;
+document.getElementById('ext-cancel').onclick=()=>{
+  document.getElementById('modal-export-themes').classList.add('hidden');
+  const r=extRes;extRes=null;r&&r(null);
+};
+document.getElementById('ext-ok').onclick=()=>{
+  const marcados=new Set();
+  document.querySelectorAll('#ext-list input[type=checkbox][data-tid]').forEach(c=>{
+    if(c.checked)marcados.add(c.getAttribute('data-tid'));
+  });
+  if(!marcados.size){showTip('Marca al menos un tema');return}
+  document.getElementById('modal-export-themes').classList.add('hidden');
+  const r=extRes;extRes=null;r&&r(marcados);
+};
+function askExportThemes(grupos){
+  return new Promise(res=>{
+    extRes=res;
+    const list=document.getElementById('ext-list');list.innerHTML='';
+    /* "Todos" es una casilla más, arriba: marca y desmarca el resto */
+    const todos=document.createElement('label');todos.className='ext-row ext-all';
+    const cbAll=document.createElement('input');cbAll.type='checkbox';cbAll.checked=true;
+    const txtAll=document.createElement('span');txtAll.textContent='Todos los temas';
+    todos.append(cbAll,txtAll);list.appendChild(todos);
+    const cbs=[];
+    grupos.forEach(g=>{
+      const row=document.createElement('label');row.className='ext-row';
+      const cb=document.createElement('input');cb.type='checkbox';cb.checked=true;
+      cb.setAttribute('data-tid',g.theme?g.theme.id:'');
+      const dot=document.createElement('i');dot.className='ext-dot';
+      dot.style.background=g.theme?temaColor(g.theme):'var(--ink3)';
+      const nom=document.createElement('span');
+      nom.textContent=g.theme?((g.theme.num?g.theme.num+' · ':'')+(g.theme.name||'Tema')):'Sin tema';
+      const n=document.createElement('b');n.textContent=g.items.length;
+      row.append(cb,dot,nom,n);list.appendChild(row);
+      cbs.push(cb);
+    });
+    const sync=()=>{cbAll.checked=cbs.every(c=>c.checked)};
+    cbAll.onchange=()=>cbs.forEach(c=>{c.checked=cbAll.checked});
+    cbs.forEach(c=>c.addEventListener('change',sync));
+    document.getElementById('modal-export-themes').classList.remove('hidden');
+  });
+}
+/* items → items de los temas elegidos (null si se cancela) */
+async function filtrarPorTemas(items,getTid){
+  const grupos=porTemas(items,getTid);
+  if(grupos.length<2)return items;              // nada que elegir
+  const sel=await askExportThemes(grupos);
+  if(!sel)return null;
+  return items.filter(it=>{
+    const tid=getTid(it)||'';
+    /* un tema borrado deja fichas apuntando a un id que ya no existe: cuentan
+       como "sin tema", igual que hace porTemas al agruparlas */
+    return sel.has(grupos.some(g=>g.theme&&g.theme.id===tid)?tid:'');
+  });
+}
+
 function porTemas(items,getTid){
   const themes=loadThemes().sort((a,b)=>(a.num||0)-(b.num||0));
   const byTheme=new Map();themes.forEach(t=>byTheme.set(t.id,[]));
@@ -9849,8 +9943,19 @@ function temaRotulo(t){return t?(t.name||'Tema'):'Sin tema'}
 function temaNum(t,i){return String((t&&t.num)||(i+1))}
 function temaColor(t){return t?t.color:'#E6E2EE'}
 
-function cmapExportPDF(){
-  const maps=loadCmap();
+/* En el mapa conceptual los temas no son los temas de las fichas: cada RAÍZ
+   del mapa es un tema. Por eso aquí se elige entre raíces, no entre temas. */
+async function filtrarMapas(maps){
+  if(maps.length<2)return maps;
+  const sel=await askExportThemes(maps.map(r=>(
+    {theme:{id:r.id,name:r.title||'(sin título)',num:null,color:'#E6E2EE'},items:[r]}
+  )));
+  if(!sel)return null;
+  return maps.filter(r=>sel.has(r.id));
+}
+async function cmapExportPDF(){
+  let maps=loadCmap();
+  if(maps.length){maps=await filtrarMapas(maps);if(!maps)return}
   conPDF(maps.length,'No hay ningún mapa conceptual que exportar',P=>{
     let nApart=0;maps.forEach(r=>cmapWalk(r,()=>nApart++));
     P.portada('Mapa conceptual',
@@ -9900,9 +10005,11 @@ function txtGuardar(out,nombre,aviso){
 /* Mismo esquema en texto plano, por si hace falta pegarlo en otro sitio.
    Lleva la etiqueta del nivel (Título general, Subtítulo…) para que la
    jerarquía se entienda aunque se pierda la sangría. */
-function cmapExportTXT(){
-  const maps=loadCmap();
+async function cmapExportTXT(){
+  let maps=loadCmap();
   if(!maps.length){showTip('No hay ningún mapa conceptual que exportar');return}
+  maps=await filtrarMapas(maps);
+  if(!maps||!maps.length)return;
   const nom=(currentFileName||'documento').replace(/\.[^.]+$/,'');
   const sep='═'.repeat(60);
   let nApart=0;maps.forEach(r=>cmapWalk(r,()=>nApart++));
@@ -9942,9 +10049,10 @@ document.getElementById('cmap-export-txt').onclick=()=>cmapExportTXT();
    ══════════════════════════════════════════════════════════════════ */
 
 /* ── GLOSARIO / CONCLUSIONES ── */
-function entExportPDF(kind){
+async function entExportPDF(kind){
   const K=ENT_KINDS[kind];
-  const items=loadEnts(kind);
+  let items=loadEnts(kind);
+  if(items.length){items=await filtrarPorTemas(items,x=>x.themeId);if(!items)return}
   conPDF(items.length,'No hay nada que exportar todavía',P=>{
     P.portada(K.label,items.length+(items.length===1?' entrada':' entradas'));
     /* el glosario se lee alfabético; las conclusiones, por orden del documento */
@@ -9965,8 +10073,9 @@ function entExportPDF(kind){
 }
 
 /* ── ACLARACIONES ── */
-function aclarExportPDF(){
-  const items=loadAclars();
+async function aclarExportPDF(){
+  let items=loadAclars();
+  if(items.length){items=await filtrarPorTemas(items,x=>x.themeId);if(!items)return}
   conPDF(items.length,'No hay aclaraciones que exportar todavía',P=>{
     P.portada('Aclaraciones',items.length+(items.length===1?' aclaración':' aclaraciones'));
     porTemas(items,a=>a.themeId).forEach((g,i)=>{
@@ -9985,8 +10094,9 @@ function aclarExportPDF(){
 
 /* ── NODOS CONCEPTUALES (árbol, como el mapa) ── */
 function contarNodos(list){let n=0;const v=l=>(l||[]).forEach(x=>{n++;v(x.children)});v(list);return n}
-function nodesExportPDF(){
-  const nodes=loadNodes();
+async function nodesExportPDF(){
+  let nodes=loadNodes();
+  if(nodes.length){nodes=await filtrarPorTemas(nodes,x=>x.themeId);if(!nodes)return}
   conPDF(nodes.length,'No hay nodos que exportar todavía',P=>{
     const n=contarNodos(nodes);
     P.portada('Nodos conceptuales',n+(n===1?' nodo':' nodos'));
@@ -10008,9 +10118,11 @@ function nodesExportPDF(){
     P.guardar('Nodos','Nodos exportados en PDF');
   });
 }
-function nodesExportTXT(){
-  const nodes=loadNodes();
+async function nodesExportTXT(){
+  let nodes=loadNodes();
   if(!nodes.length){showTip('No hay nodos que exportar todavía');return}
+  nodes=await filtrarPorTemas(nodes,x=>x.themeId);
+  if(!nodes||!nodes.length)return;
   const n=contarNodos(nodes);
   let out=txtCabecera('Nodos conceptuales',n+(n===1?' nodo':' nodos'));
   const rama=(item,prof,num)=>{
@@ -10039,8 +10151,9 @@ function nodesExportTXT(){
 /* ── PROCESOS Y TEORÍAS ──
    Los pasos van en su orden y, cuando un paso recibe flechas de otros, se
    dice de cuáles: es la única forma de que el diagrama se entienda en papel. */
-function procExportPDF(){
-  const procs=loadProc();
+async function procExportPDF(){
+  let procs=loadProc();
+  if(procs.length){procs=await filtrarPorTemas(procs,x=>x.themeId);if(!procs)return}
   conPDF(procs.length,'No hay procesos que exportar todavía',P=>{
     let ns=0;procs.forEach(p=>ns+=(p.steps||[]).length);
     P.portada('Procesos y teorías',
@@ -10064,9 +10177,11 @@ function procExportPDF(){
     P.guardar('Procesos','Procesos exportados en PDF');
   });
 }
-function procExportTXT(){
-  const procs=loadProc();
+async function procExportTXT(){
+  let procs=loadProc();
   if(!procs.length){showTip('No hay procesos que exportar todavía');return}
+  procs=await filtrarPorTemas(procs,x=>x.themeId);
+  if(!procs||!procs.length)return;
   let ns=0;procs.forEach(p=>ns+=(p.steps||[]).length);
   let out=txtCabecera('Procesos y teorías',
     procs.length+(procs.length===1?' proceso':' procesos')+'  ·  '+ns+(ns===1?' paso':' pasos'));
@@ -10571,6 +10686,7 @@ const MODAL_OK={
   'modal-proc-step':'modal-proc-step-ok', // Guardar
   'modal-bookmark':'modal-bookmark-ok',  // Guardar
   'modal-name':'modal-name-ok',          // Guardar
+  'modal-export-themes':'ext-ok',        // Exportar lo marcado
   'modal-confirm':'modal-confirm-ok',    // Eliminar (es la accion que se pidio)
   'modal-palette':'custom-apply',        // Usar este color (si la pestana Libre esta abierta)
   'modal-insert':'ins-blank',            // Hoja en blanco (la opcion por defecto)
@@ -10593,6 +10709,7 @@ const MODAL_CANCEL={
   'modal-proc-step':'modal-proc-step-cancel',
   'modal-bookmark':'modal-bookmark-cancel',
   'modal-name':'modal-name-cancel',
+  'modal-export-themes':'ext-cancel',
   'modal-confirm':'modal-confirm-cancel',
   'modal-insert':'ins-cancel',
   'modal-palette':'pal-close',
