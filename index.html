@@ -755,6 +755,20 @@ body.fullscreen #rd-bottom-show{display:none}
 .rimg-tb .rimg-pct{font-size:12px;font-weight:700;color:var(--ink2);min-width:44px;text-align:center}
 .rimg-tb .ico{width:15px;height:15px}
 
+/* ═══ TABLA SELECCIONADA ═══
+   Mismo planteamiento que las imágenes: marco y barrita FUERA del cuadro de
+   escribir, porque de la ficha se guarda todo lo que hay dentro. */
+.rtbl-box{position:fixed;z-index:4000;border:2px dashed var(--acento);border-radius:6px;
+  pointer-events:none}
+.rtbl-box.hidden{display:none}
+/* barras para arrastrar el borde entre dos columnas, como en Word */
+.rtbl-col{position:absolute;top:-2px;bottom:-2px;width:16px;margin-left:-8px;
+  cursor:col-resize;pointer-events:auto;touch-action:none;display:flex;justify-content:center}
+.rtbl-col::before{content:'';width:3px;background:var(--acento);border-radius:2px;opacity:.35}
+.rtbl-col:active::before{opacity:1}
+/* la tabla del cuadro de escribir avisa de que se puede tocar */
+.rich-ed table{cursor:cell}
+
 /* barra de formato + área editable en los modales */
 .rich-tb{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:6px}
 .rich-tb button{min-width:32px;height:30px;padding:0 8px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--ink);font-size:14px;cursor:pointer;font-family:inherit;line-height:1;touch-action:manipulation}
@@ -2038,7 +2052,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v133'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v134'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2889,17 +2903,358 @@ function openRichTable(btn,ed){
       richPop.querySelectorAll('.rt-tcell').forEach(o=>
         o.classList.toggle('on',+o.dataset.f<=f&&+o.dataset.c<=c));
     };
-    cell.onclick=()=>{hideRichPop();restore();richInsertTable(f,c)};
+    cell.onclick=()=>{hideRichPop();restore();richInsertTable(f,c,ed)};
   });
 }
-function richInsertTable(filas,cols){
+function richInsertTable(filas,cols,ed){
   const celda='<td><br></td>'.repeat(cols);
   const cab='<th><br></th>'.repeat(cols);
-  let html='<table><thead><tr>'+cab+'</tr></thead><tbody>';
+  /* id de usar y tirar para poder encontrarla después (insertHTML no devuelve
+     el nodo) y dejar el cursor en la primera celda con la barrita ya abierta:
+     si no, no había forma de saber que la tabla se puede editar. Se quita en
+     el acto, que si no se guardaría dentro de la ficha. */
+  const marca='lptbl'+Date.now();
+  let html='<table id="'+marca+'"><thead><tr>'+cab+'</tr></thead><tbody>';
   for(let i=1;i<filas;i++)html+='<tr>'+celda+'</tr>';
   html+='</tbody></table><p><br></p>';
   document.execCommand('insertHTML',false,html);
+  const t=document.getElementById(marca);
+  if(t){
+    t.removeAttribute('id');
+    if(ed&&ed.contains(t))setTimeout(()=>{
+      tblCursorA(t.querySelector('th,td'));
+      tblSelect(ed,t);
+    },30);
+  }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   TABLAS: EDITARLAS DE VERDAD
+   ──────────────────────────────────────────────────────────────────
+   Hasta ahora una tabla se insertaba y ahí se quedaba: se podía escribir
+   dentro y saltar de celda con el tabulador, pero NO se podía añadir ni
+   quitar filas o columnas, ni cambiar el ancho, ni moverla, ni borrarla
+   entera (el Retroceso iba comiendo celdas de una en una).
+
+   Al poner el cursor dentro de una tabla sale un marco de rayas y una
+   barrita con todo lo de Word que tiene sentido aquí. El ancho de las
+   columnas se cambia arrastrando la raya que las separa, como en Word.
+
+   Igual que con las imágenes, el marco y la barrita cuelgan del body y NO
+   del cuadro de escribir: de la ficha se guarda todo su contenido, así que
+   cualquier cosa metida ahí dentro acabaría dentro de tus apuntes.
+   ══════════════════════════════════════════════════════════════════ */
+let tblSel=null;                    // {ed,tabla}
+const tblBox=document.createElement('div');
+tblBox.className='rtbl-box hidden';
+document.body.appendChild(tblBox);
+const tblTb=document.createElement('div');
+tblTb.className='rimg-tb hidden';   // mismo aspecto que la barrita de las imágenes
+document.body.appendChild(tblTb);
+
+/* la tabla y la celda donde está el cursor (null si no está en ninguna) */
+function tblDelCursor(ed){
+  const s=window.getSelection();
+  let n=s&&s.anchorNode;
+  if(n&&n.nodeType===3)n=n.parentElement;
+  if(!n||!n.closest||!ed.contains(n))return null;
+  const t=n.closest('table');
+  return (t&&ed.contains(t))?t:null;
+}
+function tblCeldaDelCursor(ed){
+  const s=window.getSelection();
+  let n=s&&s.anchorNode;
+  if(n&&n.nodeType===3)n=n.parentElement;
+  if(!n||!n.closest||!ed.contains(n))return null;
+  return n.closest('td,th');
+}
+function tblFilas(t){return [...t.querySelectorAll('tr')]}
+function tblNumCols(t){const f=t.querySelector('tr');return f?f.children.length:0}
+/* pone el cursor dentro de una celda */
+function tblCursorA(celda){
+  if(!celda)return;
+  const s=window.getSelection(),r=document.createRange();
+  r.selectNodeContents(celda);r.collapse(true);
+  s.removeAllRanges();s.addRange(r);
+}
+
+/* ── ANCHOS DE COLUMNA ──
+   Se guardan en un <colgroup> con porcentajes. En porcentaje y no en píxeles
+   por lo mismo que las imágenes: el mismo apunte se ve en el PC con el panel
+   ancho y en el iPad con el panel estrecho. */
+function tblColgroup(t){
+  const n=tblNumCols(t);
+  let cg=t.querySelector('colgroup');
+  if(!cg){
+    cg=document.createElement('colgroup');
+    const fila=t.querySelector('tr');
+    const total=t.getBoundingClientRect().width||1;
+    for(let i=0;i<n;i++){
+      const c=document.createElement('col');
+      const celda=fila&&fila.children[i];
+      const w=celda?celda.getBoundingClientRect().width:total/n;
+      c.style.width=(w/total*100).toFixed(2)+'%';
+      cg.appendChild(c);
+    }
+    t.insertBefore(cg,t.firstChild);
+    return cg;
+  }
+  /* al añadir o quitar columnas hay que ajustar el colgroup, o los anchos se
+     desplazan y la tabla se ve descuadrada */
+  while(cg.children.length<n){
+    const c=document.createElement('col');
+    c.style.width=(100/n).toFixed(2)+'%';
+    cg.appendChild(c);
+  }
+  while(cg.children.length>n)cg.removeChild(cg.lastElementChild);
+  /* renormalizar para que sumen 100 */
+  const anchos=[...cg.children].map(c=>parseFloat(c.style.width)||(100/n));
+  const suma=anchos.reduce((a,b)=>a+b,0)||100;
+  [...cg.children].forEach((c,i)=>{c.style.width=(anchos[i]/suma*100).toFixed(2)+'%'});
+  return cg;
+}
+function tblCableaTirador(h){
+  h.addEventListener('pointerdown',e=>{
+    if(!tblSel)return;
+    e.preventDefault();e.stopPropagation();
+    try{h.setPointerCapture(e.pointerId)}catch(err){}
+    const t=tblSel.tabla;
+    const i=+h.dataset.i;
+    const cg=tblColgroup(t);
+    const a=cg.children[i], b=cg.children[i+1];
+    if(!a||!b)return;
+    const total=t.getBoundingClientRect().width||1;
+    const wa0=parseFloat(a.style.width)||0, wb0=parseFloat(b.style.width)||0;
+    const x0=e.clientX;
+    const mover=ev=>{
+      const d=(ev.clientX-x0)/total*100;
+      let wa=wa0+d, wb=wb0-d;
+      const min=7;                       // ninguna columna desaparece del todo
+      if(wa<min){wb-=(min-wa);wa=min}
+      if(wb<min){wa-=(min-wb);wb=min}
+      a.style.width=wa.toFixed(2)+'%';
+      b.style.width=wb.toFixed(2)+'%';
+      tblSyncBox();
+    };
+    const soltar=()=>{
+      h.removeEventListener('pointermove',mover);
+      h.removeEventListener('pointerup',soltar);
+      h.removeEventListener('pointercancel',soltar);
+    };
+    h.addEventListener('pointermove',mover);
+    h.addEventListener('pointerup',soltar);
+    h.addEventListener('pointercancel',soltar);
+  });
+}
+/* coloca el marco y los tiradores encima de la tabla */
+function tblSyncBox(){
+  if(!tblSel)return;
+  if(!tblSel.tabla.isConnected||!tblSel.ed.isConnected){tblDeselect();return}
+  const t=tblSel.tabla;
+  const r=t.getBoundingClientRect();
+  tblBox.style.left=r.left+'px';tblBox.style.top=r.top+'px';
+  tblBox.style.width=r.width+'px';tblBox.style.height=r.height+'px';
+  /* un tirador por cada frontera entre dos columnas */
+  const fila=t.querySelector('tr');
+  const n=fila?fila.children.length:0;
+  let hs=[...tblBox.querySelectorAll('.rtbl-col')];
+  while(hs.length<n-1){
+    const h=document.createElement('i');
+    h.className='rtbl-col';h.dataset.i=hs.length;
+    h.title='Arrastra para cambiar el ancho de la columna';
+    tblCableaTirador(h);
+    tblBox.appendChild(h);hs.push(h);
+  }
+  while(hs.length>Math.max(0,n-1)){const h=hs.pop();h.remove()}
+  hs.forEach((h,i)=>{
+    const c=fila&&fila.children[i];
+    if(!c)return;
+    h.dataset.i=i;
+    h.style.left=(c.getBoundingClientRect().right-r.left)+'px';
+  });
+  const th=tblTb.offsetHeight||42;
+  let ty=r.top-th-8;
+  if(ty<8)ty=Math.min(r.bottom+8,innerHeight-th-8);
+  tblTb.style.top=ty+'px';
+  tblTb.style.left=Math.max(8,Math.min(r.left,innerWidth-(tblTb.offsetWidth||300)-8))+'px';
+  const fuera=r.bottom<40||r.top>innerHeight-20;
+  tblBox.classList.toggle('hidden',fuera);
+  tblTb.classList.toggle('hidden',fuera);
+}
+function tblDeselect(){
+  tblSel=null;
+  tblBox.classList.add('hidden');
+  tblTb.classList.add('hidden');
+}
+function tblSelect(ed,tabla){
+  if(imgSel)imgDeselect();          // no puede haber dos marcos a la vez
+  tblSel={ed,tabla};
+  tblBuildTb();
+  tblBox.classList.remove('hidden');
+  tblTb.classList.remove('hidden');
+  tblSyncBox();
+}
+/* se llama al tocar o al escribir: enseña la barrita si el cursor está dentro
+   de una tabla y la esconde si has salido */
+function tblSync(ed){
+  const t=tblDelCursor(ed);
+  if(!t){if(tblSel&&tblSel.ed===ed)tblDeselect();return}
+  if(!tblSel||tblSel.tabla!==t)tblSelect(ed,t);
+  else tblSyncBox();
+}
+
+/* ── FILAS Y COLUMNAS ── */
+function tblInsertarFila(dir){
+  const celda=tblCeldaDelCursor(tblSel.ed);if(!celda)return;
+  const fila=celda.parentNode, t=tblSel.tabla;
+  const n=fila.children.length;
+  const nueva=document.createElement('tr');
+  for(let i=0;i<n;i++){const c=document.createElement('td');c.innerHTML='<br>';nueva.appendChild(c)}
+  /* debajo de la fila de cabecera, la nueva va al cuerpo: si se quedara
+     dentro de <thead> parecería otra cabecera */
+  if(fila.parentNode.tagName==='THEAD'&&dir>0){
+    let tb=t.querySelector('tbody');
+    if(!tb){tb=document.createElement('tbody');t.appendChild(tb)}
+    tb.insertBefore(nueva,tb.firstChild);
+  }else{
+    fila.parentNode.insertBefore(nueva,dir<0?fila:fila.nextSibling);
+  }
+  tblCursorA(nueva.firstChild);
+  tblSyncBox();
+}
+async function tblBorrarFila(){
+  const celda=tblCeldaDelCursor(tblSel.ed);if(!celda)return;
+  const fila=celda.parentNode;
+  const filas=tblFilas(tblSel.tabla);
+  if(filas.length<=1){await tblBorrarTabla();return}   // era la única: se va la tabla
+  const sig=fila.nextElementSibling||fila.previousElementSibling;
+  const seccion=fila.parentNode;
+  fila.remove();
+  if(seccion&&!seccion.children.length&&seccion!==tblSel.tabla)seccion.remove();
+  tblCursorA(sig&&sig.firstChild);
+  tblSyncBox();
+}
+function tblInsertarCol(dir){
+  const celda=tblCeldaDelCursor(tblSel.ed);if(!celda)return;
+  const t=tblSel.tabla;
+  const i=[...celda.parentNode.children].indexOf(celda);
+  tblFilas(t).forEach(fila=>{
+    const esCab=fila.parentNode.tagName==='THEAD';
+    const c=document.createElement(esCab?'th':'td');
+    c.innerHTML='<br>';
+    const ref=fila.children[i];
+    fila.insertBefore(c,dir<0?ref:(ref?ref.nextSibling:null));
+  });
+  tblColgroup(t);
+  tblSyncBox();
+}
+async function tblBorrarCol(){
+  const celda=tblCeldaDelCursor(tblSel.ed);if(!celda)return;
+  const t=tblSel.tabla;
+  const i=[...celda.parentNode.children].indexOf(celda);
+  if(tblNumCols(t)<=1){await tblBorrarTabla();return}
+  tblFilas(t).forEach(fila=>{const c=fila.children[i];if(c)c.remove()});
+  const cg=t.querySelector('colgroup');
+  if(cg&&cg.children[i])cg.children[i].remove();
+  tblColgroup(t);
+  tblSyncBox();
+}
+/* Cabecera sí/no: la primera fila pasa de <th> en <thead> a <td> normal y al
+   revés, conservando lo escrito. */
+function tblCabecera(){
+  const t=tblSel.tabla;
+  const thead=t.querySelector('thead');
+  if(thead){
+    const fila=thead.querySelector('tr');
+    if(fila){
+      [...fila.children].forEach(th=>{
+        const td=document.createElement('td');
+        td.innerHTML=th.innerHTML;
+        th.parentNode.replaceChild(td,th);
+      });
+      let tb=t.querySelector('tbody');
+      if(!tb){tb=document.createElement('tbody');t.appendChild(tb)}
+      tb.insertBefore(fila,tb.firstChild);
+    }
+    thead.remove();
+  }else{
+    const fila=t.querySelector('tr');
+    if(!fila)return;
+    [...fila.children].forEach(td=>{
+      const th=document.createElement('th');
+      th.innerHTML=td.innerHTML;
+      td.parentNode.replaceChild(th,td);
+    });
+    const nuevo=document.createElement('thead');
+    nuevo.appendChild(fila);
+    t.insertBefore(nuevo,t.firstElementChild);
+  }
+  tblBuildTb();tblSyncBox();
+}
+/* Borrar la tabla ENTERA. Si tiene algo escrito se pregunta: es lo único de
+   aquí que destruye trabajo de verdad, y un toque sin querer en el iPad se
+   llevaría por delante una tabla que has tardado en rellenar. */
+async function tblBorrarTabla(){
+  if(!tblSel)return;
+  const t=tblSel.tabla;
+  const tieneTexto=(t.textContent||'').trim().length>0;
+  if(tieneTexto){
+    const ok=await askConfirm('¿Eliminar la tabla entera con todo lo que tiene escrito?',
+      {ok:'Eliminar la tabla',cancel:'No, dejarla'});
+    if(!ok)return;
+  }
+  const ed=tblSel.ed;
+  tblDeselect();
+  if(t.parentNode)t.parentNode.removeChild(t);
+  ed.focus();
+}
+/* mover la tabla un bloque arriba o abajo, igual que las imágenes */
+function tblMover(dir){
+  if(!tblSel)return;
+  const t=tblSel.tabla, ed=tblSel.ed;
+  let nodo=t;
+  while(nodo.parentNode&&nodo.parentNode!==ed)nodo=nodo.parentNode;
+  const vecino=dir<0?nodo.previousElementSibling:nodo.nextElementSibling;
+  if(!vecino){showTip(dir<0?'Ya está arriba del todo':'Ya está abajo del todo',1400);return}
+  ed.insertBefore(nodo,dir<0?vecino:vecino.nextSibling);
+  tblSyncBox();
+}
+function tblBuildTb(){
+  tblTb.innerHTML='';
+  const mk=(txt,titulo,fn,cls)=>{
+    const b=document.createElement('button');
+    b.type='button';b.title=titulo||'';b.innerHTML=txt;
+    if(cls)b.className=cls;
+    b.addEventListener('pointerdown',e=>e.preventDefault());
+    b.onclick=e=>{e.preventDefault();fn()};
+    tblTb.appendChild(b);return b;
+  };
+  const sep=()=>{const s=document.createElement('span');s.className='rimg-sep';tblTb.appendChild(s)};
+
+  mk('＋fila ↑','Insertar una fila encima',()=>tblInsertarFila(-1));
+  mk('＋fila ↓','Insertar una fila debajo',()=>tblInsertarFila(1));
+  mk(svg('trash')+'fila','Eliminar esta fila',()=>tblBorrarFila(),'del');
+  sep();
+  mk('＋col ←','Insertar una columna a la izquierda',()=>tblInsertarCol(-1));
+  mk('＋col →','Insertar una columna a la derecha',()=>tblInsertarCol(1));
+  mk(svg('trash')+'col','Eliminar esta columna',()=>tblBorrarCol(),'del');
+  sep();
+  const conCab=!!tblSel.tabla.querySelector('thead');
+  mk('Cabecera',conCab?'Quitar la fila de cabecera':'Poner la primera fila como cabecera',
+     ()=>tblCabecera()).classList.toggle('on',conCab);
+  mk(svg('chevUp'),'Subir la tabla un bloque',()=>tblMover(-1));
+  mk(svg('chevDown'),'Bajar la tabla un bloque',()=>tblMover(1));
+  sep();
+  mk(svg('trash')+'tabla','Eliminar la tabla entera',()=>tblBorrarTabla(),'del');
+}
+addEventListener('scroll',()=>tblSyncBox(),true);
+addEventListener('resize',()=>tblSyncBox());
+document.addEventListener('pointerdown',e=>{
+  if(!tblSel)return;
+  if(tblBox.contains(e.target)||tblTb.contains(e.target))return;
+  if(tblSel.tabla.contains(e.target))return;
+  tblDeselect();
+},true);
 
 /* ── mayúsculas / minúsculas / tipo oración ── */
 function richCase(ed,modo){
@@ -3066,6 +3421,7 @@ function imgDeselect(){
   imgTb.classList.add('hidden');
 }
 function imgSelect(ed,img){
+  if(tblSel)tblDeselect();          // no puede haber dos marcos a la vez
   imgSel={ed,img};
   imgBuildTb();
   imgBox.classList.remove('hidden');
@@ -3291,7 +3647,11 @@ function wireRichToolbar(tb,ed){
   ed.addEventListener('click',e=>{
     if(e.target&&e.target.tagName==='IMG'&&ed.contains(e.target)){imgSelect(ed,e.target);return}
     if(imgSel&&imgSel.ed===ed)imgDeselect();
+    tblSync(ed);            // ¿el cursor ha entrado o salido de una tabla?
   });
+  /* también al moverse con el teclado: entrar en una tabla con el tabulador o
+     con las flechas tiene que sacar la barrita igual que tocándola */
+  ed.addEventListener('keyup',()=>tblSync(ed));
   /* Con una imagen seleccionada: Escape la suelta y Supr/Retroceso la quita.
      Se corta la propagación para que ese Escape no cierre además el cuadro
      entero (primero sueltas la imagen, y si vuelves a pulsar, se cierra). */
