@@ -1117,11 +1117,22 @@ body.fullscreen #fs-hint{display:block!important}
 @keyframes gidIn{from{opacity:0;transform:translateX(-50%) translateY(8px)}}
 #gid-bar.hidden{display:none}
 #gid-label{font-size:12.5px;font-weight:700;color:var(--ink);white-space:nowrap}
-#gid-close{background:var(--ink);color:#fff;border:none;border-radius:16px;
-  padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;touch-action:manipulation}
+#gid-close{background:var(--ink);color:#fff;border:none;border-radius:18px;
+  padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;touch-action:manipulation}
 #gid-close:active{transform:scale(.94)}
-#gid-cancel{background:transparent;border:none;color:var(--ink3);font-size:17px;
-  cursor:pointer;padding:2px 7px;line-height:1;touch-action:manipulation}
+/* ══ DESCARTAR ══
+   Desde que el tema automático guarda sin preguntar, esta "×" es la red de
+   seguridad: es lo que se pulsa cuando te has equivocado de subrayador y no
+   quieres que se genere la ficha. Antes era una "×" pequeña y pegada al
+   botón de guardar, y en el iPad se tocaba una por otra.
+   Ahora: botón redondo grande (40px, tamaño cómodo para el dedo), en rojo
+   apagado para que se lea distinto, y separado por una raya. */
+.gid-sep{width:1px;height:26px;background:var(--border);flex-shrink:0;margin:0 3px}
+#gid-cancel{background:var(--bg2);border:none;color:var(--danger);
+  font-size:24px;line-height:1;cursor:pointer;padding:0;touch-action:manipulation;
+  width:40px;height:40px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-family:inherit}
+#gid-cancel:active{transform:scale(.94)}
 body.fullscreen #gid-bar{bottom:20px}
 
 </style>
@@ -1521,7 +1532,8 @@ body.fullscreen #gid-bar{bottom:20px}
 <div id="gid-bar" class="hidden">
   <span id="gid-label"></span>
   <button id="gid-close">Cerrar</button>
-  <button id="gid-cancel" title="Descartar el grupo (los subrayados se mantienen)">×</button>
+  <span class="gid-sep"></span>
+  <button id="gid-cancel" title="Descartar: no crear la ficha (los subrayados se mantienen)">×</button>
 </div>
 
 <!-- fullscreen hint strip -->
@@ -1559,9 +1571,6 @@ body.fullscreen #gid-bar{bottom:20px}
 <div class="modal-bg hidden" id="modal-theme">
   <div class="modal">
     <h3 id="modal-theme-title">¿De qué tema es?</h3>
-    <!-- botón grande de "guardar en el tema activo". Solo aparece con el modo
-         automático encendido; se rellena desde askTheme() -->
-    <div id="theme-auto-row"></div>
     <div id="theme-list" style="display:flex;flex-direction:column;gap:6px;max-height:230px;overflow-y:auto;margin-bottom:12px"></div>
     <div style="display:flex;gap:6px;margin-bottom:12px">
       <input id="theme-new-num" type="number" min="1" placeholder="Nº" style="width:64px;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);font-size:15px;padding:10px;outline:none;text-align:center">
@@ -1939,7 +1948,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v126'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v127'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -3078,38 +3087,9 @@ const mTheme=document.getElementById('modal-theme');
 function askTheme(kindLabel){
   return new Promise(res=>{
     themeRes=res;
+    document.getElementById('modal-theme-title').textContent=`¿De qué tema es esta ${kindLabel}?`;
     const list=document.getElementById('theme-list');list.innerHTML='';
     const themes=loadThemes().sort((a,b)=>(a.num||0)-(b.num||0));
-    /* ══ MODO AUTOMÁTICO ══
-       Con el chip de la barra de colores encendido, el tema ya está decidido:
-       aquí solo se confirma. Sale un botón grande arriba (un toque en el iPad)
-       y Enter hace lo mismo, porque el tema activo va preseleccionado en la
-       lista. La lista sigue estando por si esta ficha va a otro sitio, y Esc
-       sigue descartando la ficha (por si te equivocaste de subrayador).
-       Sin modo automático no aparece nada y el cuadro es el de siempre. */
-    const autoT=autoThemeId()?activeThemeObj():null;
-    const autoRow=document.getElementById('theme-auto-row');
-    autoRow.innerHTML='';
-    document.getElementById('modal-theme-title').textContent = autoT
-      ? `¿Guardar esta ${kindLabel}?`
-      : `¿De qué tema es esta ${kindLabel}?`;
-    if(autoT){
-      const ok=document.createElement('button');
-      ok.id='theme-auto-ok';
-      ok.style.cssText=`display:flex;align-items:center;gap:10px;width:100%;padding:13px 14px;margin-bottom:10px;`+
-        `border:2px solid var(--acento);border-radius:12px;background:var(--bg2);cursor:pointer;`+
-        `text-align:left;font-family:inherit`;
-      ok.innerHTML=`<span style="width:18px;height:18px;border-radius:6px;background:${autoT.color};flex-shrink:0"></span>`+
-        `<span style="flex:1;min-width:0"><span style="display:block;font-size:11px;color:var(--ink3)">Guardar en</span>`+
-        `<span style="display:block;font-size:15px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(themeLabel(autoT))}</span></span>`+
-        `<span style="font-size:11px;color:var(--ink3);flex-shrink:0">Enter</span>`;
-      ok.onclick=()=>done(autoT.id);
-      autoRow.appendChild(ok);
-      const sub=document.createElement('div');
-      sub.style.cssText='font-size:11.5px;color:var(--ink3);margin:0 2px 8px';
-      sub.textContent='…o elige otro tema abajo:';
-      autoRow.appendChild(sub);
-    }
     if(!themes.length){const em=document.createElement('div');em.style.cssText='font-size:13px;color:var(--ink3);padding:6px 2px';em.textContent='Aún no hay temas. Crea el primero abajo.';list.appendChild(em)}
     const themeBtns=[];
     themes.forEach((t,i)=>{
@@ -3121,11 +3101,8 @@ function askTheme(kindLabel){
       b.onclick=()=>done(t.id);
       list.appendChild(b);themeBtns.push(b);
     });
-    /* Seleccion con teclado: ↑/↓ mueve, Enter confirma, 1-9 atajo directo.
-       Arranca en el TEMA ACTIVO si el modo automático está encendido; si no,
-       en el primero de la lista, como toda la vida. */
+    /* Seleccion con teclado: ↑/↓ mueve, Enter confirma, 1-9 atajo directo. */
     let sel=themes.length?0:-1;
-    if(autoT){const i=themes.findIndex(t=>t.id===autoT.id);if(i>=0)sel=i}
     function paintSel(){
       themeBtns.forEach((b,i)=>{
         b.style.borderColor = i===sel ? 'var(--acento)' : 'transparent';
@@ -4918,24 +4895,41 @@ async function closeGid(){
     return;
   }
 
-  /* Preguntar el tema antes de volcar la ficha.
-     askTheme devuelve:
-       string  → id de tema        → guarda con tema
-       ''      → "Sin tema"        → guarda sin tema
-       null    → Escape / cancelar → NO guarda: vuelve a la ficha abierta */
-  const themeId=await askTheme(kind==='glos'?'definición':'conclusión');
-
-  if(themeId===null){
-    /* Escape = retroceder: reabrimos el grupo tal y como estaba. */
-    curGid=gid;curGidKind=kind;curGidCount=count;
-    updateGidBar();
-    return;
+  /* ══ TEMA AUTOMÁTICO: NI UNA PREGUNTA MÁS ══
+     Con el chip encendido y un tema activo, PULSAR ✓ CERRAR YA ES LA
+     CONFIRMACIÓN: la ficha se guarda directa en ese tema y no se pregunta
+     nada. Al principio esto sacaba un aviso de "¿guardas en este tema?" y
+     daba exactamente el mismo trabajo que elegirlo a mano, así que sobra.
+     Si te has equivocado de subrayador, la barra de trazos tiene la "×" para
+     descartar el grupo ANTES de cerrarlo; y una ficha ya guardada se borra o
+     se cambia de tema desde su panel. */
+  const temaAuto=autoThemeId();
+  let themeId;
+  if(temaAuto){
+    themeId=temaAuto;
+  }else{
+    /* Sin modo automático, como siempre. askTheme devuelve:
+         string  → id de tema        → guarda con tema
+         ''      → "Sin tema"        → guarda sin tema
+         null    → Escape / cancelar → NO guarda: vuelve a la ficha abierta */
+    themeId=await askTheme(kind==='glos'?'definición':'conclusión');
+    if(themeId===null){
+      /* Escape = retroceder: reabrimos el grupo tal y como estaba. */
+      curGid=gid;curGidKind=kind;curGidCount=count;
+      updateGidBar();
+      return;
+    }
   }
   /* el tema que acabas de elegir pasa a ser el activo: si sigues subrayando,
      lo más probable es que las fichas siguientes sean del mismo */
   if(themeId){const m=loadThemeMap();m[gid]=themeId;saveThemeMap(m);saveActiveTheme(themeId)}
   unmarkEntDeleted(kind,gid);   // por si ese gid se habia borrado antes
-  showTip((kind==='glos'?'Definición':'Conclusión')+' guardada',1500);
+  /* el aviso dice EN QUÉ TEMA ha caído: es la única señal de que el
+     automático ha hecho lo que tocaba, ya que no ha preguntado nada */
+  {
+    const t=themeId?loadThemes().find(x=>x.id===themeId):null;
+    showTip((kind==='glos'?'Definición':'Conclusión')+' guardada'+(t?' en "'+themeLabel(t)+'"':''),1600);
+  }
   try{
     await autoUpdateEnts(kind);
     scheduleAnchors();
@@ -11174,7 +11168,8 @@ window.addEventListener('keydown',e=>{
     e.preventDefault();e.stopPropagation();
     if(e.stopImmediatePropagation)e.stopImmediatePropagation();
     if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();
-    /* Enter  = ✓ Cerrar   → vuelca la ficha y pregunta el tema (AVANZA)
+    /* Enter  = ✓ Cerrar   → vuelca la ficha (AVANZA). Con el tema automático
+                             encendido la guarda ya, sin preguntar nada más.
        Escape = ×          → descarta el grupo (RETROCEDE) */
     clickIfEnabled(k==='Enter'?'gid-close':'gid-cancel');
     return;
