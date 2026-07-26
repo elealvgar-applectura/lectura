@@ -659,6 +659,16 @@ body.fullscreen #rd-bottom-show{display:none}
 .node-sub-acts button.del{color:var(--danger)}
 
 /* ═══ TEXTO CON FORMATO (negrita, listas, color…) reutilizable ═══ */
+/* PUNTO DE PARTIDA: interlineado 1,5 y justificado, que es como Elena escribe
+   siempre. Es solo la base: cualquier texto se puede cambiar con los botones
+   de alineación e interlineado de la barra, y lo que se elija a mano se
+   guarda DENTRO del propio texto, así que manda sobre esto.
+   OJO CON EL NÚMERO: el "1,5" del menú de interlineado vale 1.75 en CSS (ver
+   RICH_LINEH); si aquí se pusiera 1.5, al tocar "1,5" en el menú el texto
+   daría un salto y parecería que el menú hace algo raro.
+   hyphens:auto parte palabras largas: sin eso, justificar en un panel
+   estrecho deja calles blancas enormes entre palabras. */
+.rich-content{line-height:1.75;text-align:justify;hyphens:auto;-webkit-hyphens:auto}
 .rich-content ul{list-style:disc;padding-left:20px;margin:4px 0}
 .rich-content ol{list-style:decimal;padding-left:22px;margin:4px 0}
 .rich-content li{margin:2px 0}
@@ -742,7 +752,10 @@ body.fullscreen #rd-bottom-show{display:none}
 .rt-tcell{width:26px;height:22px;border:1px solid var(--border);background:var(--bg2);
   border-radius:4px;padding:0;cursor:pointer;touch-action:manipulation}
 .rt-tcell.on{background:var(--rosa-suave);border-color:var(--rosa-fuerte)}
-.rich-ed{width:100%;min-height:110px;max-height:40vh;overflow-y:auto;background:var(--bg2);border:none;border-radius:12px;color:var(--ink);font-size:16px;line-height:1.5;padding:12px 14px;outline:none;margin-bottom:12px;font-family:inherit}
+/* sin line-height propio: lo pone .rich-content (1,5 por defecto), que va
+   antes en la hoja. Si se dejara aquí, ganaría éste por ir después y el
+   cuadro de escribir se vería más apretado que el texto ya guardado. */
+.rich-ed{width:100%;min-height:110px;max-height:40vh;overflow-y:auto;background:var(--bg2);border:none;border-radius:12px;color:var(--ink);font-size:16px;padding:12px 14px;outline:none;margin-bottom:12px;font-family:inherit}
 .rich-ed:empty:before{content:attr(data-ph);color:var(--ink3)}
 /* ═══ EDICIÓN EN LÍNEA (dentro del propio panel) ═══
    Antes, editar cualquier ficha abría el modal de abajo, que tapa el
@@ -1971,7 +1984,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v129'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v130'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
