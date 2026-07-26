@@ -17,7 +17,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root{
-  --bg:#FBF7F2;--bg2:#F3EDE6;--card:#fff;
+  /* Fondos: papel MUY levemente rosado, no rosa. La app tiene que seguir
+     viéndose limpia: el color va en los detalles, nunca en los fondos. */
+  --bg:#FCF8FA;--bg2:#F5EEF1;--card:#fff;
   --ink:#4A4458;--ink2:#9A93AB;--ink3:#C9C3D6;
   --rosa:#F5C7D8;--lila:#DCCFF0;--mante:#FFF0C9;
   /* ROSA PASTEL DE LA CASA. Es el color con el que la app dice "esto está
@@ -27,7 +29,13 @@
      --rosa-band va translúcido a propósito: se pinta ENCIMA del PDF y tiene
      que dejar leer la letra que hay debajo. */
   --rosa-band:rgba(246,198,218,.32);--rosa-suave:#FBE3EE;--rosa-fuerte:#E79BC0;
-  --border:#EFE7EC;--danger:#E58B8B;
+  /* ACENTO = "esto está activo / esto es el botón principal". Es el rosa de la
+     casa. Antes este papel lo hacía el lila directamente, escrito a mano en 33
+     sitios: por eso ahora tiene nombre propio y se cambia desde aquí.
+     El lila y el amarillo se quedan como contraste (fichas plasmadas, botones
+     de profundizar, notas adhesivas): mismo tono pastel, distinto matiz. */
+  --acento:#F5C7D8;
+  --border:#F1E7EC;--danger:#E58B8B;
   --r:14px;--shadow:0 2px 12px rgba(120,100,140,.08);
   --pdf-filter:none;                 /* el PDF no se toca en modo claro */
   --font:'Inter',-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif;
@@ -46,6 +54,7 @@ body.dark{
   /* la banda mantiene el rosa claro: se pinta sobre el PDF, que de noche se
      invierte con un filtro… pero ella NO (es un div, no el lienzo) */
   --rosa-band:rgba(246,198,218,.30);--rosa-suave:#4E3644;--rosa-fuerte:#C98BAC;
+  --acento:#8E6478;                 /* el mismo rosa, desaturado para la noche */
   --border:#332E3F;--danger:#D97A7A;
   --shadow:0 2px 14px rgba(0,0,0,.4);
   --pdf-filter:invert(1) hue-rotate(180deg);
@@ -145,7 +154,7 @@ input,textarea{user-select:text!important;-webkit-user-select:text!important}
   transition:background .14s,color .14s;position:relative;color:var(--ink2)}
 .tool-btn:hover{background:var(--bg2);color:var(--ink)}
 .tool-btn:active{transform:scale(.94)}
-.tool-btn.on{background:var(--lila);color:var(--ink)}
+.tool-btn.on{background:var(--acento);color:var(--ink)}
 .tool-btn:disabled{opacity:.32;cursor:default}
 .tool-btn:disabled:hover{background:transparent}
 .tool-btn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6;
@@ -317,6 +326,10 @@ body.fullscreen #rd-bottom-show{display:none}
 
 /* modals */
 .modal-bg{position:fixed;inset:0;background:rgba(74,68,88,.32);display:flex;align-items:flex-end;justify-content:center;z-index:900}
+/* el aviso de "¿seguro?" se abre DESDE otro modal (p. ej. al salir de una
+   ficha sin guardar): tiene que quedar por encima de él y quedarse con
+   Enter/Escape, no el de debajo */
+#modal-confirm{z-index:940}
 .modal{background:var(--card);border-radius:22px 22px 0 0;width:100%;max-width:560px;padding:22px 20px;padding-bottom:max(22px,env(safe-area-inset-bottom));max-height:82dvh;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .modal h3{font-size:16px;font-weight:600;color:var(--ink);margin-bottom:16px;text-align:center}
 .modal input[type=text],.modal input[type=number],.modal textarea{width:100%;background:var(--bg2);border:none;border-radius:12px;color:var(--ink);font-size:16px;padding:13px 14px;outline:none;margin-bottom:12px}
@@ -359,7 +372,7 @@ body.fullscreen #rd-bottom-show{display:none}
   padding:11px 5px 8px;display:flex;flex-direction:column;align-items:center;gap:6px;
   color:var(--ink2);font-family:inherit;transition:background .14s,border-color .14s,color .14s}
 .ip-btn:hover{background:var(--card);color:var(--ink)}
-.ip-btn.on{border-color:var(--lila);background:var(--card);color:var(--ink)}
+.ip-btn.on{border-color:var(--acento);background:var(--card);color:var(--ink)}
 .ip-btn .ico{width:23px;height:23px}
 .ip-btn span{font-size:9.5px;line-height:1.25;text-align:center;letter-spacing:.01em}
 .ctx-item{padding:12px 15px;color:var(--ink);font-size:14.5px;cursor:pointer;display:flex;align-items:center;gap:11px;border-bottom:1px solid var(--border)}
@@ -387,7 +400,7 @@ body.fullscreen #rd-bottom-show{display:none}
 .gswitch input{opacity:0;width:0;height:0}
 .gslider{position:absolute;inset:0;background:var(--ink3);border-radius:30px;cursor:pointer;transition:background .18s}
 .gslider:before{content:'';position:absolute;width:24px;height:24px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform .18s;box-shadow:0 1px 4px rgba(0,0,0,.18)}
-.gswitch input:checked+.gslider{background:var(--lila)}
+.gswitch input:checked+.gslider{background:var(--acento)}
 .gswitch input:checked+.gslider:before{transform:translateX(20px)}
 /* backup */
 #bk-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 14px 40px;display:flex;flex-direction:column;gap:10px}
@@ -520,7 +533,7 @@ body.fullscreen #rd-bottom-show{display:none}
 #modal-themes-mgr input.tm-name,.tm-host input.tm-name{width:100%;background:var(--card);border:1.5px solid var(--border);
   border-radius:9px;color:var(--ink);font-size:15px;padding:10px 30px 10px 11px;outline:none;
   font-family:inherit;margin:0;box-sizing:border-box}
-#modal-themes-mgr input.tm-name:focus,.tm-host input.tm-name:focus{border-color:var(--lila)}
+#modal-themes-mgr input.tm-name:focus,.tm-host input.tm-name:focus{border-color:var(--acento)}
 .tm-name-wrap .ico{position:absolute;right:9px;top:50%;transform:translateY(-50%);
   width:14px;height:14px;color:var(--ink3);pointer-events:none}
 #modal-themes-mgr .tm-del,.tm-host .tm-del{width:34px;height:34px;flex-shrink:0;border:none;background:transparent;
@@ -532,7 +545,7 @@ body.fullscreen #rd-bottom-show{display:none}
 #modal-themes-mgr .tm-move,.tm-host .tm-move{width:30px;height:30px;flex-shrink:0;border:none;background:var(--card);
   color:var(--ink2);cursor:pointer;border-radius:8px;display:flex;align-items:center;justify-content:center}
 #modal-themes-mgr .tm-move .ico,.tm-host .tm-move .ico{width:14px;height:14px}
-#modal-themes-mgr .tm-move:active,.tm-host .tm-move:active{background:var(--lila);color:var(--ink)}
+#modal-themes-mgr .tm-move:active,.tm-host .tm-move:active{background:var(--acento);color:var(--ink)}
 #modal-themes-mgr .tm-move:disabled,.tm-host .tm-move:disabled{opacity:.3;cursor:default}
 .tm-pos{font-size:12.5px;font-weight:700;color:var(--ink2);min-width:26px;text-align:center}
 .tm-cnt{font-size:11.5px;color:var(--ink3);margin-left:auto}
@@ -544,7 +557,7 @@ body.fullscreen #rd-bottom-show{display:none}
 .tm-back{display:flex;align-items:center;gap:6px;width:100%;padding:10px 12px;margin-bottom:10px;
   border:1px solid var(--border);border-radius:10px;background:var(--bg2);color:var(--ink);
   font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer;text-align:left}
-.tm-back:active{background:var(--lila)}
+.tm-back:active{background:var(--acento)}
 .tm-back .ico{width:15px;height:15px;flex-shrink:0;transform:rotate(180deg)}
 .tm-hint{font-size:12.5px;color:var(--ink2);line-height:1.5;margin-bottom:10px}
 .tm-host input.tm-panel-filter{width:100%;background:var(--bg2);border:none;border-radius:10px;
@@ -572,7 +585,7 @@ body.fullscreen #rd-bottom-show{display:none}
 .sp-close svg{width:19px;height:19px;stroke:var(--ink2);fill:none;stroke-width:2;stroke-linecap:round}
 .sp-tabs{display:flex;gap:4px;padding:8px 10px 0;flex-shrink:0}
 .sp-tab{flex:1;padding:8px 4px;border:none;background:var(--bg2);border-radius:10px;font-size:13px;color:var(--ink2);cursor:pointer;font-weight:500}
-.sp-tab.on{background:var(--lila);color:var(--ink)}
+.sp-tab.on{background:var(--acento);color:var(--ink)}
 /* overflow-x:hidden es RED DE SEGURIDAD, no adorno: si un solo texto largo sin
    espacios (una URL, una referencia, una palabra que el PDF extrae pegada)
    ensancha el contenido, el panel se desborda por la derecha, la pantalla
@@ -580,7 +593,7 @@ body.fullscreen #rd-bottom-show{display:none}
    vista. Pasó con el resumen. Lo que necesite scroll lateral (el diagrama de
    procesos) ya lo lleva en su propia caja. */
 .sp-body{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:10px 12px}
-.sp-action-btn{width:100%;padding:12px;background:var(--lila);border:none;border-radius:12px;color:var(--ink);font-size:14px;font-weight:500;cursor:pointer}
+.sp-action-btn{width:100%;padding:12px;background:var(--acento);border:none;border-radius:12px;color:var(--ink);font-size:14px;font-weight:500;cursor:pointer}
 .sp-action-btn:active{opacity:.8}
 .side-panel input,.side-panel textarea{user-select:text;-webkit-user-select:text;font-size:16px}
 
@@ -685,12 +698,12 @@ body.fullscreen #rd-bottom-show{display:none}
    Los botones de formato se encogen un poco respecto al modal porque aquí
    el ancho es el del panel: con el tamaño grande se desbordaban en cuatro
    filas y se comían el sitio del texto. */
-.inline-ed{background:var(--bg2);border:1.5px solid var(--lila);border-radius:12px;
+.inline-ed{background:var(--bg2);border:1.5px solid var(--acento);border-radius:12px;
   padding:10px;margin:2px 0 8px}
 .inline-ed input.inline-ed-title{width:100%;background:var(--card);border:1px solid var(--border);
   border-radius:10px;color:var(--ink);font-size:16px;padding:10px 11px;outline:none;
   font-family:inherit;margin:0 0 8px;box-sizing:border-box}
-.inline-ed input.inline-ed-title:focus{border-color:var(--lila)}
+.inline-ed input.inline-ed-title:focus{border-color:var(--acento)}
 .inline-ed-therow{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 .inline-ed-therow label{font-size:12.5px;color:var(--ink2);flex-shrink:0}
 .inline-ed select.inline-ed-theme{flex:1;min-width:0;background:var(--card);
@@ -700,7 +713,7 @@ body.fullscreen #rd-bottom-show{display:none}
 .inline-ed .rich-tb button,.inline-ed .rich-tb input[type=color]{min-width:28px;height:28px;padding:0 6px}
 .inline-ed .rich-ed{min-height:96px;max-height:44vh;background:var(--card);
   border:1px solid var(--border);margin-bottom:8px}
-.inline-ed .rich-ed:focus{border-color:var(--lila)}
+.inline-ed .rich-ed:focus{border-color:var(--acento)}
 .inline-ed-btns{display:flex;gap:8px}
 .inline-ed-btns .mbtn{padding:10px;font-size:14px}
 /* "Recibe flecha de" (pasos de un proceso), dentro del editor en línea.
@@ -717,7 +730,7 @@ body.fullscreen #rd-bottom-show{display:none}
 .proc-from-empty{font-size:12.5px;color:var(--ink3);padding:4px 2px}
 .node-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .node-act-btn{flex:1 1 auto;min-width:78px;padding:9px 6px;border:none;border-radius:10px;font-size:12px;font-weight:500;cursor:pointer;color:var(--ink);white-space:nowrap}
-.node-act-btn.go{background:var(--lila)}
+.node-act-btn.go{background:var(--acento)}
 .node-act-btn.sub{background:var(--mante)}
 .node-act-btn.del{background:rgba(229,139,139,.2);color:var(--danger)}
 .node-act-btn:active{opacity:.8}
@@ -748,7 +761,7 @@ body.fullscreen #rd-bottom-show{display:none}
 .cmap-children{border-left:2px solid var(--border);padding-left:10px;margin-bottom:6px}
 .cmap-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
 .cmap-act-btn{flex:1 1 auto;min-width:70px;padding:8px 6px;border:none;border-radius:10px;font-size:12px;font-weight:500;cursor:pointer;color:var(--ink);white-space:nowrap;background:var(--bg2)}
-.cmap-act-btn.go{background:var(--lila)}
+.cmap-act-btn.go{background:var(--acento)}
 .cmap-act-btn.sub{background:var(--mante)}
 .cmap-act-btn.del{background:rgba(229,139,139,.2);color:var(--danger)}
 .cmap-act-btn:active{opacity:.8}
@@ -835,7 +848,7 @@ body.fullscreen #rd-bottom-show{display:none}
 .panel-dock-resize::before{content:'';width:4px;height:44px;border-radius:2px;
   background:rgba(120,100,140,.3);transition:background .14s}
 .panel-dock-resize:hover::before{background:rgba(120,100,140,.55)}
-.panel-dock-resize:active::before{background:var(--lila)}
+.panel-dock-resize:active::before{background:var(--acento)}
 .side-panel.floating .panel-dock-resize{display:none}
 /* node anchors on PDF */
 .node-anchor{position:absolute;left:4px;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--ink);cursor:pointer;border:2px solid #fff;box-shadow:0 2px 8px rgba(120,100,140,.3);z-index:10;pointer-events:all;transition:transform .1s;touch-action:manipulation}
@@ -949,7 +962,7 @@ body.fullscreen #fs-hint{display:block!important}
 .glos-manual-add-theme{width:100%;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);font-size:14px;padding:10px 12px;outline:none;margin-bottom:6px;font-family:inherit}
 .ent-acts{display:flex;gap:6px;flex-wrap:wrap}
 .ent-btn{padding:6px 11px;border:none;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer;background:var(--bg2);color:var(--ink2);font-family:inherit}
-.ent-btn.go{background:var(--lila);color:var(--ink)}
+.ent-btn.go{background:var(--acento);color:var(--ink)}
 .ent-btn.del{background:transparent;color:var(--ink3)}
 .ent-btn:active{transform:scale(.95)}
 .ent-count{font-size:11px;color:var(--ink3);padding:2px 4px 10px;letter-spacing:.04em}
@@ -988,7 +1001,7 @@ body.fullscreen #fs-hint{display:block!important}
 .emb-sub-d{font-size:11.5px;color:var(--ink2);line-height:1.4;margin-top:2px}
 .emb-acts{display:flex;gap:5px;flex-wrap:wrap}
 .emb-btn{padding:5px 10px;border:none;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;background:var(--bg2);color:var(--ink2);font-family:inherit;touch-action:manipulation}
-.emb-btn.go{background:var(--lila);color:var(--ink)}
+.emb-btn.go{background:var(--acento);color:var(--ink)}
 .emb-btn:active{transform:scale(.95)}
 .emb-card.mini .emb-body{display:none!important}
 .pg-anchors{position:absolute;top:0;right:0;display:flex;flex-direction:column;gap:5px;padding:8px;z-index:9;pointer-events:none;align-items:flex-end}
@@ -1008,7 +1021,7 @@ body.fullscreen #fs-hint{display:block!important}
 /* modo escritura a mano en notas */
 .stnote-mode{display:flex;gap:4px;padding:4px 8px 0}
 .stnote-mode button{flex:1;padding:5px 4px;border:none;background:var(--bg2);border-radius:7px;font-size:11px;color:var(--ink2);cursor:pointer;font-weight:600;touch-action:manipulation}
-.stnote-mode button.on{background:var(--lila);color:var(--ink)}
+.stnote-mode button.on{background:var(--acento);color:var(--ink)}
 .stnote-draw-wrap{position:relative;margin:6px 8px 8px;background:rgba(255,255,255,.5);border-radius:8px;overflow:hidden}
 .stnote-draw-cv{display:block;width:100%;touch-action:none;cursor:crosshair}
 .stnote-draw-tools{display:flex;gap:5px;align-items:center;padding:5px 8px;border-top:1px solid rgba(0,0,0,.06)}
@@ -1506,7 +1519,7 @@ body.fullscreen #gid-bar{bottom:20px}
       <button id="tm-new-add" style="background:var(--menta);border:none;border-radius:10px;padding:0 14px;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer">Crear</button>
     </div>
     <div class="modal-btns">
-      <button class="mbtn ok" id="tm-close" style="background:var(--lila)">Listo</button>
+      <button class="mbtn ok" id="tm-close" style="background:var(--acento)">Listo</button>
     </div>
   </div>
 </div>
@@ -1542,7 +1555,7 @@ body.fullscreen #gid-bar{bottom:20px}
     <div id="emb-edit-text" class="rich-ed rich-content" contenteditable="true" data-ph="Texto / definición / conclusión (con formato, sin límite)"></div>
     <div class="modal-btns">
       <button class="mbtn cancel" id="emb-edit-cancel">Cancelar</button>
-      <button class="mbtn ok" id="emb-edit-ok" style="background:var(--lila)">Guardar</button>
+      <button class="mbtn ok" id="emb-edit-ok" style="background:var(--acento)">Guardar</button>
     </div>
   </div>
 </div>
@@ -1767,7 +1780,7 @@ body.fullscreen #gid-bar{bottom:20px}
       <input type="range" id="set-boldstr" min="5" max="60" value="22" step="1">
     </div>
     <div class="modal-btns">
-      <button class="mbtn ok" id="set-close" style="background:var(--lila)">Listo</button>
+      <button class="mbtn ok" id="set-close" style="background:var(--acento)">Listo</button>
     </div>
   </div>
 </div>
@@ -1776,7 +1789,7 @@ body.fullscreen #gid-bar{bottom:20px}
     <h3>Insertar página</h3>
     <p style="font-size:13px;color:var(--ink2);margin-bottom:14px;line-height:1.5">Se insertará después de la página actual.</p>
     <div class="modal-btns" style="flex-direction:column;gap:8px">
-      <button class="mbtn ok" id="ins-blank" style="background:var(--lila);width:100%">Hoja en blanco</button>
+      <button class="mbtn ok" id="ins-blank" style="background:var(--acento);width:100%">Hoja en blanco</button>
       <button class="mbtn ok" id="ins-img" style="background:var(--menta);width:100%">Imagen o PDF de archivo</button>
       <button class="mbtn cancel" id="ins-cancel" style="width:100%">Cancelar</button>
     </div>
@@ -1795,7 +1808,7 @@ body.fullscreen #gid-bar{bottom:20px}
       <input type="range" id="mg-b" min="0" max="100" value="0" step="10">
     </div>
     <div class="modal-btns">
-      <button class="mbtn ok" id="mg-close" style="background:var(--lila)">Listo</button>
+      <button class="mbtn ok" id="mg-close" style="background:var(--acento)">Listo</button>
     </div>
   </div>
 </div>
@@ -1845,7 +1858,7 @@ body.fullscreen #gid-bar{bottom:20px}
       <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><polyline points="9.5 5.5 16 12 9.5 18.5"/></svg>
     </div>
     <div class="modal-btns">
-      <button class="mbtn ok" id="gest-close" style="background:var(--lila)">Listo</button>
+      <button class="mbtn ok" id="gest-close" style="background:var(--acento)">Listo</button>
     </div>
   </div>
 </div>
@@ -1860,7 +1873,7 @@ body.fullscreen #gid-bar{bottom:20px}
     </div>
     <div id="dicc-list"></div>
     <div class="modal-btns">
-      <button class="mbtn ok" id="dicc-close" style="background:var(--lila)">Listo</button>
+      <button class="mbtn ok" id="dicc-close" style="background:var(--acento)">Listo</button>
     </div>
   </div>
 </div>
@@ -1878,7 +1891,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v118'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v119'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2692,9 +2705,11 @@ let tmInPanel=null;
 
 function askInlineEdit(host,title,text,opts){return new Promise(res=>{
   if(!host){res(null);return}
-  /* solo un editor abierto a la vez: si había otro, se cancela (no se
-     guarda a medias, que sería perder lo escrito sin avisar) */
-  if(closeInlineEdit)closeInlineEdit();
+  /* solo un editor abierto a la vez: si había otro, se cierra. Si en ese otro
+     había texto sin guardar, closeInlineEdit devuelve false y está
+     preguntando qué hacer: no se abre este hasta que se conteste, porque si
+     no se perdería lo escrito allí sin enterarte. */
+  if(closeInlineEdit&&!closeInlineEdit()){res(null);return}
 
   const box=document.createElement('div');box.className='inline-ed';
 
@@ -2760,7 +2775,7 @@ function askInlineEdit(host,title,text,opts){return new Promise(res=>{
   const bCan=document.createElement('button');bCan.type='button';
   bCan.className='mbtn cancel';bCan.textContent='Cancelar';
   const bOk=document.createElement('button');bOk.type='button';
-  bOk.className='mbtn ok';bOk.textContent='Guardar';bOk.style.background='var(--lila)';
+  bOk.className='mbtn ok';bOk.textContent='Guardar';bOk.style.background='var(--acento)';
   btns.append(bCan,bOk);box.appendChild(btns);
 
   /* ocultar lo que ya había en el hueco (texto, etiqueta de tema, botones…)
@@ -2777,9 +2792,24 @@ function askInlineEdit(host,title,text,opts){return new Promise(res=>{
     prev.forEach(c=>{c.style.display=c.dataset.ieDisp||'';delete c.dataset.ieDisp});
     res(v);
   };
-  closeInlineEdit=()=>finish(null);
 
-  bCan.onclick=e=>{e.stopPropagation();finish(null)};
+  /* ── AVISO DE TEXTO SIN GUARDAR ──
+     Se apunta lo que hay nada más abrir y se compara al intentar salir.
+     `salir()` devuelve false cuando hay algo escrito sin guardar: entonces NO
+     se cierra nada, se pregunta, y solo se cierra si contestas que sí. Por eso
+     quien llama a closeInlineEdit (cerrar el panel, abrir otra ficha) tiene
+     que mirar lo que devuelve: si es false, no debe seguir cerrando. */
+  const foto=()=>(tIn?tIn.value:'')+' '+(ed?ed.innerHTML:'')+' '+(sel?sel.value:'');
+  const foto0=foto();
+  const salir=()=>{
+    if(done)return true;
+    if(foto()===foto0){finish(null);return true}
+    askConfirm(DIRTY_MSG).then(ok=>{if(ok)finish(null)});
+    return false;
+  };
+  closeInlineEdit=salir;
+
+  bCan.onclick=e=>{e.stopPropagation();salir()};
   bOk.onclick=e=>{
     e.stopPropagation();
     const t=tIn?tIn.value.trim():'';
@@ -2798,7 +2828,7 @@ function askInlineEdit(host,title,text,opts){return new Promise(res=>{
   /* Escape cancela; Ctrl/Cmd+Enter guarda. Se queda dentro del editor para no
      interferir con los atajos generales de la app. */
   box.addEventListener('keydown',e=>{
-    if(e.key==='Escape'){e.preventDefault();e.stopPropagation();finish(null)}
+    if(e.key==='Escape'){e.preventDefault();e.stopPropagation();salir()}
     else if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();e.stopPropagation();bOk.click()}
     else if(e.key==='Enter'&&tIn&&e.target===tIn){e.preventDefault();if(ed)ed.focus();else bOk.click()}
   });
@@ -2809,6 +2839,61 @@ function askInlineEdit(host,title,text,opts){return new Promise(res=>{
     const f=tIn||ed;if(f)f.focus();
   },60);
 })}
+
+/* ══════════════════════════════════════════════════════════════════
+   AVISO DE TEXTO SIN GUARDAR
+
+   El problema real: escribes una ficha larga, te vas sin querer a otra
+   herramienta o das a Escape, y lo escrito desaparece sin decir nada.
+
+   Cómo se hace: al ABRIRSE el editor se apunta lo que había dentro. Al
+   intentar cerrarlo SIN guardar se compara con lo que hay ahora; si ha
+   cambiado, se pregunta antes de tirarlo.
+
+   Se vigila la clase "hidden" de cada modal en vez de tocar las diez
+   funciones que los abren: así no puede olvidarse ninguna y no se toca nada
+   de lo que ya funcionaba.
+
+   Escape y el botón "Cancelar" acaban los dos en el MISMO botón (ver ATAJOS
+   DE TECLADO, MODAL_CANCEL), así que basta con vigilar ese botón para cubrir
+   las dos salidas.
+   ══════════════════════════════════════════════════════════════════ */
+const DIRTY_MSG='Has escrito algo y no lo has guardado. ¿Seguro que quieres salir y perderlo?';
+const DIRTY_EDS=[
+  {m:'modal-embed-edit',c:'emb-edit-cancel',  f:['emb-edit-title','emb-edit-text','emb-edit-theme']},
+  {m:'modal-node',      c:'modal-node-cancel',f:['node-title-in','node-body-in','node-theme-in']},
+  {m:'modal-subnode',   c:'modal-subnode-cancel',f:['subnode-title-in','subnode-body-in']},
+  {m:'modal-aclar',     c:'modal-aclar-cancel',f:['aclar-text-in','aclar-theme']},
+  {m:'modal-cmap',      c:'modal-cmap-cancel',f:['cmap-title-in','cmap-body-in']},
+  {m:'modal-proc-step', c:'modal-proc-step-cancel',f:['proc-step-title-in','proc-step-body-in']}
+];
+/* foto de lo que hay escrito ahora mismo en un editor */
+function edSnap(campos){
+  return campos.map(id=>{
+    const el=document.getElementById(id);
+    if(!el)return '';
+    return el.isContentEditable?el.innerHTML:(el.value||'');
+  }).join(' ');
+}
+DIRTY_EDS.forEach(cfg=>{
+  const m=document.getElementById(cfg.m),b=document.getElementById(cfg.c);
+  if(!m||!b)return;
+  new MutationObserver(()=>{
+    const abierto=!m.classList.contains('hidden');
+    if(abierto&&!cfg.abierto)cfg.snap=edSnap(cfg.f);   // acaba de abrirse
+    cfg.abierto=abierto;
+  }).observe(m,{attributes:true,attributeFilter:['class']});
+  /* en fase de captura: hay que llegar ANTES que el onclick que cierra */
+  b.addEventListener('click',e=>{
+    if(cfg.saltar)return;                              // es el clic relanzado
+    if(cfg.snap===undefined||edSnap(cfg.f)===cfg.snap)return;   // nada que perder
+    e.preventDefault();e.stopImmediatePropagation();
+    askConfirm(DIRTY_MSG).then(ok=>{
+      if(!ok)return;                                   // sigue editando
+      cfg.saltar=true;b.click();cfg.saltar=false;
+    });
+  },true);
+});
 
 /* selector de tema → devuelve id de tema, o null si "sin tema" */
 let themeRes=null,themeKeyNav=null;
@@ -2834,7 +2919,7 @@ function askTheme(kindLabel){
     let sel=themes.length?0:-1;
     function paintSel(){
       themeBtns.forEach((b,i)=>{
-        b.style.borderColor = i===sel ? 'var(--lila)' : 'transparent';
+        b.style.borderColor = i===sel ? 'var(--acento)' : 'transparent';
         b.style.background  = i===sel ? 'var(--bg3, var(--bg2))' : 'var(--bg2)';
       });
       if(sel>=0&&themeBtns[sel])themeBtns[sel].scrollIntoView({block:'nearest'});
@@ -5659,9 +5744,11 @@ function savePanelWin(id,rect){
 function closePanel(id){
   const p=typeof id==='string'?document.getElementById(id):id;
   if(!p)return;
-  /* si había un editor en línea abierto dentro, se cancela: cerrar el panel
-     no debe guardar a medias lo que se estuviera escribiendo */
-  if(closeInlineEdit&&p.querySelector('.inline-ed'))closeInlineEdit();
+  /* si había un editor en línea abierto dentro, se cierra: cerrar el panel no
+     debe guardar a medias lo que se estuviera escribiendo. Y si allí había
+     texto sin guardar, el panel NO se cierra: primero se pregunta (si no,
+     el aviso saldría con el panel ya cerrado y sin sitio al que volver). */
+  if(closeInlineEdit&&p.querySelector('.inline-ed')&&!closeInlineEdit())return;
   /* si el panel se cierra con el gestor de temas dentro, se olvida: al
      volver a abrirlo debe salir la lista de fichas, no el gestor */
   if(tmInPanel&&tmInPanel.panelId===p.id)tmInPanel=null;
@@ -12520,7 +12607,7 @@ function showSyncLog(){
         color:var(--ink);margin-bottom:12px"></pre>
       <div class="modal-btns">
         <button class="mbtn cancel" id="sync-log-clear">Limpiar</button>
-        <button class="mbtn ok" id="sync-log-close" style="background:var(--lila)">Cerrar</button>
+        <button class="mbtn ok" id="sync-log-close" style="background:var(--acento)">Cerrar</button>
       </div></div>`;
     document.body.appendChild(m);
     m.querySelector('#sync-log-close').onclick=()=>m.classList.add('hidden');
