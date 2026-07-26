@@ -626,7 +626,16 @@ body.fullscreen #rd-bottom-show{display:none}
 .rich-content b,.rich-content strong{font-weight:700}
 .rich-content i,.rich-content em{font-style:italic}
 .rich-content u{text-decoration:underline}
+.rich-content s,.rich-content strike{text-decoration:line-through}
 .rich-content a{color:#3a7afe;text-decoration:underline}
+/* sangría: el navegador la hace con margin-left, pero en el iPad (Safari)
+   puede salir como <blockquote>; se le quita la raya y el relleno de serie */
+.rich-content blockquote{margin:4px 0 4px 26px;padding:0;border:none}
+.rich-content img{max-width:100%;height:auto;display:block;border-radius:8px;margin:6px 0}
+.rich-content table{border-collapse:collapse;width:100%;table-layout:fixed;margin:8px 0}
+.rich-content td,.rich-content th{border:1px solid var(--border);padding:6px 8px;
+  font-size:14px;vertical-align:top;word-break:break-word;min-width:0}
+.rich-content th{background:var(--bg2);font-weight:600;text-align:left}
 /* Los contenedores de texto llevan white-space:pre-wrap para respetar los saltos
    del texto plano de siempre. Cuando el contenido YA es HTML con formato, los
    saltos van en <br>/<div>, y pre-wrap los duplicaría dejando huecos enormes. */
@@ -636,6 +645,35 @@ body.fullscreen #rd-bottom-show{display:none}
 .rich-tb button{min-width:32px;height:30px;padding:0 8px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--ink);font-size:14px;cursor:pointer;font-family:inherit;line-height:1;touch-action:manipulation}
 .rich-tb button:active{transform:scale(.94)}
 .rich-tb input[type=color]{width:32px;height:30px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);padding:2px;cursor:pointer}
+/* BOTÓN ACTIVO (la negrita está puesta, la lista está puesta…): rosa de la
+   casa. Antes no se marcaba nada y no se sabía qué había puesto. */
+.rich-tb button.on{background:var(--rosa-suave);border-color:var(--rosa-fuerte);color:var(--ink)}
+.rich-tb .rt-sep{width:1px;height:20px;background:var(--border);margin:0 3px;flex-shrink:0}
+/* los dos botones de color enseñan debajo el último color usado */
+.rich-tb button.rt-col{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0 7px;font-size:12px;font-weight:700}
+.rich-tb .rt-sw{display:block;width:16px;height:4px;border-radius:2px;border:1px solid rgba(0,0,0,.15)}
+/* desplegable de colores y de tamaño de tabla */
+.rt-pop{position:fixed;z-index:960;background:var(--card);border:1px solid var(--border);
+  border-radius:14px;box-shadow:0 10px 32px rgba(120,100,140,.28);padding:11px}
+.rt-pop.hidden{display:none}
+.rt-pop-t{font-size:12px;color:var(--ink2);margin-bottom:8px}
+/* 28px: en el iPad se tocan con el dedo sin fallar */
+.rt-grid{display:grid;grid-template-columns:repeat(6,28px);gap:8px}
+.rt-dot{width:28px;height:28px;border-radius:8px;border:1px solid rgba(0,0,0,.14);
+  cursor:pointer;padding:0;touch-action:manipulation}
+.rt-dot:active{transform:scale(.9)}
+/* "sin resaltado": cuadro vacío con una raya roja, como en Word */
+.rt-none{background:var(--card);position:relative;overflow:hidden}
+.rt-none:after{content:'';position:absolute;left:-3px;top:12px;width:34px;height:2px;
+  background:var(--danger);transform:rotate(-45deg)}
+.rt-more{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin-top:10px;font-size:13px;color:var(--ink);cursor:pointer}
+.rt-more input[type=color]{width:34px;height:26px;border:1px solid var(--border);
+  border-radius:7px;background:var(--bg2);padding:2px;cursor:pointer}
+.rt-tgrid{display:grid;grid-template-columns:repeat(6,26px);gap:4px}
+.rt-tcell{width:26px;height:22px;border:1px solid var(--border);background:var(--bg2);
+  border-radius:4px;padding:0;cursor:pointer;touch-action:manipulation}
+.rt-tcell.on{background:var(--rosa-suave);border-color:var(--rosa-fuerte)}
 .rich-ed{width:100%;min-height:110px;max-height:40vh;overflow-y:auto;background:var(--bg2);border:none;border-radius:12px;color:var(--ink);font-size:16px;line-height:1.5;padding:12px 14px;outline:none;margin-bottom:12px;font-family:inherit}
 .rich-ed:empty:before{content:attr(data-ph);color:var(--ink3)}
 /* ═══ EDICIÓN EN LÍNEA (dentro del propio panel) ═══
@@ -1500,19 +1538,7 @@ body.fullscreen #gid-bar{bottom:20px}
       <label style="display:block;font-size:12.5px;color:var(--ink2);margin-bottom:5px">Tema</label>
       <select id="emb-edit-theme" style="width:100%;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);font-size:15px;padding:11px;outline:none;font-family:inherit"></select>
     </div>
-    <div class="rich-tb" id="emb-edit-tb">
-      <button type="button" data-cmd="bold" title="Negrita"><b>B</b></button>
-      <button type="button" data-cmd="italic" title="Cursiva"><i>I</i></button>
-      <button type="button" data-cmd="underline" title="Subrayado"><u>U</u></button>
-      <button type="button" data-cmd="insertUnorderedList" title="Lista con guiones">•</button>
-      <button type="button" data-cmd="insertOrderedList" title="Lista numerada">1.</button>
-      <button type="button" data-cmd="fontSize" data-val="2" title="Más pequeño">A−</button>
-      <button type="button" data-cmd="fontSize" data-val="5" title="Más grande">A+</button>
-      <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
-      <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
-      <button type="button" data-cmd="removeFormat" title="Quitar el formato"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.4 19.4h11"/><path d="M15.6 5.2 5.4 15.4a1.6 1.6 0 0 0 0 2.3l1.7 1.7h4l7.8-7.8a1.6 1.6 0 0 0 0-2.3l-3.3-3.3a1.6 1.6 0 0 0-2.3 0Z"/></svg></button>
-      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.4 13.6a3.4 3.4 0 0 0 5 .3l2.4-2.4a3.4 3.4 0 0 0-4.8-4.8l-1.4 1.4"/><path d="M13.6 10.4a3.4 3.4 0 0 0-5-.3l-2.4 2.4a3.4 3.4 0 0 0 4.8 4.8l1.4-1.4"/></svg></button>
-    </div>
+    <div class="rich-tb" id="emb-edit-tb"><!-- los botones los genera wireRichToolbar --></div>
     <div id="emb-edit-text" class="rich-ed rich-content" contenteditable="true" data-ph="Texto / definición / conclusión (con formato, sin límite)"></div>
     <div class="modal-btns">
       <button class="mbtn cancel" id="emb-edit-cancel">Cancelar</button>
@@ -1525,19 +1551,7 @@ body.fullscreen #gid-bar{bottom:20px}
   <div class="modal">
     <h3 id="modal-node-title">Nuevo nodo conceptual</h3>
     <input id="node-title-in" type="text" placeholder="Título (ej: Bandura – Aprendizaje vicario)">
-    <div class="rich-tb" id="node-body-tb">
-      <button type="button" data-cmd="bold" title="Negrita"><b>B</b></button>
-      <button type="button" data-cmd="italic" title="Cursiva"><i>I</i></button>
-      <button type="button" data-cmd="underline" title="Subrayado"><u>U</u></button>
-      <button type="button" data-cmd="insertUnorderedList" title="Lista con guiones">•</button>
-      <button type="button" data-cmd="insertOrderedList" title="Lista numerada">1.</button>
-      <button type="button" data-cmd="fontSize" data-val="2" title="Más pequeño">A−</button>
-      <button type="button" data-cmd="fontSize" data-val="5" title="Más grande">A+</button>
-      <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
-      <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
-      <button type="button" data-cmd="removeFormat" title="Quitar el formato"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.4 19.4h11"/><path d="M15.6 5.2 5.4 15.4a1.6 1.6 0 0 0 0 2.3l1.7 1.7h4l7.8-7.8a1.6 1.6 0 0 0 0-2.3l-3.3-3.3a1.6 1.6 0 0 0-2.3 0Z"/></svg></button>
-      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.4 13.6a3.4 3.4 0 0 0 5 .3l2.4-2.4a3.4 3.4 0 0 0-4.8-4.8l-1.4 1.4"/><path d="M13.6 10.4a3.4 3.4 0 0 0-5-.3l-2.4 2.4a3.4 3.4 0 0 0 4.8 4.8l1.4-1.4"/></svg></button>
-    </div>
+    <div class="rich-tb" id="node-body-tb"><!-- los botones los genera wireRichToolbar --></div>
     <div id="node-body-in" class="rich-ed rich-content" contenteditable="true" data-ph="Descripción / resumen (con formato, todo lo que quieras)"></div>
     <div style="margin:0 0 12px">
       <label style="display:block;font-size:12.5px;color:var(--ink2);margin-bottom:5px">Tema</label>
@@ -1556,19 +1570,7 @@ body.fullscreen #gid-bar{bottom:20px}
   <div class="modal">
     <h3>Añadir subnivel</h3>
     <input id="subnode-title-in" type="text" placeholder="Subtítulo">
-    <div class="rich-tb" id="subnode-body-tb">
-      <button type="button" data-cmd="bold" title="Negrita"><b>B</b></button>
-      <button type="button" data-cmd="italic" title="Cursiva"><i>I</i></button>
-      <button type="button" data-cmd="underline" title="Subrayado"><u>U</u></button>
-      <button type="button" data-cmd="insertUnorderedList" title="Lista con guiones">•</button>
-      <button type="button" data-cmd="insertOrderedList" title="Lista numerada">1.</button>
-      <button type="button" data-cmd="fontSize" data-val="2" title="Más pequeño">A−</button>
-      <button type="button" data-cmd="fontSize" data-val="5" title="Más grande">A+</button>
-      <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
-      <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
-      <button type="button" data-cmd="removeFormat" title="Quitar el formato"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.4 19.4h11"/><path d="M15.6 5.2 5.4 15.4a1.6 1.6 0 0 0 0 2.3l1.7 1.7h4l7.8-7.8a1.6 1.6 0 0 0 0-2.3l-3.3-3.3a1.6 1.6 0 0 0-2.3 0Z"/></svg></button>
-      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.4 13.6a3.4 3.4 0 0 0 5 .3l2.4-2.4a3.4 3.4 0 0 0-4.8-4.8l-1.4 1.4"/><path d="M13.6 10.4a3.4 3.4 0 0 0-5-.3l-2.4 2.4a3.4 3.4 0 0 0 4.8 4.8l1.4-1.4"/></svg></button>
-    </div>
+    <div class="rich-tb" id="subnode-body-tb"><!-- los botones los genera wireRichToolbar --></div>
     <div id="subnode-body-in" class="rich-ed rich-content" contenteditable="true" data-ph="Explicación (con formato, todo lo que quieras)"></div>
     <div class="modal-btns">
       <button class="mbtn cancel" id="modal-subnode-cancel">Cancelar</button>
@@ -1583,19 +1585,7 @@ body.fullscreen #gid-bar{bottom:20px}
     <h3>Aclaración</h3>
     <div id="aclar-ref" style="font-size:12.5px;color:var(--ink3);margin-bottom:8px;font-style:italic"></div>
     <select id="aclar-theme" class="glos-manual-add-theme" style="margin-bottom:10px"></select>
-    <div class="rich-tb" id="aclar-body-tb">
-      <button type="button" data-cmd="bold" title="Negrita"><b>B</b></button>
-      <button type="button" data-cmd="italic" title="Cursiva"><i>I</i></button>
-      <button type="button" data-cmd="underline" title="Subrayado"><u>U</u></button>
-      <button type="button" data-cmd="insertUnorderedList" title="Lista con guiones">•</button>
-      <button type="button" data-cmd="insertOrderedList" title="Lista numerada">1.</button>
-      <button type="button" data-cmd="fontSize" data-val="2" title="Más pequeño">A−</button>
-      <button type="button" data-cmd="fontSize" data-val="5" title="Más grande">A+</button>
-      <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
-      <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
-      <button type="button" data-cmd="removeFormat" title="Quitar el formato"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.4 19.4h11"/><path d="M15.6 5.2 5.4 15.4a1.6 1.6 0 0 0 0 2.3l1.7 1.7h4l7.8-7.8a1.6 1.6 0 0 0 0-2.3l-3.3-3.3a1.6 1.6 0 0 0-2.3 0Z"/></svg></button>
-      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.4 13.6a3.4 3.4 0 0 0 5 .3l2.4-2.4a3.4 3.4 0 0 0-4.8-4.8l-1.4 1.4"/><path d="M13.6 10.4a3.4 3.4 0 0 0-5-.3l-2.4 2.4a3.4 3.4 0 0 0 4.8 4.8l1.4-1.4"/></svg></button>
-    </div>
+    <div class="rich-tb" id="aclar-body-tb"><!-- los botones los genera wireRichToolbar --></div>
     <div id="aclar-text-in" class="rich-ed rich-content" contenteditable="true" data-ph="Escribe la aclaración o información más profunda (con formato, sin límite)"></div>
     <div class="modal-btns">
       <button class="mbtn cancel" id="modal-aclar-cancel">Cancelar</button>
@@ -1609,19 +1599,7 @@ body.fullscreen #gid-bar{bottom:20px}
   <div class="modal">
     <h3 id="modal-cmap-title">Nodo del mapa</h3>
     <input id="cmap-title-in" type="text" placeholder="Título" maxlength="200">
-    <div class="rich-tb" id="cmap-body-tb">
-      <button type="button" data-cmd="bold" title="Negrita"><b>B</b></button>
-      <button type="button" data-cmd="italic" title="Cursiva"><i>I</i></button>
-      <button type="button" data-cmd="underline" title="Subrayado"><u>U</u></button>
-      <button type="button" data-cmd="insertUnorderedList" title="Lista con guiones">•</button>
-      <button type="button" data-cmd="insertOrderedList" title="Lista numerada">1.</button>
-      <button type="button" data-cmd="fontSize" data-val="2" title="Más pequeño">A−</button>
-      <button type="button" data-cmd="fontSize" data-val="5" title="Más grande">A+</button>
-      <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
-      <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
-      <button type="button" data-cmd="removeFormat" title="Quitar el formato"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.4 19.4h11"/><path d="M15.6 5.2 5.4 15.4a1.6 1.6 0 0 0 0 2.3l1.7 1.7h4l7.8-7.8a1.6 1.6 0 0 0 0-2.3l-3.3-3.3a1.6 1.6 0 0 0-2.3 0Z"/></svg></button>
-      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.4 13.6a3.4 3.4 0 0 0 5 .3l2.4-2.4a3.4 3.4 0 0 0-4.8-4.8l-1.4 1.4"/><path d="M13.6 10.4a3.4 3.4 0 0 0-5-.3l-2.4 2.4a3.4 3.4 0 0 0 4.8 4.8l1.4-1.4"/></svg></button>
-    </div>
+    <div class="rich-tb" id="cmap-body-tb"><!-- los botones los genera wireRichToolbar --></div>
     <div id="cmap-body-in" class="rich-ed rich-content" contenteditable="true" data-ph="Descripción o definición clave (opcional, con formato)"></div>
     <div class="modal-btns">
       <button class="mbtn cancel" id="modal-cmap-cancel">Cancelar</button>
@@ -1675,19 +1653,7 @@ body.fullscreen #gid-bar{bottom:20px}
   <div class="modal">
     <h3>Paso</h3>
     <input id="proc-step-title-in" type="text" placeholder="Título del paso" maxlength="150">
-    <div class="rich-tb" id="proc-step-body-tb">
-      <button type="button" data-cmd="bold" title="Negrita"><b>B</b></button>
-      <button type="button" data-cmd="italic" title="Cursiva"><i>I</i></button>
-      <button type="button" data-cmd="underline" title="Subrayado"><u>U</u></button>
-      <button type="button" data-cmd="insertUnorderedList" title="Lista con guiones">•</button>
-      <button type="button" data-cmd="insertOrderedList" title="Lista numerada">1.</button>
-      <button type="button" data-cmd="fontSize" data-val="2" title="Más pequeño">A−</button>
-      <button type="button" data-cmd="fontSize" data-val="5" title="Más grande">A+</button>
-      <input type="color" data-cmd="foreColor" value="#c0392b" title="Color del texto">
-      <input type="color" data-cmd="hiliteColor" value="#ffe066" title="Resaltar el fondo">
-      <button type="button" data-cmd="removeFormat" title="Quitar el formato"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.4 19.4h11"/><path d="M15.6 5.2 5.4 15.4a1.6 1.6 0 0 0 0 2.3l1.7 1.7h4l7.8-7.8a1.6 1.6 0 0 0 0-2.3l-3.3-3.3a1.6 1.6 0 0 0-2.3 0Z"/></svg></button>
-      <button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.4 13.6a3.4 3.4 0 0 0 5 .3l2.4-2.4a3.4 3.4 0 0 0-4.8-4.8l-1.4 1.4"/><path d="M13.6 10.4a3.4 3.4 0 0 0-5-.3l-2.4 2.4a3.4 3.4 0 0 0 4.8 4.8l1.4-1.4"/></svg></button>
-    </div>
+    <div class="rich-tb" id="proc-step-body-tb"><!-- los botones los genera wireRichToolbar --></div>
     <div id="proc-step-body-in" class="rich-ed rich-content" contenteditable="true" data-ph="Descripción del paso (opcional, con formato)"></div>
     <div style="margin:0 0 12px">
       <label style="display:block;font-size:12.5px;color:var(--ink2);margin-bottom:5px">Recibe flecha de (elige 0, 1 o varios; marcar uno posterior crea un ciclo)</label>
@@ -1912,7 +1878,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v117'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v118'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2286,11 +2252,16 @@ const esc=s=>{const d=document.createElement('div');d.textContent=s;return d.inn
    romper lo escrito ANTES (texto plano), al mostrar detectamos si la cadena
    trae etiquetas de formato conocidas: si no, la escapamos como texto plano
    (así un "<" suelto tipo "5 < 10" no se rompe). */
-function isRich(s){return /<(\/?)(b|i|u|strong|em|span|ul|ol|li|br|div|p|font|a)\b[^>]*>/i.test(s||'')}
+/* OJO: si una ficha lleva SOLO una tabla o SOLO una foto, esta lista es lo
+   único que evita que se muestre el HTML en crudo ("<table>…") como si fuera
+   texto. Al añadir una etiqueta nueva al editor, añadirla también aquí. */
+function isRich(s){return /<(\/?)(b|i|u|s|strike|strong|em|span|ul|ol|li|br|div|p|font|a|img|table|thead|tbody|tr|td|th|blockquote|h[1-6])\b[^>]*>/i.test(s||'')}
 function richHTML(s){s=s==null?'':String(s);return isRich(s)?s:esc(s).replace(/\n/g,'<br>')}
 /* área editable → HTML limpio (vacío si solo hay espacios/<br>) */
 function getRich(el){const plain=el.textContent.replace(/ /g,'').trim();const h=el.innerHTML.trim();
-  if(!plain && !/<(img|li|ul|ol)\b/i.test(h))return '';return h}
+  /* una tabla vacía NO es "texto vacío": si no se nombra aquí, se tira al
+     guardar y parece que no se ha guardado nada */
+  if(!plain && !/<(img|li|ul|ol|table)\b/i.test(h))return '';return h}
 function setRich(el,v){el.innerHTML=richHTML(v)}
 /* HTML con formato → texto plano legible (para exportaciones .txt) */
 function richToPlain(html){
@@ -2300,35 +2271,318 @@ function richToPlain(html){
   d.innerHTML=String(html).replace(/<li[^>]*>/gi,'• ').replace(/<\/(li|div|p|h[1-6])>/gi,'\n').replace(/<br\s*\/?>/gi,'\n');
   return (d.textContent||'').replace(/\n{3,}/g,'\n\n').replace(/[ \t]+\n/g,'\n').trim();
 }
-/* conecta una barra de formato (botones con data-cmd) a un área editable */
+/* ══════════════════════════════════════════════════════════════════
+   BARRA DE FORMATO (el editor de texto de todas las fichas)
+
+   LOS BOTONES SE GENERAN AQUÍ, no en el HTML. La misma barra sale en seis
+   modales y además en la edición dentro del panel: estaba copiada siete
+   veces y añadir un botón obligaba a tocarlas todas (y a acordarse de las
+   siete). Ahora se escribe una vez y sale en todas.
+
+   Lo que se ve pulsado (negrita puesta, lista puesta…) se marca con el rosa
+   pastel de la casa. Antes no se marcaba de ninguna forma y no había manera
+   de saber si la negrita estaba activa.
+   ══════════════════════════════════════════════════════════════════ */
+const RICH_TB_HTML=`
+<button type="button" data-cmd="bold" title="Negrita (Ctrl+B)"><b>B</b></button>
+<button type="button" data-cmd="italic" title="Cursiva (Ctrl+I)"><i>I</i></button>
+<button type="button" data-cmd="underline" title="Subrayado (Ctrl+U)"><u>U</u></button>
+<button type="button" data-cmd="strikeThrough" title="Tachado"><s>S</s></button>
+<span class="rt-sep"></span>
+<button type="button" class="rt-col" data-cmd="foreColor" title="Color de la letra">A<i class="rt-sw"></i></button>
+<button type="button" class="rt-col" data-cmd="hiliteColor" title="Resaltar el fondo">R<i class="rt-sw"></i></button>
+<button type="button" data-cmd="fontSize" data-val="2" title="Letra más pequeña">A−</button>
+<button type="button" data-cmd="fontSize" data-val="5" title="Letra más grande">A+</button>
+<span class="rt-sep"></span>
+<button type="button" data-cmd="insertUnorderedList" title="Lista con puntos">•</button>
+<button type="button" data-cmd="insertOrderedList" title="Lista numerada">1.</button>
+<button type="button" data-cmd="outdent" title="Menos margen (Mayús+Tab)">⇤</button>
+<button type="button" data-cmd="indent" title="Más margen (Tab)">⇥</button>
+<button type="button" data-cmd="align" title="Alineación"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h11M4 18h16"/></svg></button>
+<span class="rt-sep"></span>
+<button type="button" data-cmd="case" title="MAYÚSCULAS / minúsculas / Tipo oración">Aa</button>
+<button type="button" data-cmd="image" title="Insertar una imagen"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 16-5-5L5 20"/></svg></button>
+<button type="button" data-cmd="table" title="Insertar una tabla"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16M15 4v16"/></svg></button>
+<span class="rt-sep"></span>
+<button type="button" data-cmd="removeFormat" title="Quitar el formato"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.4 19.4h11"/><path d="M15.6 5.2 5.4 15.4a1.6 1.6 0 0 0 0 2.3l1.7 1.7h4l7.8-7.8a1.6 1.6 0 0 0 0-2.3l-3.3-3.3a1.6 1.6 0 0 0-2.3 0Z"/></svg></button>
+<button type="button" data-cmd="richLink" title="Vincular el texto seleccionado con una definición, conclusión o aclaración"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.4 13.6a3.4 3.4 0 0 0 5 .3l2.4-2.4a3.4 3.4 0 0 0-4.8-4.8l-1.4 1.4"/><path d="M13.6 10.4a3.4 3.4 0 0 0-5-.3l-2.4 2.4a3.4 3.4 0 0 0 4.8 4.8l1.4-1.4"/></svg></button>
+`;
+/* Botones que pueden salir "pulsados": el navegador sabe decirnos si el
+   formato está puesto donde tienes el cursor (queryCommandState). */
+const RICH_STATE_CMDS=['bold','italic','underline','strikeThrough',
+  'insertUnorderedList','insertOrderedList'];
+
+/* PALETAS TIPO WORD: unos cuantos colores ya elegidos (que es lo que se usa el
+   99% de las veces) y, al final, "Otro color…" para el que quieras.
+   Los últimos que uses se recuerdan en el aparato (lp_richcols). */
+const RICH_FORE=['#4A4458','#000000','#7A7386','#B03A48','#D9534F','#E07B39',
+  '#C99700','#4E8C57','#2F7D95','#3A6BD6','#7A4FBF','#B0518E'];
+const RICH_HILITE=['#FFF0A6','#FFD9A8','#FFC9DF','#D9F2C9','#C9EAF5','#E3D0F5',
+  '#F0EDE6','transparent'];
+let richLastCols={fore:'#B03A48',hilite:'#FFF0A6'};
+try{const s=JSON.parse(localStorage.getItem('lp_richcols')||'null');if(s)richLastCols=Object.assign(richLastCols,s)}catch(e){}
+function richSaveCols(){try{localStorage.setItem('lp_richcols',JSON.stringify(richLastCols))}catch(e){}}
+
+/* ejecuta un comando de formato del navegador sobre el cuadro que tiene el foco */
+function richRun(cmd,val){
+  /* styleWithCSS: sin esto, el resaltado y los márgenes se hacen con
+     etiquetas antiguas (<font>, <blockquote>) que se ven distinto en el iPad.
+     Con esto se hacen con estilos normales, iguales en todas partes. */
+  if(cmd==='hiliteColor'||cmd==='indent'||cmd==='outdent'||cmd==='foreColor'){
+    try{document.execCommand('styleWithCSS',false,true)}catch(e){}
+    let ok=false;
+    try{ok=document.execCommand(cmd,false,val||null)}catch(e){}
+    if(!ok&&cmd==='hiliteColor')document.execCommand('backColor',false,val);
+    try{document.execCommand('styleWithCSS',false,false)}catch(e){}
+    return;
+  }
+  document.execCommand(cmd,false,val||null);
+}
+/* guarda dónde estaba la selección antes de tocar un menú, y la devuelve
+   después: al pulsar en un menú el cuadro pierde el foco y con él la selección */
+function richKeepSel(ed){
+  const s=window.getSelection();
+  const r=(s&&s.rangeCount&&ed.contains(s.anchorNode))?s.getRangeAt(0).cloneRange():null;
+  return()=>{
+    ed.focus();
+    if(r){const s2=window.getSelection();s2.removeAllRanges();s2.addRange(r)}
+  };
+}
+
+/* ── paleta de colores ── */
+const richPop=document.createElement('div');
+richPop.className='rt-pop hidden';
+document.body.appendChild(richPop);
+/* pulsar DENTRO del desplegable no debe robarle el foco al cuadro de texto:
+   si se lo robara, se perdería lo que hay seleccionado, que es justo lo que
+   hay que colorear */
+richPop.addEventListener('pointerdown',e=>e.preventDefault());
+function hideRichPop(){richPop.classList.add('hidden')}
+document.addEventListener('pointerdown',e=>{
+  if(!richPop.classList.contains('hidden')&&!richPop.contains(e.target))hideRichPop();
+},true);
+function showRichPop(btn,html){
+  richPop.innerHTML=html;
+  richPop.classList.remove('hidden');
+  const r=btn.getBoundingClientRect(),w=richPop.offsetWidth,h=richPop.offsetHeight;
+  let top=r.bottom+6;
+  if(top+h>innerHeight-8)top=Math.max(8,r.top-h-6);   // no cabe debajo: encima
+  richPop.style.left=Math.max(8,Math.min(r.left,innerWidth-w-8))+'px';
+  richPop.style.top=top+'px';
+}
+function openRichColors(btn,cmd,ed){
+  const esFondo=cmd==='hiliteColor';
+  const cols=esFondo?RICH_HILITE:RICH_FORE;
+  const restore=richKeepSel(ed);
+  showRichPop(btn,
+    '<div class="rt-pop-t">'+(esFondo?'Resaltar el fondo':'Color de la letra')+'</div>'+
+    '<div class="rt-grid">'+cols.map(c=>
+      c==='transparent'
+        ? '<button type="button" class="rt-dot rt-none" data-c="transparent" title="Sin resaltado"></button>'
+        : `<button type="button" class="rt-dot" data-c="${c}" style="background:${c}" title="${c}"></button>`
+    ).join('')+'</div>'+
+    '<label class="rt-more">Otro color…<input type="color" value="'+
+      (esFondo?richLastCols.hilite:richLastCols.fore)+'"></label>');
+  const aplicar=c=>{
+    restore();
+    richRun(cmd,c);
+    if(esFondo)richLastCols.hilite=c;else richLastCols.fore=c;
+    richSaveCols();refreshRichSwatches();
+  };
+  richPop.querySelectorAll('.rt-dot').forEach(d=>{
+    d.onclick=()=>{aplicar(d.getAttribute('data-c'));hideRichPop()};
+  });
+  const inp=richPop.querySelector('input[type=color]');
+  inp.addEventListener('input',()=>aplicar(inp.value));
+  inp.addEventListener('change',()=>hideRichPop());
+}
+/* el cuadradito de color de los dos botones enseña el último color usado */
+function refreshRichSwatches(){
+  document.querySelectorAll('.rich-tb .rt-col').forEach(b=>{
+    const sw=b.querySelector('.rt-sw');if(!sw)return;
+    sw.style.background=b.getAttribute('data-cmd')==='hiliteColor'?richLastCols.hilite:richLastCols.fore;
+  });
+}
+
+/* ── selector de tamaño de tabla, como el de Word ── */
+function openRichTable(btn,ed){
+  const restore=richKeepSel(ed);
+  const N=6;let html='<div class="rt-pop-t">Tabla · <span id="rt-tsize">elige el tamaño</span></div><div class="rt-tgrid">';
+  for(let f=1;f<=N;f++)for(let c=1;c<=N;c++)html+=`<button type="button" class="rt-tcell" data-f="${f}" data-c="${c}"></button>`;
+  showRichPop(btn,html+'</div>');
+  const lbl=richPop.querySelector('#rt-tsize');
+  richPop.querySelectorAll('.rt-tcell').forEach(cell=>{
+    const f=+cell.dataset.f,c=+cell.dataset.c;
+    cell.onmouseenter=()=>{
+      lbl.textContent=f+' × '+c;
+      richPop.querySelectorAll('.rt-tcell').forEach(o=>
+        o.classList.toggle('on',+o.dataset.f<=f&&+o.dataset.c<=c));
+    };
+    cell.onclick=()=>{hideRichPop();restore();richInsertTable(f,c)};
+  });
+}
+function richInsertTable(filas,cols){
+  const celda='<td><br></td>'.repeat(cols);
+  const cab='<th><br></th>'.repeat(cols);
+  let html='<table><thead><tr>'+cab+'</tr></thead><tbody>';
+  for(let i=1;i<filas;i++)html+='<tr>'+celda+'</tr>';
+  html+='</tbody></table><p><br></p>';
+  document.execCommand('insertHTML',false,html);
+}
+
+/* ── mayúsculas / minúsculas / tipo oración ── */
+function richCase(ed,modo){
+  const sel=window.getSelection();
+  if(!sel||sel.isCollapsed||!ed.contains(sel.anchorNode)){
+    showTip('Selecciona antes el texto que quieras cambiar');return;
+  }
+  const txt=sel.toString();if(!txt)return;
+  const up=s=>s.toLocaleUpperCase('es'),low=s=>s.toLocaleLowerCase('es');
+  let out;
+  if(modo==='up')out=up(txt);
+  else if(modo==='low')out=low(txt);
+  /* tipo oración: mayúscula después de punto, admiración o interrogación */
+  else if(modo==='sent')out=low(txt).replace(/(^|[.!?¡¿…]\s*)([\p{Ll}])/gu,(m,a,b)=>a+up(b));
+  /* tipo título: mayúscula en cada palabra */
+  else out=low(txt).replace(/(^|\s)([\p{Ll}])/gu,(m,a,b)=>a+up(b));
+  ed.focus();
+  document.execCommand('insertText',false,out);
+}
+
+/* ── insertar una imagen ──
+   OJO CON EL TAMAÑO: la imagen se guarda DENTRO de la ficha, y las fichas del
+   glosario, conclusiones y aclaraciones viven en localStorage, que es
+   pequeño. Por eso la foto se reduce siempre antes de meterla (máximo 1000
+   píxeles de lado y calidad de foto normal): una foto del móvil pasa de 4 MB
+   a unos 150 KB. Si aun así sale enorme, no se mete y se avisa. */
+function richInsertImage(ed){
+  const restore=richKeepSel(ed);
+  const inp=document.createElement('input');
+  inp.type='file';inp.accept='image/*';
+  inp.onchange=()=>{
+    const f=inp.files&&inp.files[0];if(!f)return;
+    const fr=new FileReader();
+    fr.onload=()=>{
+      const img=new Image();
+      img.onload=()=>{
+        const MAX=1000;
+        let w=img.width,h=img.height;
+        if(w>MAX||h>MAX){const k=MAX/Math.max(w,h);w=Math.round(w*k);h=Math.round(h*k)}
+        const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+        const cx=cv.getContext('2d');
+        cx.fillStyle='#fff';cx.fillRect(0,0,w,h);      // fondo blanco (los PNG con transparencia se verían negros)
+        cx.drawImage(img,0,0,w,h);
+        const data=cv.toDataURL('image/jpeg',0.78);
+        if(data.length>900000){showTip('Esa imagen es demasiado grande incluso reducida');return}
+        restore();
+        document.execCommand('insertHTML',false,'<img src="'+data+'" alt="">');
+      };
+      img.onerror=()=>showTip('No he podido leer esa imagen');
+      img.src=fr.result;
+    };
+    fr.onerror=()=>showTip('No he podido leer esa imagen');
+    fr.readAsDataURL(f);
+  };
+  inp.click();
+}
+
+/* ── marcar los botones que están activos ── */
+const richWired=[];
+function richUpdateState(tb,ed){
+  RICH_STATE_CMDS.forEach(c=>{
+    const b=tb.querySelector('[data-cmd="'+c+'"]');if(!b)return;
+    let on=false;try{on=document.queryCommandState(c)}catch(e){}
+    b.classList.toggle('on',on);
+  });
+  const al=tb.querySelector('[data-cmd="align"]');
+  if(al){
+    let on=false;
+    try{on=document.queryCommandState('justifyCenter')||document.queryCommandState('justifyRight')
+        ||document.queryCommandState('justifyFull')}catch(e){}
+    al.classList.toggle('on',on);
+  }
+}
+document.addEventListener('selectionchange',()=>{
+  const a=document.activeElement;if(!a)return;
+  richWired.forEach(w=>{if(w.ed===a)richUpdateState(w.tb,w.ed)});
+});
+
+/* conecta una barra de formato a un área editable */
 function wireRichToolbar(tb,ed){
   if(!tb||!ed)return;
-  /* hiliteColor (resaltador) necesita styleWithCSS en algunos navegadores; si
-     no está disponible se cae a backColor, que hace lo mismo en Safari/iPad. */
-  const run=(cmd,val)=>{
-    if(cmd==='hiliteColor'){
-      try{document.execCommand('styleWithCSS',false,true)}catch(e){}
-      if(!document.execCommand('hiliteColor',false,val))document.execCommand('backColor',false,val);
-      try{document.execCommand('styleWithCSS',false,false)}catch(e){}
-      return;
-    }
-    document.execCommand(cmd,false,val||null);
-  };
+  tb.innerHTML=RICH_TB_HTML;
+  refreshRichSwatches();
+  /* la edición dentro del panel crea una barra nueva cada vez que se abre: se
+     tiran las que ya no están en pantalla para no acumularlas */
+  for(let i=richWired.length-1;i>=0;i--)if(!richWired[i].ed.isConnected)richWired.splice(i,1);
+  richWired.push({tb,ed});
+
   tb.querySelectorAll('[data-cmd]').forEach(btn=>{
     const cmd=btn.getAttribute('data-cmd'),val=btn.getAttribute('data-val');
-    if(btn.tagName==='INPUT'){
-      btn.addEventListener('input',()=>{ed.focus();run(cmd,btn.value)});
-    }else if(cmd==='richLink'){
-      /* vincular con una ficha: no es un execCommand, pide la ficha antes.
-         OJO: aquí NO se hace ed.focus() antes, porque eso destruiría la
-         selección que justamente hay que envolver. */
-      btn.addEventListener('pointerdown',e=>e.preventDefault());
-      btn.addEventListener('click',e=>{e.preventDefault();insertRichLink(ed)});
-    }else{
-      btn.addEventListener('pointerdown',e=>e.preventDefault());   // no perder la selección al tocar el botón
-      btn.addEventListener('click',e=>{e.preventDefault();ed.focus();run(cmd,val)});
-    }
+    /* no perder la selección al tocar el botón */
+    btn.addEventListener('pointerdown',e=>e.preventDefault());
+    btn.addEventListener('click',e=>{
+      e.preventDefault();
+      if(cmd==='richLink'){
+        /* vincular con una ficha: no es un comando del navegador, primero hay
+           que preguntar QUÉ ficha. Aquí NO se hace ed.focus(): destruiría la
+           selección que justamente hay que envolver. */
+        insertRichLink(ed);return;
+      }
+      if(cmd==='foreColor'||cmd==='hiliteColor'){openRichColors(btn,cmd,ed);return}
+      if(cmd==='table'){openRichTable(btn,ed);return}
+      if(cmd==='image'){richInsertImage(ed);return}
+      if(cmd==='align'){
+        const restore=richKeepSel(ed);
+        const r=btn.getBoundingClientRect();
+        showCtx(r.left,r.bottom+6,[
+          {label:'Alinear a la izquierda',action:()=>{restore();richRun('justifyLeft')}},
+          {label:'Centrar',              action:()=>{restore();richRun('justifyCenter')}},
+          {label:'Alinear a la derecha', action:()=>{restore();richRun('justifyRight')}},
+          {label:'Justificado',          action:()=>{restore();richRun('justifyFull')}}
+        ]);
+        return;
+      }
+      if(cmd==='case'){
+        const restore=richKeepSel(ed);
+        const r=btn.getBoundingClientRect();
+        showCtx(r.left,r.bottom+6,[
+          {label:'MAYÚSCULAS',   action:()=>{restore();richCase(ed,'up')}},
+          {label:'minúsculas',   action:()=>{restore();richCase(ed,'low')}},
+          {label:'Tipo oración', action:()=>{restore();richCase(ed,'sent')}},
+          {label:'Tipo Título',  action:()=>{restore();richCase(ed,'title')}}
+        ]);
+        return;
+      }
+      ed.focus();richRun(cmd,val);richUpdateState(tb,ed);
+    });
   });
+  ed.addEventListener('keyup',()=>richUpdateState(tb,ed));
+  ed.addEventListener('mouseup',()=>richUpdateState(tb,ed));
+  ed.addEventListener('input',()=>richUpdateState(tb,ed));
+
+  /* ── TABULADOR ──
+     Dentro de una tabla salta a la celda siguiente (como en Word). Fuera,
+     mete o quita margen. Sin esto el tabulador se llevaba el foco fuera del
+     cuadro y no había forma de sangrar un párrafo. */
+  ed.addEventListener('keydown',e=>{
+    if(e.key!=='Tab')return;
+    e.preventDefault();
+    const sel=window.getSelection();
+    const nodo=sel&&sel.anchorNode;
+    const celda=nodo&&nodo.nodeType===1?nodo.closest('td,th'):(nodo&&nodo.parentElement?nodo.parentElement.closest('td,th'):null);
+    if(celda&&ed.contains(celda)){
+      const celdas=[...ed.querySelectorAll('td,th')];
+      const sig=celdas[celdas.indexOf(celda)+(e.shiftKey?-1:1)];
+      if(sig){
+        const r=document.createRange();r.selectNodeContents(sig);r.collapse(true);
+        sel.removeAllRanges();sel.addRange(r);
+        return;
+      }
+    }
+    richRun(e.shiftKey?'outdent':'indent');
+  });
+
   /* PEGADO LIMPIO: al pegar de una web o un PDF, el navegador mete fuentes,
      tamaños y fondos ajenos que descuadran la ficha. Pegamos solo el texto
      (respetando los saltos de línea) y que el formato lo ponga ella. */
@@ -8323,7 +8577,7 @@ const DOC_KEY_PREFIXES=['lp_order_','lp_margin_','lp_nodes_','lp_embeds_','lp_bm
    las paletas que te habias creado desaparecian sin decir nada. */
 const GLOBAL_KEYS=['lp_custompals','lp_toolcfg','lp_color','lp_boldstrength',
   'lp_boldbycolor','lp_bartab','lp_panelwin','lp_panelw','lp_dark','lp_gest',
-  'lp_bottommin','lp_lastbackup','lp_autocorr','lp_dicc','lp_diccno'];
+  'lp_bottommin','lp_lastbackup','lp_autocorr','lp_dicc','lp_diccno','lp_richcols'];
 function collectGlobalData(){
   const out={};
   GLOBAL_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)out[k]=v});
