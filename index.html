@@ -662,6 +662,19 @@ body.fullscreen #rd-bottom-show{display:none}
 .rich-content ul{list-style:disc;padding-left:20px;margin:4px 0}
 .rich-content ol{list-style:decimal;padding-left:22px;margin:4px 0}
 .rich-content li{margin:2px 0}
+/* NIVELES DE LISTA COMO EN WORD: cada nivel que se sangra cambia de marca,
+   para que se distinga de un vistazo dónde acaba una sublista. Antes todos
+   los niveles eran "1. 1. 1." y "• • •" y no había forma de saberlo.
+   Un tipo puesto a mano desde el menú de la barra gana a esto (va en el
+   atributo style de la propia lista). */
+.rich-content ol ol{list-style-type:lower-alpha}
+.rich-content ol ol ol{list-style-type:lower-roman}
+.rich-content ol ol ol ol{list-style-type:decimal}
+.rich-content ul ul{list-style-type:circle}
+.rich-content ul ul ul{list-style-type:square}
+.rich-content ul ul ul ul{list-style-type:disc}
+/* una sublista no lleva el margen de arriba/abajo: pegada a su punto padre */
+.rich-content li>ul,.rich-content li>ol{margin:2px 0 2px}
 .rich-content b,.rich-content strong{font-weight:700}
 .rich-content i,.rich-content em{font-style:italic}
 .rich-content u{text-decoration:underline}
@@ -1948,7 +1961,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v127'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v128'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2385,6 +2398,9 @@ const RICH_TB_HTML=`
    formato está puesto donde tienes el cursor (queryCommandState). */
 const RICH_STATE_CMDS=['bold','italic','underline','strikeThrough',
   'insertUnorderedList','insertOrderedList'];
+/* comandos que tocan listas: después de cualquiera de ellos hay que repasar
+   la estructura (ver richFixLists) */
+const RICH_CMD_LISTA=['insertUnorderedList','insertOrderedList','indent','outdent'];
 
 /* PALETAS TIPO WORD: unos cuantos colores ya elegidos (que es lo que se usa el
    99% de las veces) y, al final, "Otro color…" para el que quieras.
@@ -2411,6 +2427,86 @@ function richRun(cmd,val){
     return;
   }
   document.execCommand(cmd,false,val||null);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   ARREGLAR LA ESTRUCTURA DE LAS LISTAS
+   ──────────────────────────────────────────────────────────────────
+   El navegador deja las sublistas MAL colgadas. Al sangrar un punto, en vez
+   de meter la sublista dentro del punto anterior, la cuelga de la lista:
+
+       <ol><li>uno</li><ol><li>dos</li></ol></ol>     ← lo que hacía
+
+   Eso no es HTML válido y tenía dos consecuencias gordas:
+     · la sublista se numeraba desde 1 otra vez, como si fuera otra lista;
+     · y al exportar a PDF los puntos de la sublista DESAPARECÍAN, porque el
+       exportador solo mira los <li> que cuelgan directamente de la lista.
+       Es decir: escribías una sublista y no salía en el PDF, sin avisar.
+
+   Quitar la sangría dejaba otro destrozo parecido: un punto DENTRO de otro
+   punto (<li>uno<li>dos</li></li>).
+
+   Aquí se recolocan las dos cosas en su sitio:
+
+       <ol><li>uno<ol><li>dos</li></ol></li></ol>     ← como debe ser
+
+   Solo se MUEVEN nodos que ya existen (nunca se copian ni se borran), así el
+   cursor sigue donde estaba y no se pierde nada de lo escrito.
+   ══════════════════════════════════════════════════════════════════ */
+function richFixLists(ed){
+  if(!ed)return;
+  /* EL CURSOR HAY QUE SUJETARLO. Al mover los nodos de sitio el navegador
+     deja el cursor donde estaba ANTES, no donde ha ido a parar el texto: al
+     quitar sangría con Mayús+Tab, lo que escribías después se metía en el
+     punto de arriba. Se apunta dónde está y se vuelve a poner al acabar; como
+     aquí solo se MUEVEN nodos que ya existen, la referencia sigue valiendo
+     aunque hayan cambiado de padre. */
+  const sel=window.getSelection();
+  let marca=null;
+  if(sel&&sel.rangeCount&&ed.contains(sel.anchorNode)){
+    const r=sel.getRangeAt(0);
+    marca={a:r.startContainer,ao:r.startOffset,b:r.endContainer,bo:r.endOffset};
+  }
+  let cambios=true,vueltas=0;
+  /* el tope de vueltas es un seguro: con listas muy anidadas cada pasada
+     arregla un nivel, pero nunca debe quedarse dando vueltas */
+  while(cambios&&vueltas<20){
+    cambios=false;vueltas++;
+    /* 1) lista colgada de otra lista → dentro del punto de antes */
+    ed.querySelectorAll('ol>ol,ol>ul,ul>ol,ul>ul').forEach(sub=>{
+      const prev=sub.previousElementSibling;
+      if(prev&&prev.tagName.toLowerCase()==='li'){
+        prev.appendChild(sub);cambios=true;
+        return;
+      }
+      /* No hay punto delante del que colgar: es lo que pasa al pulsar el
+         tabulador dos veces seguidas en un punto recién creado. Antes esto
+         metía un punto vacío para sujetar la sublista y quedaba una viñeta
+         suelta sin texto. Ahora se funde con la lista de fuera: se conserva
+         todo lo escrito, solo pierde un nivel de sangría. Es la misma regla
+         que en Word: no se puede sangrar más de un nivel por debajo del
+         punto anterior. */
+      while(sub.firstChild)sub.parentNode.insertBefore(sub.firstChild,sub);
+      sub.parentNode.removeChild(sub);
+      cambios=true;
+    });
+    /* 2) punto dentro de punto → hermanos */
+    ed.querySelectorAll('li>li').forEach(li=>{
+      const padre=li.parentNode;
+      if(padre.parentNode)padre.parentNode.insertBefore(li,padre.nextSibling);
+      cambios=true;
+    });
+  }
+  /* devolver el cursor a su sitio */
+  if(marca&&ed.contains(marca.a)&&ed.contains(marca.b)){
+    const tope=n=>n.nodeType===3?n.nodeValue.length:n.childNodes.length;
+    try{
+      const r=document.createRange();
+      r.setStart(marca.a,Math.min(marca.ao,tope(marca.a)));
+      r.setEnd(marca.b,Math.min(marca.bo,tope(marca.b)));
+      sel.removeAllRanges();sel.addRange(r);
+    }catch(e){}
+  }
 }
 /* guarda dónde estaba la selección antes de tocar un menú, y la devuelve
    después: al pulsar en un menú el cuadro pierde el foco y con él la selección */
@@ -2721,7 +2817,11 @@ function wireRichToolbar(tb,ed){
         ]);
         return;
       }
-      ed.focus();richRun(cmd,val);richUpdateState(tb,ed);
+      ed.focus();richRun(cmd,val);
+      /* toda operación de lista puede dejar la estructura mal (ver
+         richFixLists): se repara en el momento, no al guardar */
+      if(RICH_CMD_LISTA.indexOf(cmd)>=0)richFixLists(ed);
+      richUpdateState(tb,ed);
     });
   });
   ed.addEventListener('keyup',()=>richUpdateState(tb,ed));
@@ -2748,6 +2848,7 @@ function wireRichToolbar(tb,ed){
       }
     }
     richRun(e.shiftKey?'outdent':'indent');
+    richFixLists(ed);
   });
 
   /* PEGADO: imágenes con Ctrl+V, y el resto como texto limpio (ver dentro). */
@@ -9776,6 +9877,42 @@ function parseColorRGB(c){
   return null;
 }
 
+/* ══ MARCAS DE LISTA (las mismas en pantalla y en el PDF) ══
+   Por nivel, como en Word: las numeradas van 1. → a. → i. y las de puntos
+   • → ◦ → ▪. Si la lista trae un tipo puesto a mano desde la barra, manda
+   ese. Los estilos de la pantalla están en el CSS de .rich-content; esto es
+   su equivalente para el PDF, que dibuja la marca a mano. */
+const RICH_OL_NIVEL=['decimal','lower-alpha','lower-roman'];
+const RICH_UL_NIVEL=['disc','circle','square'];
+function richTipoLista(node,esOl,nivel){
+  const t=(node.style&&node.style.listStyleType)||node.getAttribute('type')||'';
+  if(t)return t;
+  return (esOl?RICH_OL_NIVEL:RICH_UL_NIVEL)[(nivel||0)%3];
+}
+function richNumAlfa(n){let s='';while(n>0){n--;s=String.fromCharCode(97+n%26)+s;n=Math.floor(n/26)}return s||'a'}
+function richNumRomano(n){
+  const v=[[1000,'m'],[900,'cm'],[500,'d'],[400,'cd'],[100,'c'],[90,'xc'],[50,'l'],
+           [40,'xl'],[10,'x'],[9,'ix'],[5,'v'],[4,'iv'],[1,'i']];
+  let s='';v.forEach(p=>{while(n>=p[0]){s+=p[1];n-=p[0]}});
+  return s||'i';
+}
+function richMarcaLista(tipo,esOl,n){
+  if(!esOl){
+    if(tipo==='circle')return '◦';
+    if(tipo==='square')return '▪';
+    /* un tipo entre comillas es una marca escrita a mano (por ejemplo "– ") */
+    if(/^["']/.test(tipo))return tipo.replace(/^["']|["']$/g,'').trim()||'•';
+    return '•';
+  }
+  switch(tipo){
+    case 'lower-alpha': case 'lower-latin': case 'a': return richNumAlfa(n)+'.';
+    case 'upper-alpha': case 'upper-latin': case 'A': return richNumAlfa(n).toUpperCase()+'.';
+    case 'lower-roman': case 'i': return richNumRomano(n)+'.';
+    case 'upper-roman': case 'I': return richNumRomano(n).toUpperCase()+'.';
+    default: return n+'.';
+  }
+}
+
 /* HTML con formato → párrafos, y cada párrafo una lista de trozos con su
    estilo: [{bullet, sangria, runs:[{t,b,i,u,color}]}]. Es lo que necesita
    el PDF, que dibuja texto con UNA fuente y UN color cada vez. */
@@ -9791,23 +9928,39 @@ function richToRuns(html){
     if(!cur)abrir(null,sangria);
     cur.runs.push({t,b:!!st.b,i:!!st.i,u:!!st.u,color:st.color||null});
   };
+  /* ══ UNA LISTA ══
+     Se recorren TODOS los hijos, no solo los <li>. El editor deja a veces la
+     sublista colgando de la lista en vez de dentro de un punto (ver
+     richFixLists): mirando solo los <li>, esos puntos NO SALÍAN en el PDF.
+     Escribías una sublista y desaparecía del documento exportado sin avisar.
+     Aquí se recogen las dos formas, la buena y la torcida, para que también
+     salgan bien los apuntes que ya estaban guardados con la estructura mala.
+
+     La marca de cada punto es la misma que se ve en pantalla: la que se haya
+     puesto a mano, y si no, la del nivel (1. → a. → i. y • → ◦ → ▪). Y se
+     respeta el `start`, para que una lista que continúa la numeración salga
+     con sus números de verdad y no otra vez desde 1. */
+  const lista=(node,st,prof)=>{
+    const esOl=node.tagName.toLowerCase()==='ol';
+    const tipo=richTipoLista(node,esOl,prof);
+    let k=esOl?((parseInt(node.getAttribute('start'),10)||1)-1):0;
+    [...node.children].forEach(hijo=>{
+      const t=hijo.tagName.toLowerCase();
+      if(t==='ul'||t==='ol'){cur=null;lista(hijo,st,prof+1);cur=null;return}
+      if(t!=='li')return;
+      k++;cur=null;
+      abrir(richMarcaLista(tipo,esOl,k),prof+1);
+      walk(hijo,st,prof+1);
+      cur=null;
+    });
+  };
   const walk=(node,st,prof)=>{
     node.childNodes.forEach(ch=>{
       if(ch.nodeType===3){meter(ch.nodeValue.replace(/\s+/g,' '),st,prof);return}
       if(ch.nodeType!==1)return;
       const tag=ch.tagName.toLowerCase();
       if(tag==='br'){cur=null;abrir(null,prof);return}
-      if(tag==='ul'||tag==='ol'){
-        let k=0;
-        [...ch.children].forEach(li=>{
-          if(li.tagName.toLowerCase()!=='li')return;
-          k++;cur=null;
-          abrir(tag==='ol'?(k+'.'):'•',prof+1);
-          walk(li,st,prof+1);
-          cur=null;
-        });
-        return;
-      }
+      if(tag==='ul'||tag==='ol'){cur=null;lista(ch,st,prof);cur=null;return}
       if(tag==='div'||tag==='p'){cur=null;walk(ch,st,prof);cur=null;return}
       const st2=Object.assign({},st);
       if(tag==='b'||tag==='strong')st2.b=true;
