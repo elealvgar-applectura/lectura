@@ -20,6 +20,13 @@
   --bg:#FBF7F2;--bg2:#F3EDE6;--card:#fff;
   --ink:#4A4458;--ink2:#9A93AB;--ink3:#C9C3D6;
   --rosa:#F5C7D8;--lila:#DCCFF0;--mante:#FFF0C9;
+  /* ROSA PASTEL DE LA CASA. Es el color con el que la app dice "esto está
+     seleccionado / esto está activo". Se usa en la banda de selección de
+     texto del PDF y en los botones pulsados de las barras de formato.
+     Si hace falta marcar algo más en el futuro, usar estos, no inventar otro.
+     --rosa-band va translúcido a propósito: se pinta ENCIMA del PDF y tiene
+     que dejar leer la letra que hay debajo. */
+  --rosa-band:rgba(246,198,218,.32);--rosa-suave:#FBE3EE;--rosa-fuerte:#E79BC0;
   --border:#EFE7EC;--danger:#E58B8B;
   --r:14px;--shadow:0 2px 12px rgba(120,100,140,.08);
   --pdf-filter:none;                 /* el PDF no se toca en modo claro */
@@ -36,6 +43,9 @@ body.dark{
   --bg:#191722;--bg2:#221F2E;--card:#26232F;
   --ink:#E6E1EF;--ink2:#9C95AD;--ink3:#6B6479;
   --rosa:#8E6478;--lila:#6E5F8C;--mante:#8A7A52;
+  /* la banda mantiene el rosa claro: se pinta sobre el PDF, que de noche se
+     invierte con un filtro… pero ella NO (es un div, no el lienzo) */
+  --rosa-band:rgba(246,198,218,.30);--rosa-suave:#4E3644;--rosa-fuerte:#C98BAC;
   --border:#332E3F;--danger:#D97A7A;
   --shadow:0 2px 14px rgba(0,0,0,.4);
   --pdf-filter:invert(1) hue-rotate(180deg);
@@ -248,7 +258,7 @@ body.panel-dragging #reader-bottom{transition:none}
    se llevaría las bandas por delante. Nunca recibe toques: si los recibiera,
    taparía el lápiz y el desplazamiento de la página. */
 .sel-hl{position:absolute;pointer-events:none;border-radius:2px;z-index:5;
-  background:rgba(255,166,203,.45);box-shadow:0 0 0 1px rgba(240,130,175,.35)}
+  background:var(--rosa-band)}
 /* pastilla flotante para copiar lo seleccionado (en el iPad no hay Ctrl+C) */
 #sel-copy{position:fixed;z-index:900;display:none;align-items:center;gap:7px;
   background:var(--card);border:1px solid var(--border);border-radius:12px;
@@ -1902,7 +1912,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v116'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v117'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -11574,22 +11584,25 @@ async function selCopy(){
     ta.remove();
   }
 }
-/* pastilla "Copiar" junto a donde has soltado, sin salirse de la pantalla */
+/* pastilla "Copiar" junto a donde has soltado, sin salirse de la pantalla.
+   Va ARRIBA del puntero a propósito: el menú del navegador se abre siempre
+   hacia abajo, así que si por lo que sea aparece, no la tapa. */
 function showSelCopy(cx,cy){
   selCopyBtn.classList.add('on');
   const w=selCopyBtn.offsetWidth||110,h=selCopyBtn.offsetHeight||40;
+  const arriba=cy-h-14;
   selCopyBtn.style.left=Math.max(8,Math.min(cx-w/2,innerWidth-w-8))+'px';
-  selCopyBtn.style.top =Math.max(8,Math.min(cy+18 ,innerHeight-h-8))+'px';
+  selCopyBtn.style.top =Math.max(8,Math.min(arriba>8?arriba:cy+18,innerHeight-h-8))+'px';
 }
 selCopyBtn.addEventListener('click',()=>selCopy());
 
 /* ── arrastre ── */
-function selStart(e){
+function selStart(e,right){
   clearTextSel();
   const p=selPointAt(e.clientX,e.clientY);
   if(!p)return false;
   selAnchor=p;selFocus={pid:p.pid,pos:p.pos,i:p.i};
-  selDrag={id:e.pointerId};selLastXY={x:e.clientX,y:e.clientY};
+  selDrag={id:e.pointerId,right:!!right};selLastXY={x:e.clientX,y:e.clientY};
   paintTextSel();
   return true;
 }
@@ -11615,10 +11628,18 @@ function selMoveTo(cx,cy){
 }
 function selEnd(cx,cy){
   if(!selDrag)return;
+  const conRaton=selDrag.right;
   selDrag=null;
   if(selEdgeTimer){clearInterval(selEdgeTimer);selEdgeTimer=null}
   if(selEmpty()){clearTextSel();return}
   showSelCopy(cx,cy);
+  /* SELECCIÓN CON EL BOTÓN DERECHO = COPIAR DIRECTAMENTE.
+     Chrome se empeña a veces en sacar su menú aunque le digamos que no (el
+     aviso para taparlo depende de que el navegador nos avise a tiempo, y no
+     siempre lo hace). Ese menú es del sistema: se pinta por encima de todo y
+     tapa la pastilla de "Copiar". Como esta pulsación solo sirve para copiar,
+     el texto se copia solo: aunque salga el menú, ya lo tienes. */
+  if(conRaton)selCopy();
   /* si la selección cruzó páginas que aún no tenían el texto extraído, se
      pintan en cuanto llegue */
   const rg=selRange();
@@ -11641,7 +11662,7 @@ window.addEventListener('pointermove',e=>{
     if(!(e.buttons&2))selRightArm=null;                  // ya no está pulsado
     else if(Math.abs(e.clientX-selRightArm.x)>6||Math.abs(e.clientY-selRightArm.y)>6){
       const st=selRightArm;selRightArm=null;
-      if(selStart(st.e)){
+      if(selStart(st.e,true)){
         selRightUsed=true;                               // al soltar, sin menú
         showTip('Seleccionando texto',1500);
       }
@@ -11657,23 +11678,25 @@ window.addEventListener('pointerup',e=>{
   selRightArm=null;
   if(e.pointerType==='pen')releasePen();
   if(selDrag)selEnd(e.clientX,e.clientY);
-  /* red de seguridad: si por lo que sea no llega el 'contextmenu' que este
-     aviso tenía que tapar, se olvida solo. Si no, se tragaría el menú del
-     SIGUIENTE clic derecho. */
-  setTimeout(()=>{selRightUsed=false},600);
 },{passive:true,capture:true});
 window.addEventListener('pointercancel',()=>{
   selRightArm=null;
   if(selDrag)selEnd(selLastXY?selLastXY.x:0,selLastXY?selLastXY.y:0);
 },{passive:true,capture:true});
-/* si has arrastrado con el botón derecho, el menú del navegador no debe salir */
+/* Si has arrastrado con el botón derecho, el menú del navegador no debe salir.
+   El aviso NO se borra por tiempo (antes se borraba a los 600 ms y a veces
+   Chrome avisaba más tarde: el menú se colaba). Se borra al empezar el
+   SIGUIENTE clic derecho, que es lo único que de verdad significa "esta vez
+   sí quiero el menú". */
 window.addEventListener('contextmenu',e=>{
   if(!selRightUsed)return;
-  selRightUsed=false;
   e.preventDefault();
 },true);
 /* tocar en cualquier otro sitio quita la selección, como en cualquier lector */
 window.addEventListener('pointerdown',e=>{
+  /* cualquier clic derecho (aquí o en un panel) empieza de cero: si no se
+     resetea aquí, un clic derecho fuera del PDF se quedaría sin su menú */
+  if(e.button===2)selRightUsed=false;
   if(selEmpty())return;
   if(selCopyBtn.contains(e.target))return;
   clearTextSel();
