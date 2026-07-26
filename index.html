@@ -489,6 +489,8 @@ body.fullscreen #rd-bottom-show{display:none}
 .st-num{font-size:23px;font-weight:700;color:var(--ink);line-height:1.15}
 .st-lab{font-size:11.5px;color:var(--ink3);margin-top:3px;line-height:1.35}
 .st-sec{font-size:11px;letter-spacing:.09em;color:var(--ink3);padding:14px 14px 7px;font-weight:600}
+/* las horas de trabajo: el número grande del panel, para que anime al verlo */
+.st-time{font-size:30px;font-weight:700;color:var(--ink);line-height:1.1;padding:0 14px 4px}
 .st-track{height:9px;border-radius:5px;background:var(--bg2);overflow:hidden;margin:7px 12px 3px}
 .st-fill{height:100%;border-radius:5px;background:var(--lila);transition:width .3s}
 .st-pct{font-size:12px;color:var(--ink3);padding:0 12px 6px}
@@ -1928,7 +1930,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v122'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v123'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -3728,6 +3730,14 @@ function renderStats(){
   box.innerHTML='';
   const add=(html)=>{const d=document.createElement('div');d.innerHTML=html;box.appendChild(d.firstElementChild)};
 
+  /* TIEMPO DEDICADO: va lo primero, que es lo que anima al abrir el panel */
+  const t=tiempoDoc||loadTime();
+  const dias=Object.keys(t.d||{}).length;
+  const hoy=(t.d||{})[hoyISO()]||0;
+  add(`<div class="st-sec">TIEMPO DEDICADO</div>`);
+  add(`<div class="st-time">${t.s?fmtDur(t.s):'—'}</div>`);
+  add(`<div class="st-pct">${hoy?'Hoy '+fmtDur(hoy)+' · ':''}${dias} día${dias!==1?'s':''} con este documento</div>`);
+
   const pct=s.pags?Math.round(s.pagsTocadas/s.pags*100):0;
   add(`<div class="st-sec">PÁGINAS TRABAJADAS</div>`);
   add(`<div class="st-track"><div class="st-fill" style="width:${pct}%"></div></div>`);
@@ -4135,7 +4145,9 @@ async function runExport(){
        y, por documento, `lastpage`. Eran los ultimos datos que se quedaban
        fuera de la copia. Las copias ver:5 y ver:4 se siguen importando igual:
        simplemente no traen estos campos y se omiten. */
-    const meta={app:'LecturaPDF',ver:6,exported:Date.now(),folders,annotations,
+    /* ver:7 → añade, por documento, `tiempo` (las horas dedicadas). Las copias
+       ver:6 y anteriores se siguen importando igual: no traen el campo. */
+    const meta={app:'LecturaPDF',ver:7,exported:Date.now(),folders,annotations,
                 globals:collectGlobalData(),files:[]};
 
     for(let i=0;i<files.length;i++){
@@ -4154,7 +4166,10 @@ async function runExport(){
                           estuviera ahi, cada vez que pasas de pagina se
                           marcaria el documento como pendiente de subir y la
                           sincronizacion no pararia de trabajar al leer. */
-                       lastpage:localStorage.getItem('lp_lastpage_'+f.id)});
+                       lastpage:localStorage.getItem('lp_lastpage_'+f.id),
+                       /* horas dedicadas: por el mismo motivo va aparte, y por
+                          el mismo motivo TIENE que ir en la copia */
+                       tiempo:localStorage.getItem('lp_time_'+f.id)});
     }
     /* Los metadatos y anotaciones caben de sobra en un JSON pequeño */
     zip.add('lecturapdf.json',new TextEncoder().encode(JSON.stringify(meta)));
@@ -4251,6 +4266,10 @@ document.getElementById('backup-input').addEventListener('change',async e=>{
         if(jf[i].lastpage!=null){
           try{Storage.prototype.setItem.call(localStorage,'lp_lastpage_'+jf[i].id,jf[i].lastpage)}catch(e){}
         }
+        /* horas dedicadas (solo copias ver:7; las anteriores no lo traen) */
+        if(jf[i].tiempo!=null){
+          try{Storage.prototype.setItem.call(localStorage,'lp_time_'+jf[i].id,jf[i].tiempo)}catch(e){}
+        }
         okCount++;
       }catch(err){
         console.error('[import] falló:',jf[i].name,err);
@@ -4304,6 +4323,68 @@ function saveOrder(){try{localStorage.setItem(orderKey(),JSON.stringify({order:p
 /* ÚLTIMA PÁGINA VISITADA (por documento, SOLO en este dispositivo).
    Es estado de navegación regenerable: no se sincroniza por Firebase ni entra en
    la copia de seguridad. Se guarda con retardo para no escribir en cada scroll. */
+/* ══════════════════════════════════════════════════════════════════
+   TIEMPO DEDICADO A CADA DOCUMENTO
+
+   Cuenta las horas de trabajo DE VERDAD: solo suma mientras el lector está
+   abierto, la app a la vista, y has tocado algo hace poco. Si te dejas el
+   documento abierto y te vas, deja de contar sola.
+
+   Va por dispositivo y NO se sincroniza, a propósito y por dos motivos:
+   · si dos aparatos escribieran el mismo contador, el último en subir
+     borraría las horas del otro;
+   · una clave que se guarda cada minuto y que la sincronización vigila
+     dejaría a esta trabajando sin parar (es justo por lo que lp_lastpage_
+     también va aparte y no está en DOC_KEY_PREFIXES).
+   Sí entra en la copia de seguridad, junto a la última página.
+   ══════════════════════════════════════════════════════════════════ */
+function timeKey(id){return 'lp_time_'+(id||currentFileId)}
+function loadTime(id){
+  try{
+    const o=JSON.parse(localStorage.getItem(timeKey(id))||'null');
+    if(o&&typeof o.s==='number')return{s:o.s,d:o.d||{}};
+  }catch(e){}
+  return{s:0,d:{}};
+}
+let tiempoDoc=null;            // {s:segundos, d:{fecha:segundos}} del documento abierto
+let tiempoActividad=0;         // cuándo tocaste algo por última vez
+let tiempoPend=0;              // segundos contados y aún no guardados
+const TIEMPO_PASO=15;          // se comprueba cada 15 segundos
+const TIEMPO_QUIETO=300000;    // 5 minutos sin tocar nada = ya no estás delante
+function hoyISO(){
+  const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function saveTime(){
+  if(!currentFileId||!tiempoDoc||!tiempoPend)return;
+  try{localStorage.setItem(timeKey(),JSON.stringify(tiempoDoc))}catch(e){}
+  tiempoPend=0;
+}
+/* "3 h 25 min" / "45 min" / "menos de un minuto" */
+function fmtDur(seg){
+  seg=Math.max(0,Math.round(seg||0));
+  if(seg<60)return 'menos de un minuto';
+  const min=Math.round(seg/60);
+  if(min<60)return min+' min';
+  const h=Math.floor(min/60),m=min%60;
+  return h+' h'+(m?' '+m+' min':'');
+}
+['pointerdown','keydown','wheel','touchstart'].forEach(ev=>
+  window.addEventListener(ev,()=>{tiempoActividad=Date.now()},{passive:true,capture:true}));
+setInterval(()=>{
+  if(!currentFileId||!tiempoDoc)return;
+  if(screens.reader.classList.contains('hidden'))return;      // no estás en el documento
+  if(document.visibilityState!=='visible')return;             // la app está de fondo
+  if(Date.now()-tiempoActividad>TIEMPO_QUIETO)return;         // llevas un rato sin tocar nada
+  tiempoDoc.s+=TIEMPO_PASO;
+  const h=hoyISO();tiempoDoc.d[h]=(tiempoDoc.d[h]||0)+TIEMPO_PASO;
+  tiempoPend+=TIEMPO_PASO;
+  if(tiempoPend>=60)saveTime();        // al disco como mucho una vez por minuto
+},TIEMPO_PASO*1000);
+/* al irte (cerrar, cambiar de app o bloquear el iPad) se guarda lo pendiente */
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible')saveTime()});
+window.addEventListener('pagehide',saveTime);
+
 function lastPageKey(){return 'lp_lastpage_'+currentFileId}
 let lastPageSaveTimer=null;
 function saveLastPage(){
@@ -4465,6 +4546,10 @@ async function openReader(fileId,fileName){
      mezcla se sube además a la nube y llega al iPad. Pasaba al volver atrás
      y abrir otro PDF en menos de un segundo. Mismo patrón que pushCurrent(). */
   if(saveTimer){clearTimeout(saveTimer);saveTimer=null;try{await saveAnn()}catch(e){}}
+  /* Por lo mismo: las horas del documento ANTERIOR hay que guardarlas ahora,
+     mientras currentFileId todavía apunta a él. Un renglón más abajo ya sería
+     el nuevo y se le sumarían horas que no son suyas. */
+  saveTime();
   currentFileId=fileId;currentFileName=fileName;setLoading('Abriendo PDF…');
   try{
     /* Antes de cargar nada: ¿la nube tiene una version mas nueva de este
@@ -4498,6 +4583,7 @@ async function openReader(fileId,fileName){
        claves son pid (1,2,3…) y se repiten entre documentos, así que si no se
        limpia, ensurePageText() devuelve el texto del PDF ANTERIOR. lineCache sí
        se vaciaba, por eso el fallo pasaba desapercibido. */
+    tiempoDoc=loadTime(fileId);tiempoActividad=Date.now();tiempoPend=0;
     undoStack.length=0;redoStack.length=0;updateUndoBtns();lineCache={};textCache={};
     /* Igual que lineCache/textCache: los canceladores del documento anterior
        apuntan a canvas que ya no existen. Sin esto se acumulaban uno por
@@ -8852,6 +8938,7 @@ function purgeDocData(fileId){
                                 // reimportado con el mismo id heredaba una
                                 // marca de tiempo remota ajena
     raw('lp_lastpage_'+fileId);
+    raw('lp_time_'+fileId);     // las horas dedicadas también son de este documento
   }catch(e){}
 }
 
