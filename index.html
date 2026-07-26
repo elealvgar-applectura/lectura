@@ -2027,7 +2027,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v131'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v132'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -10365,6 +10365,23 @@ function richToRuns(html){
       if(ch.nodeType!==1)return;
       const tag=ch.tagName.toLowerCase();
       if(tag==='br'){cur=null;abrir(null,prof);return}
+      /* ── IMAGEN ──
+         Se guarda como un "párrafo" aparte, con su ancho en % y de qué lado
+         quedó puesta, para que el PDF la dibuje igual que se ve en la app.
+         Antes el exportador ni las miraba: escribías una ficha con una foto o
+         un esquema y en el PDF no aparecía nada, sin avisar. */
+      if(tag==='img'){
+        const src=ch.getAttribute('src')||'';
+        if(!src)return;
+        const ancho=(ch.style&&ch.style.width)||'';
+        const pct=/%\s*$/.test(ancho)?(parseFloat(ancho)||100):100;
+        cur=null;
+        paras.push({img:{src,pct,
+          align:ch.classList.contains('lp-centro')?'centro'
+              :ch.classList.contains('lp-der')?'der':'izq'},
+          sangria:prof,runs:[]});
+        return;
+      }
       if(tag==='ul'||tag==='ol'){cur=null;lista(ch,st,prof);cur=null;return}
       if(tag==='div'||tag==='p'){cur=null;walk(ch,st,prof);cur=null;return}
       const st2=Object.assign({},st);
@@ -10380,7 +10397,9 @@ function richToRuns(html){
   walk(root,{},0);
   /* fuera los párrafos que se quedaron sin texto (los <div> vacíos que deja
      el editor al pulsar Enter): en el PDF serían huecos sin sentido */
-  return paras.filter(p=>p.runs.some(r=>r.t&&r.t.trim()));
+  /* las imágenes no llevan texto: si no se salvaran aquí, este filtro las
+     tiraría junto con los <div> vacíos */
+  return paras.filter(p=>p.img||p.runs.some(r=>r.t&&r.t.trim()));
 }
 
 /* estilo de cada nivel de profundidad: el 0 es el rótulo con banda de color
@@ -10425,6 +10444,28 @@ function pdfExport(){
        rótulo que va justo arriba */
     y+=size*.95;
     paras.forEach(p=>{
+      /* ── IMAGEN ──
+         Se dibuja con el ancho en % que tenga en la app y del lado en que
+         esté puesta. Si no cupiera ni en una hoja entera, se reduce hasta que
+         quepa: es preferible verla pequeña a que se salga de la página. */
+      if(p.img){
+        try{
+          const anchoDisp=RIGHT-x;
+          const props=doc.getImageProperties(p.img.src);
+          let w=anchoDisp*Math.max(5,Math.min(100,p.img.pct))/100;
+          let h=w*props.height/props.width;
+          const altoUtil=PH-MT-MB-6;
+          if(h>altoUtil){w*=altoUtil/h;h=altoUtil}
+          sitio(h+6);
+          const top=Math.max(MT,y-size*.85);
+          let ix=x;
+          if(p.img.align==='centro')ix=x+(anchoDisp-w)/2;
+          else if(p.img.align==='der')ix=RIGHT-w;
+          doc.addImage(p.img.src,props.fileType,ix,top,w,h);
+          y=top+h+size*.6;
+        }catch(e){console.error('[pdf] no se pudo dibujar una imagen:',e)}
+        return;
+      }
       const bx=x+(p.sangria>0?(p.sangria-1)*11:0);
       const sangraViñeta=p.bullet?13:0;
       const maxW=RIGHT-bx-sangraViñeta;
