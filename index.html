@@ -177,6 +177,12 @@ input,textarea{user-select:text!important;-webkit-user-select:text!important}
 .cchip.on .dot{transform:scale(1.12);box-shadow:0 0 0 2.5px var(--ink)}
 .cchip .tag{font-size:9px;color:var(--ink2);max-width:64px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cchip.on .tag{color:var(--ink);font-weight:600}
+/* chip de TEMA AUTOMATICO: no es un color, es un interruptor. Apagado se ve
+   apagado de verdad (translucido), para que de un vistazo se sepa si las
+   fichas nuevas van a ir solas a un tema o si se va a preguntar. */
+.cchip.auto-tema .dot .ico{width:15px;height:15px}
+.cchip.auto-tema.apagado .dot{opacity:.4}
+.cchip.auto-tema.apagado .tag{opacity:.6}
 
 /* canvas area */
 #canvas-wrap{flex:1;overflow:auto;background:var(--bg2);-webkit-overflow-scrolling:touch;position:relative;touch-action:pan-x pan-y;
@@ -1553,6 +1559,9 @@ body.fullscreen #gid-bar{bottom:20px}
 <div class="modal-bg hidden" id="modal-theme">
   <div class="modal">
     <h3 id="modal-theme-title">¿De qué tema es?</h3>
+    <!-- botón grande de "guardar en el tema activo". Solo aparece con el modo
+         automático encendido; se rellena desde askTheme() -->
+    <div id="theme-auto-row"></div>
     <div id="theme-list" style="display:flex;flex-direction:column;gap:6px;max-height:230px;overflow-y:auto;margin-bottom:12px"></div>
     <div style="display:flex;gap:6px;margin-bottom:12px">
       <input id="theme-new-num" type="number" min="1" placeholder="Nº" style="width:64px;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);font-size:15px;padding:10px;outline:none;text-align:center">
@@ -1930,7 +1939,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v124'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v125'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2112,6 +2121,8 @@ const ICON={
   trash:'<path d="M4.8 6.7h14.4"/><path d="M9.3 6.7V5.3a1.4 1.4 0 0 1 1.4-1.4h2.6a1.4 1.4 0 0 1 1.4 1.4v1.4"/><path d="M6.6 6.7v12a1.6 1.6 0 0 0 1.6 1.6h7.6a1.6 1.6 0 0 0 1.6-1.6v-12"/><path d="M10.3 10.5v5.8M13.7 10.5v5.8"/>',
   share:'<path d="M12 15.4V3.9"/><path d="M8.4 7.5 12 3.9l3.6 3.6"/><path d="M5 14v4.6a1.6 1.6 0 0 0 1.6 1.6h10.8a1.6 1.6 0 0 0 1.6-1.6V14"/>',
   bookmark:'<path d="M6.5 4.2h11a1 1 0 0 1 1 1v15l-6.5-4.3-6.5 4.3v-15a1 1 0 0 1 1-1Z"/>',
+  /* etiqueta: el chip de "tema automatico" de la barra de colores */
+  tagAuto:'<path d="M12.7 3.8H19a1.2 1.2 0 0 1 1.2 1.2v6.3a1.2 1.2 0 0 1-.35.85l-7.7 7.7a1.2 1.2 0 0 1-1.7 0l-6.3-6.3a1.2 1.2 0 0 1 0-1.7l7.7-7.7a1.2 1.2 0 0 1 .85-.35Z"/><circle cx="16.2" cy="7.8" r="1.25"/>',
   plus:'<path d="M12 5.5v13M5.5 12h13"/>',
   /* ── ACCIONES DE FICHA ─────────────────────────────────────────────
      Mismo lenguaje que el resto: trazo unico, sin relleno. Sustituyen a
@@ -3029,9 +3040,38 @@ const mTheme=document.getElementById('modal-theme');
 function askTheme(kindLabel){
   return new Promise(res=>{
     themeRes=res;
-    document.getElementById('modal-theme-title').textContent=`¿De qué tema es esta ${kindLabel}?`;
     const list=document.getElementById('theme-list');list.innerHTML='';
     const themes=loadThemes().sort((a,b)=>(a.num||0)-(b.num||0));
+    /* ══ MODO AUTOMÁTICO ══
+       Con el chip de la barra de colores encendido, el tema ya está decidido:
+       aquí solo se confirma. Sale un botón grande arriba (un toque en el iPad)
+       y Enter hace lo mismo, porque el tema activo va preseleccionado en la
+       lista. La lista sigue estando por si esta ficha va a otro sitio, y Esc
+       sigue descartando la ficha (por si te equivocaste de subrayador).
+       Sin modo automático no aparece nada y el cuadro es el de siempre. */
+    const autoT=autoThemeId()?activeThemeObj():null;
+    const autoRow=document.getElementById('theme-auto-row');
+    autoRow.innerHTML='';
+    document.getElementById('modal-theme-title').textContent = autoT
+      ? `¿Guardar esta ${kindLabel}?`
+      : `¿De qué tema es esta ${kindLabel}?`;
+    if(autoT){
+      const ok=document.createElement('button');
+      ok.id='theme-auto-ok';
+      ok.style.cssText=`display:flex;align-items:center;gap:10px;width:100%;padding:13px 14px;margin-bottom:10px;`+
+        `border:2px solid var(--acento);border-radius:12px;background:var(--bg2);cursor:pointer;`+
+        `text-align:left;font-family:inherit`;
+      ok.innerHTML=`<span style="width:18px;height:18px;border-radius:6px;background:${autoT.color};flex-shrink:0"></span>`+
+        `<span style="flex:1;min-width:0"><span style="display:block;font-size:11px;color:var(--ink3)">Guardar en</span>`+
+        `<span style="display:block;font-size:15px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(themeLabel(autoT))}</span></span>`+
+        `<span style="font-size:11px;color:var(--ink3);flex-shrink:0">Enter</span>`;
+      ok.onclick=()=>done(autoT.id);
+      autoRow.appendChild(ok);
+      const sub=document.createElement('div');
+      sub.style.cssText='font-size:11.5px;color:var(--ink3);margin:0 2px 8px';
+      sub.textContent='…o elige otro tema abajo:';
+      autoRow.appendChild(sub);
+    }
     if(!themes.length){const em=document.createElement('div');em.style.cssText='font-size:13px;color:var(--ink3);padding:6px 2px';em.textContent='Aún no hay temas. Crea el primero abajo.';list.appendChild(em)}
     const themeBtns=[];
     themes.forEach((t,i)=>{
@@ -3043,8 +3083,11 @@ function askTheme(kindLabel){
       b.onclick=()=>done(t.id);
       list.appendChild(b);themeBtns.push(b);
     });
-    /* Seleccion con teclado: ↑/↓ mueve, Enter confirma, 1-9 atajo directo. */
+    /* Seleccion con teclado: ↑/↓ mueve, Enter confirma, 1-9 atajo directo.
+       Arranca en el TEMA ACTIVO si el modo automático está encendido; si no,
+       en el primero de la lista, como toda la vida. */
     let sel=themes.length?0:-1;
+    if(autoT){const i=themes.findIndex(t=>t.id===autoT.id);if(i>=0)sel=i}
     function paintSel(){
       themeBtns.forEach((b,i)=>{
         b.style.borderColor = i===sel ? 'var(--acento)' : 'transparent';
@@ -3468,6 +3511,13 @@ function buildColorBar(){
   more.innerHTML=`<div class="dot" style="background:var(--bg2);display:flex;align-items:center;justify-content:center;color:var(--ink2)">${svg('dots')}</div><span class="tag">Más…</span>`;
   more.onclick=()=>{renderPalTab(barTab);document.querySelectorAll('.pal-tab').forEach(x=>x.classList.toggle('on',x.dataset.pal===barTab));modalPal.classList.remove('hidden')};
   colorBar.appendChild(more);
+  /* chip de TEMA AUTOMÁTICO: no es un color, es un interruptor. Va aquí, al
+     principio de la barra, porque se toca al empezar un tema, justo cuando ya
+     estás eligiendo el subrayador. */
+  const auto=document.createElement('button');auto.className='cchip auto-tema';
+  auto.onclick=()=>toggleAutoTheme(auto);
+  colorBar.appendChild(auto);
+  paintAutoThemeChip(auto);
   PALETTES[barTab].colors.forEach(cd=>{
     const b=document.createElement('button');b.className='cchip';b.dataset.c=cd.c;
     b.innerHTML=`<div class="dot" style="background:${cd.c}"></div><span class="tag">${esc(cd.t)}</span>`;
@@ -3479,7 +3529,59 @@ function buildColorBar(){
      hay que devolverla a su sitio */
   refreshBarArrows();
 }
-function syncColorBar(){colorBar.querySelectorAll('.cchip').forEach(el=>el.classList.toggle('on',(el.dataset.c||'').toLowerCase()===curColor.toLowerCase()))}
+function syncColorBar(){colorBar.querySelectorAll('.cchip').forEach(el=>{
+  /* el chip de tema automático NO es un color: su "encendido" significa otra
+     cosa y lo pinta paintAutoThemeChip. Sin esta línea, elegir cualquier color
+     le apagaba el resalte. */
+  if(el.classList.contains('auto-tema'))return;
+  el.classList.toggle('on',(el.dataset.c||'').toLowerCase()===curColor.toLowerCase());
+})}
+
+/* ══ CHIP DE TEMA AUTOMÁTICO ══
+   Apagado (por defecto): la app pregunta el tema en cada ficha, como siempre.
+   Encendido: se pinta con el color del tema activo y pone su nombre debajo,
+   para que siempre veas a dónde van a ir las fichas nuevas.
+     · un toque estando APAGADO → lo enciende
+     · un toque estando ENCENDIDO → menú para cambiar de tema o apagarlo
+   Se eligió el menú en vez de un "toque largo" porque en el iPad el toque
+   largo se confunde con el gesto de seleccionar y no se descubre solo. */
+function paintAutoThemeChip(btn){
+  const on=isAutoTheme(), t=on?activeThemeObj():null;
+  btn.classList.toggle('apagado',!on);
+  btn.classList.toggle('on',!!t);
+  btn.innerHTML=`<div class="dot" style="background:${t?t.color:'var(--bg2)'};display:flex;align-items:center;justify-content:center;color:var(--ink2)">${svg('tagAuto')}</div>`+
+    `<span class="tag">${on?(t?esc(themeLabel(t)):'elige tema'):'Tema auto'}</span>`;
+  btn.title = !on
+    ? 'Tema automático apagado: se pregunta el tema en cada ficha. Toca para encenderlo.'
+    : (t ? `Las fichas nuevas van al tema "${t.name}". Toca para cambiar de tema o apagarlo.`
+         : 'Automático encendido, pero sin tema elegido. Toca y elige uno.');
+}
+/* repinta el chip esté donde esté (lo llaman saveActiveTheme y setAutoTheme) */
+function syncAutoThemeChip(){
+  const btn=colorBar&&colorBar.querySelector('.cchip.auto-tema');
+  if(btn)paintAutoThemeChip(btn);
+}
+function autoThemeMenu(btn){
+  const themes=loadThemes().sort((a,b)=>(a.num||0)-(b.num||0));
+  const act=loadActiveTheme();
+  const r=btn.getBoundingClientRect();
+  const items=[{icon:'dots',label:'Apagar: preguntar el tema cada vez',action:()=>{
+    setAutoTheme(false);showTip('Se preguntará el tema en cada ficha',1800);
+  }}];
+  themes.forEach(t=>items.push({icon:'tagAuto',label:themeLabel(t)+(t.id===act?'  ✓':''),action:()=>{
+    saveActiveTheme(t.id);setAutoTheme(true);
+    showTip('Las fichas nuevas irán a "'+(t.name||'Tema')+'"',1900);
+  }}));
+  showCtx(r.left,r.bottom+6,items);
+}
+function toggleAutoTheme(btn){
+  if(isAutoTheme()){autoThemeMenu(btn);return}
+  if(!loadThemes().length){showTip('Primero crea un tema en el editor de temas',3000);return}
+  setAutoTheme(true);
+  const t=activeThemeObj();
+  if(!t){autoThemeMenu(btn);return}      // encendido pero sin tema: que elija
+  showTip('Automático: las fichas nuevas irán a "'+(t.name||'Tema')+'"',2200);
+}
 
 /* ══ BROWSER ══ */
 let curFolder=null;
@@ -4613,6 +4715,9 @@ async function openReader(fileId,fileName){
     showScreen('reader');pagesInner.innerHTML='';
     pageOrder.forEach(s=>createPageShell(s.pid));
     updateNav();renderVisiblePages();
+    /* el chip de tema automático es POR DOCUMENTO: hay que repintarlo al abrir
+       otro, o enseñaría el tema del anterior */
+    syncAutoThemeChip();
     /* Volver a la última página visitada en este dispositivo (si la hay y sigue
        existiendo). Esperamos un poco a que las páginas tengan tamaño para que el
        salto funcione, y usamos 'auto' (salto instantáneo, sin animar). */
@@ -4788,7 +4893,9 @@ async function closeGid(){
     updateGidBar();
     return;
   }
-  if(themeId){const m=loadThemeMap();m[gid]=themeId;saveThemeMap(m)}
+  /* el tema que acabas de elegir pasa a ser el activo: si sigues subrayando,
+     lo más probable es que las fichas siguientes sean del mismo */
+  if(themeId){const m=loadThemeMap();m[gid]=themeId;saveThemeMap(m);saveActiveTheme(themeId)}
   unmarkEntDeleted(kind,gid);   // por si ese gid se habia borrado antes
   showTip((kind==='glos'?'Definición':'Conclusión')+' guardada',1500);
   try{
@@ -8192,12 +8299,16 @@ async function createAclarFromGid(gid){
   await Promise.all([...pids].map(pid=>ensurePageText(pid).catch(()=>{})));
   const anc=aclarAnchorForGid(gid);
   if(!anc){showTip('No se pudo anclar la aclaración');return}
-  const d=await askAclarText(anc.ref,{});
+  /* con el modo automático encendido, el desplegable de tema viene ya puesto
+     en el tema activo. Aquí no hace falta confirmar nada aparte: el cuadro ya
+     te pide escribir la aclaración, y ahí puedes cambiarlo o cancelar. */
+  const d=await askAclarText(anc.ref,{themeId:autoThemeId()||''});
   if(!d)return;                          // cancelado: no se crea (el subrayado se mantiene)
   const arr=loadAclars();
   arr.push({id:uid(),gid,themeId:d.themeId||null,page:anc.pid,ref:anc.ref||'',
             text:d.text,ax:anc.x,ay:anc.y,color:anc.color||curColor,created:Date.now(),mini:true});
   saveAclars(arr);
+  if(d.themeId)saveActiveTheme(d.themeId);   // igual que en glosario/conclusiones
   showTip('Aclaración guardada',1500);
   forceNoteLayerRefresh(anc.pid);
   scheduleAnchors();
@@ -8567,6 +8678,58 @@ function loadThemes(){try{return JSON.parse(localStorage.getItem(themesKey())||'
 function saveThemes(a){try{localStorage.setItem(themesKey(),JSON.stringify(a))}catch(e){}}
 function themeMapKey(){return 'lp_thememap_'+currentFileId}
 
+/* ══ TEMA ACTIVO Y MODO AUTOMÁTICO ══
+   Elena trabaja SIEMPRE igual: crea el tema nuevo en el editor de temas antes
+   de empezarlo y después subraya. Preguntarle el tema en cada ficha es repetir
+   algo que la app ya sabe. Con el modo automático encendido, las definiciones,
+   conclusiones y aclaraciones van solas al "tema activo" y solo hay que
+   confirmar (Enter, o un toque en el botón grande).
+
+   Dos claves POR DOCUMENTO, porque no todos los documentos están organizados
+   por temas:
+     · lp_temaact_<id>  → id del tema activo
+     · lp_autotema_<id> → '1' si el modo automático está encendido
+   Van en DOC_KEY_PREFIXES, así entran en la copia de seguridad, se sincronizan
+   entre el PC y el iPad, y se borran con el documento.
+
+   APAGADO ES EL COMPORTAMIENTO DE SIEMPRE: si la clave no existe, la app
+   pregunta el tema exactamente igual que antes. Los documentos que ya tienes
+   no notan ningún cambio. */
+function actThemeKey(){return 'lp_temaact_'+currentFileId}
+function autoThemeKey(){return 'lp_autotema_'+currentFileId}
+/* El tema activo se valida contra la lista real: si lo borraste, deja de
+   valer (si no, las fichas irían a un tema fantasma, igual que pasaba con el
+   mapa gid→tema). */
+function loadActiveTheme(){
+  try{
+    const id=localStorage.getItem(actThemeKey())||'';
+    if(!id)return null;
+    return loadThemes().some(t=>t.id===id)?id:null;
+  }catch(e){return null}
+}
+function saveActiveTheme(id){
+  try{
+    if(id)localStorage.setItem(actThemeKey(),id);
+    else localStorage.removeItem(actThemeKey());
+  }catch(e){}
+  if(typeof syncAutoThemeChip==='function')syncAutoThemeChip();
+}
+function isAutoTheme(){try{return localStorage.getItem(autoThemeKey())==='1'}catch(e){return false}}
+function setAutoTheme(on){
+  try{
+    if(on)localStorage.setItem(autoThemeKey(),'1');
+    else localStorage.removeItem(autoThemeKey());
+  }catch(e){}
+  if(typeof syncAutoThemeChip==='function')syncAutoThemeChip();
+}
+/* tema al que irían las fichas nuevas AHORA MISMO, o null si hay que preguntar */
+function autoThemeId(){return isAutoTheme()?loadActiveTheme():null}
+function activeThemeObj(){
+  const id=loadActiveTheme();
+  return id?(loadThemes().find(t=>t.id===id)||null):null;
+}
+function themeLabel(t){return t?((t.num?t.num+'. ':'')+(t.name||'Tema')):''}
+
 /* ══════════════════════════════════════════════════════════════════
    GESTOR DE TEMAS  (boton 🏷 en la cabecera de Glosario / Conclusiones)
 
@@ -8611,6 +8774,9 @@ function deleteTheme(themeId){
   }
   /* 3) aclaraciones: su tema vive dentro de cada aclaración */
   {const aa=loadAclars();let ch=false;aa.forEach(a=>{if(a.themeId===themeId){a.themeId=null;ch=true}});if(ch)saveAclars(aa)}
+  /* 4) si era el tema activo, deja de serlo (el modo automático se queda
+     encendido, pero volverá a preguntar hasta que elijas otro) */
+  try{if(localStorage.getItem(actThemeKey())===themeId)saveActiveTheme(null)}catch(e){}
 }
 /* Mueve un tema una posición arriba (-1) o abajo (+1) en la lista ordenada,
    intercambiando su `num` con el del vecino. Nunca escribir un número a
@@ -8790,6 +8956,8 @@ function refreshEntPanels(){
   });
   if(!(tmInPanel&&tmInPanel.panelId==='aclar-panel'))refreshAclarPanelIfOpen();
   renderPageAnchors();
+  /* si has renombrado o recoloreado el tema activo, el chip debe enterarse */
+  syncAutoThemeChip();
 }
 function openThemesMgr(kind){
   tmPanelKind=kind;
@@ -8893,7 +9061,11 @@ function closeThemesInPanel(){
    ademas un documento nuevo con el mismo id heredaria datos ajenos. */
 const DOC_KEY_PREFIXES=['lp_order_','lp_margin_','lp_nodes_','lp_embeds_','lp_bm_',
   'lp_tl_','lp_proc_','lp_themes_','lp_thememap_','lp_glos_','lp_conc_','lp_aclar_','lp_cmap_',
-  'lp_delents_glos_','lp_delents_conc_','lp_delents_aclar_','lp_srs_'];
+  'lp_delents_glos_','lp_delents_conc_','lp_delents_aclar_','lp_srs_',
+  /* tema activo y modo automático (ver TEMA ACTIVO Y MODO AUTOMÁTICO).
+     Son dos textos cortos que cambian poco (al crear un tema o al guardar una
+     ficha), así que no dan trabajo extra a la sincronización. */
+  'lp_temaact_','lp_autotema_'];
 /* Claves de localStorage que NO pertenecen a un documento sino al APARATO:
    paletas de colores propias, calibrado de herramientas, gestos, modo oscuro…
    No se sincronizan (cada aparato tiene las suyas) pero SI deben ir en la copia
@@ -8948,7 +9120,12 @@ function createTheme(num,name){
   const themes=loadThemes();
   const color=THEME_COLORS[themes.length%THEME_COLORS.length];
   const t={id:uid(),num:num||nextThemeNum(),name:name||'Tema',color};
-  themes.push(t);saveThemes(themes);return t;
+  themes.push(t);saveThemes(themes);
+  /* El tema recién creado pasa a ser el ACTIVO: crear el tema es justo lo que
+     se hace antes de empezarlo, así que es el que toca. No enciende el modo
+     automático: eso lo decide el chip de la barra de colores. */
+  saveActiveTheme(t.id);
+  return t;
 }
 
 /* Sincroniza las entradas automáticas a partir de los subrayados.
