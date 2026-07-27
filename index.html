@@ -2180,7 +2180,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v143'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v144'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -8517,8 +8517,9 @@ async function buildResumenBlocks(){
   const hls=[];
   for(const g of groups.values()){
     g.parts.sort((a,b)=>posOfPid(a.pg)-posOfPid(b.pg)||a.yTop-b.yTop||a.x-b.x);
-    const txt=g.parts.map(p=>getHlText(p.pg,p.h)).filter(Boolean).join(' ')
-                     .replace(/\s+/g,' ').trim();
+    /* misma limpieza de puntuación que en glosario y conclusiones: es el
+       mismo texto sacado del PDF, y aquí se leía igual de sucio */
+    const txt=limpiarTextoPDF(g.parts.map(p=>getHlText(p.pg,p.h)).filter(Boolean).join(' '));
     if(!txt||txt.length<2)continue;               // escaneado / sin texto → se omite
     const first=g.parts[0], last=g.parts[g.parts.length-1];
     hls.push({text:txt,color:g.color,pg:first.pg,
@@ -9973,6 +9974,66 @@ function renderAclar(nl,a,num){
   if(!a.mini)fitCardInPage(bub,nl);
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   LIMPIEZA DEL TEXTO SACADO DEL PDF
+
+   El texto que se extrae de un PDF no viene como se ve en la página: los
+   signos de puntuación llegan muchas veces SUELTOS, separados por un espacio
+   ("cohesión : anáforas", "situación ?", "( porque )"). Eso ensuciaba las
+   fichas y, sobre todo, rompía los títulos: para el contador de palabras, un
+   punto suelto cuenta como una palabra, así que "Inferencias proactivas . Son"
+   se comía dos de las cuatro palabras del título en un punto y un verbo
+   colgando.
+
+   Aquí SOLO se recolocan espacios. No se cambia ni una palabra, no se borra
+   contenido y no se interpreta nada: el texto dice exactamente lo mismo.
+
+   OJO con los guiones de las palabras partidas ("estruc-turales"): eso NO está
+   en el texto, lo hace el CSS al justificar (`hyphens:auto`). No hay nada que
+   arreglar ahí.
+   ══════════════════════════════════════════════════════════════════ */
+function limpiarTextoPDF(txt){
+  let t=String(txt||'').replace(/\s+/g,' ');
+  t=t.replace(/\s+([,.;:!?%…])/g,'$1');       // "cohesión : x" → "cohesión: x"
+  t=t.replace(/([(\[«“¿¡])\s+/g,'$1');        // "( porque" → "(porque"
+  t=t.replace(/\s+([)\]»”])/g,'$1');          // "porque )" → "porque)"
+  return t.replace(/\s+/g,' ').trim();
+}
+
+/* Palabras con las que un título NO debe terminar: si la última es un
+   artículo, una preposición o una conjunción, el título queda colgando
+   ("Se presentaba a los"). Se quitan por el final hasta que deje de pasar. */
+const TITULO_COLA=new Set(['y','o','u','e','ni','de','del','la','el','los','las',
+  'un','una','unos','unas','que','en','a','al','por','para','con','sin','sobre',
+  'se','su','sus','lo','como','si','entre','desde','hasta','cuando','donde',
+  'este','esta','estos','estas','ese','esa','esos','esas','ante','tras','pero',
+  'aunque','ya','muy','tan','segun','según','cuyo','cuya','mas','más','menos']);
+
+/* Título de una ficha a partir del texto subrayado.
+   1) Se limpia la puntuación pegada.
+   2) Se corta en el primer signo fuerte: ahí es donde casi siempre acaba el
+      nombre del concepto y empieza su explicación ("Resultados: mostraron…").
+      Se exigen al menos 3 caracteres antes del signo para no partir una
+      enumeración ("1. El ensalzado…") por el punto del número.
+   3) Como mucho, n palabras.
+   4) Que no acabe colgando (ver TITULO_COLA).
+   5) Primera letra en mayúscula.
+
+   LO QUE ESTO NO PUEDE HACER: si el subrayado empieza a mitad de frase, el
+   título mejora pero seguirá siendo un trozo raro. Ninguna regla puede
+   adivinar el nombre del concepto si no está en lo subrayado. */
+function tituloDesdeTexto(txt,n){
+  let t=limpiarTextoPDF(txt);
+  if(!t)return '(sin texto)';
+  const corte=t.match(/^[^.:;?!]{3,}/);
+  if(corte&&corte[0].length<t.length)t=corte[0];
+  const w=t.split(/\s+/).filter(Boolean).slice(0,n||4);
+  while(w.length>1&&TITULO_COLA.has(w[w.length-1].toLowerCase().replace(/[.,;:!?]+$/,'')))w.pop();
+  t=w.join(' ').replace(/[\s.,;:!?¿¡«»"']+$/,'').trim();
+  if(!t)return '(sin texto)';
+  return t.charAt(0).toUpperCase()+t.slice(1);
+}
+
 /* primeras N palabras de un texto → título de la entrada */
 function firstWords(txt,n){
   const w=(txt||'').trim().split(/\s+/).filter(Boolean).slice(0,n);
@@ -10506,13 +10567,14 @@ async function autoUpdateEnts(kind){
     if(dead.has(g.gid))continue;          // borrada a mano → no la regeneres
     /* orden de lectura dentro del grupo: página → línea → columna */
     g.parts.sort((a,b)=>posOfPid(a.pg)-posOfPid(b.pg)||a.y-b.y||a.x-b.x);
-    const txt=g.parts.map(p=>getHlText(p.pg,p.h)).filter(Boolean).join(' ')
-                     .replace(/\s+/g,' ').trim();
+    /* limpiarTextoPDF recoloca los espacios de la puntuación que el PDF trae
+       suelta. Sin esto el cuerpo se lee mal y el título salía roto. */
+    const txt=limpiarTextoPDF(g.parts.map(p=>getHlText(p.pg,p.h)).filter(Boolean).join(' '));
     if(!txt||txt.length<2)continue;             // escaneado o sin texto → se omite
     const old=edited[g.gid];
     auto.push({
       id: old?old.id:uid(), gid:g.gid,
-      title: old?old.title:firstWords(txt,K.words),
+      title: old?old.title:tituloDesdeTexto(txt,K.words),
       body : old?old.body :txt,
       page:g.page, pages:[...new Set(g.parts.map(p=>p.pg))],
       color:g.color, auto:true, edited:!!old,
@@ -10557,7 +10619,7 @@ function ensureEntStatic(kind){
   const add=()=>{
     const t=inp.value.trim();if(!t)return;
     const a=loadEnts(kind);
-    a.push({id:uid(),title:firstWords(t,K.words),body:t,page:curPid(),color:K.dot,manual:true,themeId:themeSel.value||null});
+    a.push({id:uid(),title:tituloDesdeTexto(t,K.words),body:t,page:curPid(),color:K.dot,manual:true,themeId:themeSel.value||null});
     saveEnts(kind,a);inp.value='';renderEntsList(kind);renderPageAnchors();
   };
   btn.onclick=add;inp.addEventListener('keydown',e=>{if(e.key==='Enter')add()});
