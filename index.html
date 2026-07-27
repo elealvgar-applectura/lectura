@@ -1268,6 +1268,27 @@ body.fullscreen #fs-hint{display:block!important}
   touch-action:none;z-index:3;background:linear-gradient(135deg,transparent 50%,rgba(0,120,110,.4) 50%);
   border-bottom-right-radius:12px}
 
+/* ═══ BUSCAR EN MIS APUNTES ═══
+   Lista sobria a propósito: el color lo pone solo el punto del tipo y la
+   etiqueta de tema, como en el resto de paneles. Fondos limpios. */
+.fa-sec{font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--ink3);
+  text-transform:uppercase;margin:14px 0 6px;display:flex;align-items:center;gap:6px}
+.fa-sec span{margin-left:auto;font-weight:600;letter-spacing:0}
+.fa-item{background:var(--card);border:1px solid var(--border);border-radius:10px;
+  padding:9px 11px;margin-bottom:7px;cursor:pointer;touch-action:manipulation}
+.fa-item:active{transform:scale(.99)}
+.fa-hd{display:flex;align-items:center;gap:7px}
+.fa-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.fa-t{flex:1;min-width:0;font-size:13.5px;font-weight:700;color:var(--ink);
+  line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fa-pg{font-size:11px;color:var(--ink3);flex-shrink:0}
+.fa-sn{font-size:12.5px;color:var(--ink2);line-height:1.45;margin-top:4px;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.fa-tag{display:inline-block;font-size:10.5px;font-weight:700;color:var(--ink);
+  border-radius:6px;padding:2px 7px;margin-top:6px}
+.fa-tag.none{background:var(--bg2);color:var(--ink3)}
+.fa-hit{background:var(--acento);border-radius:3px;padding:0 1px}
+
 /* ═══ MARCADOR DE VERSIÓN ═══ */
 #ver-badge{position:fixed;bottom:6px;left:8px;z-index:1000;
   font-size:10px;font-weight:700;letter-spacing:.04em;
@@ -1470,6 +1491,9 @@ body.fullscreen #gid-bar{bottom:20px}
     </button>
     <button class="tool-btn" id="tb-find" title="Buscar en el documento">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16" y2="16"/></svg>
+    </button>
+    <button class="tool-btn" id="tb-findall" title="Buscar en mis apuntes (definiciones, conclusiones, aclaraciones, notas…)">
+      <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="21" y1="21" x2="15.4" y2="15.4"/><line x1="7.6" y1="8.6" x2="13.4" y2="8.6"/><line x1="7.6" y1="12.4" x2="11.4" y2="12.4"/></svg>
     </button>
     <button class="tool-btn" id="tb-zi" title="Acercar">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
@@ -1680,6 +1704,16 @@ body.fullscreen #gid-bar{bottom:20px}
   <div style="padding:0 12px 12px;flex-shrink:0">
     <button id="rv-start" class="sp-action-btn" style="width:100%">Empezar repaso</button>
   </div>
+</div>
+
+<!-- buscador que atraviesa TODAS las herramientas -->
+<div id="findall-panel" class="side-panel">
+  <div class="sp-top">
+    <span class="sp-title">Buscar en mis apuntes</span>
+    <button class="sp-close" data-panel="findall-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div id="findall-static" style="padding:0 12px 8px;flex-shrink:0"></div>
+  <div id="findall-body" class="sp-body"></div>
 </div>
 
 <!-- pantalla de repaso (tarjeta a pantalla completa) -->
@@ -2146,7 +2180,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v141'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v142'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -4857,6 +4891,204 @@ function endReview(){
 }
 
 /* ══════════════════════════════════════════════════════════════════
+   BUSCAR EN MIS APUNTES (atraviesa todas las herramientas)
+
+   El problema real: cada panel tiene ya su propio buscador, pero cuando no
+   recuerdas si algo lo apuntaste como definición, como conclusión o como
+   aclaración, hay que ir mirando panel por panel.
+
+   Esto NO guarda nada ni crea ninguna clave nueva: solo LEE lo que ya existe
+   en este documento (glosario, conclusiones, aclaraciones, notas de las
+   páginas, nodos, mapa conceptual, procesos y marcadores) y da un atajo para
+   abrir cada resultado donde vive de verdad. Si se borrara este bloque
+   entero, no se perdería ni un apunte.
+   ══════════════════════════════════════════════════════════════════ */
+const FA_TIPOS={
+  glos: {label:'Definiciones',        dot:'#F9D5E5'},
+  conc: {label:'Conclusiones',        dot:'#BFE8DC'},
+  aclar:{label:'Aclaraciones',        dot:'#55C9BA'},
+  note: {label:'Notas',               dot:'#FCE1B6'},
+  node: {label:'Nodos conceptuales',  dot:'#D9C7F0'},
+  cmap: {label:'Mapa conceptual',     dot:'#C7E0F0'},
+  proc: {label:'Procesos y teorías',  dot:'#CFE8C4'},
+  bm:   {label:'Marcadores',          dot:'#F7C9C9'}
+};
+const FA_ORDEN=['glos','conc','aclar','note','node','cmap','proc','bm'];
+
+/* Recorta el texto alrededor de la primera palabra buscada. Sin esto, una
+   ficha larga enseñaría siempre su principio y no se vería POR QUÉ ha salido
+   en los resultados. */
+function faSnippet(txt,q){
+  const plano=richToPlain(txt||'').replace(/\s+/g,' ').trim();
+  if(!plano)return '';
+  const n=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+  const pal=n(q).trim().split(/\s+/).filter(Boolean)[0]||'';
+  const i=pal?n(plano).indexOf(pal):-1;
+  if(i<0)return plano.slice(0,180)+(plano.length>180?'…':'');
+  const desde=Math.max(0,i-60);
+  const trozo=plano.slice(desde,desde+200);
+  return (desde?'…':'')+trozo+(desde+200<plano.length?'…':'');
+}
+
+/* Junta los resultados de todas las herramientas. Cada uno lleva su propia
+   forma de abrirse (`ir`), porque cada herramienta vive en un panel distinto. */
+function faCollect(q){
+  const res=[];
+  const add=(tipo,o)=>res.push(Object.assign({tipo},o));
+  const M=(...campos)=>panelMatch(q,...campos);
+
+  ['glos','conc'].forEach(kind=>{
+    loadEnts(kind).forEach(g=>{
+      if(!M(g.title,g.body))return;
+      add(kind,{titulo:g.title,texto:g.body,page:g.page,themeId:entThemeId(g),
+                ir:()=>openEntInPanel(kind,g.id)});
+    });
+  });
+
+  loadAclars().forEach(a=>{
+    const t=a.ref||firstWords(a.text,4);
+    if(!M(t,a.text))return;
+    add('aclar',{titulo:t,texto:a.text,page:a.page,themeId:a.themeId||null,
+                 ir:()=>openAclarInPanel(a.id)});
+  });
+
+  loadNodes().forEach(nd=>{
+    if(!M(nd.title,nd.body))return;
+    add('node',{titulo:nd.title,texto:nd.body,page:(nd.pages&&nd.pages[0])||null,
+                themeId:nd.themeId||null,ir:()=>openNodesTab()});
+  });
+
+  loadProc().forEach(p=>{
+    const abrir=()=>{openPanel('proc-panel');refreshProcPanel()};
+    if(M(p.title))add('proc',{titulo:p.title,texto:'',page:null,themeId:p.themeId||null,ir:abrir});
+    (p.steps||[]).forEach(s=>{
+      const cuerpo=s.text||s.desc||'';
+      if(!M(s.title,cuerpo))return;
+      add('proc',{titulo:s.title,texto:cuerpo,page:null,themeId:p.themeId||null,
+                  sub:p.title,ir:abrir});
+    });
+  });
+
+  /* el mapa conceptual es un árbol: se recorre entero, guardando la rama por
+     la que se ha llegado para poder situar el resultado */
+  const walkCmap=(arr,ruta)=>{
+    (arr||[]).forEach(nd=>{
+      if(M(nd.title,nd.desc))
+        add('cmap',{titulo:nd.title,texto:nd.desc,page:nd.page,themeId:null,sub:ruta||'',
+                    ir:()=>{openPanel('cmap-panel');refreshCmapPanel()}});
+      walkCmap(nd.children,(ruta?ruta+' › ':'')+(nd.title||''));
+    });
+  };
+  walkCmap(loadCmap(),'');
+
+  /* notas adhesivas de todas las páginas (van en `annotations`, no en una
+     clave propia de localStorage) */
+  pageOrder.forEach(slot=>{
+    const ann=annotations[slot.pid];
+    if(!ann||!ann.notes)return;
+    ann.notes.forEach(nt=>{
+      if(!M(nt.title,nt.text))return;
+      add('note',{titulo:noteTitle(nt),texto:nt.text,page:slot.pid,themeId:null,
+                  ir:()=>{closePanel('findall-panel');goPage(posOfPid(slot.pid))}});
+    });
+  });
+
+  loadBms().forEach(b=>{
+    if(!M(b.name))return;
+    add('bm',{titulo:b.name,texto:'',page:b.page,themeId:null,
+              ir:()=>{closePanel('findall-panel');goPage(posOfPid(b.page))}});
+  });
+
+  return res;
+}
+
+/* la parte fija (el cuadro de búsqueda) se construye UNA vez: si se
+   reconstruyera en cada tecla perdería el foco, como ya pasó en los otros
+   paneles */
+function ensureFindAllStatic(){
+  const st=document.getElementById('findall-static');
+  if(!st||st.dataset.ready)return;
+  st.dataset.ready='1';
+  st.appendChild(buildPanelSearch('findall',()=>renderFindAllList(),'Escribe qué buscas…'));
+}
+function renderFindAll(){ensureFindAllStatic();renderFindAllList()}
+
+function renderFindAllList(){
+  const box=document.getElementById('findall-body');if(!box)return;
+  box.innerHTML='';
+  const q=(panelSearch.findall||'').trim();
+  if(!q){
+    const em=document.createElement('div');em.className='np-empty';
+    em.textContent='Busca de una vez en definiciones, conclusiones, aclaraciones, notas, nodos, mapa conceptual, procesos y marcadores de este documento.';
+    box.appendChild(em);return;
+  }
+  const res=faCollect(q);
+  if(!res.length){
+    const em=document.createElement('div');em.className='np-empty';
+    em.textContent='Nada coincide con “'+q+'” en tus apuntes de este documento.';
+    box.appendChild(em);return;
+  }
+
+  const cnt=document.createElement('div');cnt.className='ent-count';
+  cnt.textContent=res.length+(res.length===1?' resultado':' resultados');
+  box.appendChild(cnt);
+
+  FA_ORDEN.forEach(tipo=>{
+    const grupo=res.filter(r=>r.tipo===tipo);
+    if(!grupo.length)return;
+    const T=FA_TIPOS[tipo];
+
+    const sec=document.createElement('div');sec.className='fa-sec';
+    const sd=document.createElement('div');sd.className='fa-dot';sd.style.background=T.dot;
+    const sc=document.createElement('span');sc.textContent=grupo.length;
+    sec.append(sd,document.createTextNode(T.label),sc);
+    box.appendChild(sec);
+
+    grupo.forEach(r=>{
+      const it=document.createElement('div');it.className='fa-item';
+      const hd=document.createElement('div');hd.className='fa-hd';
+      const d=document.createElement('div');d.className='fa-dot';d.style.background=T.dot;
+      const t=document.createElement('span');t.className='fa-t';
+      t.textContent=r.titulo||'(sin título)';t.title=r.titulo||'';
+      hd.append(d,t);
+      if(r.page!=null&&posOfPid(r.page)>0){
+        const pg=document.createElement('span');pg.className='fa-pg';
+        pg.textContent='p.'+pageLabel(r.page);hd.appendChild(pg);
+      }
+      it.appendChild(hd);
+
+      const sn=faSnippet(r.texto,q);
+      if(sn){const s=document.createElement('div');s.className='fa-sn';s.textContent=sn;it.appendChild(s)}
+      if(r.sub){
+        const s=document.createElement('div');s.className='fa-sn';
+        s.style.cssText='font-style:italic;color:var(--ink3)';s.textContent='en '+r.sub;
+        it.appendChild(s);
+      }
+      /* la etiqueta de tema solo tiene sentido donde de verdad hay temas */
+      if(tipo==='glos'||tipo==='conc'||tipo==='aclar'||tipo==='node'||tipo==='proc'){
+        const th=r.themeId?themeById(r.themeId):null;
+        const tag=document.createElement('div');tag.className='fa-tag'+(th?'':' none');
+        if(th){tag.style.background=th.color;tag.textContent=(th.num?th.num+' · ':'')+(th.name||'Tema')}
+        else tag.textContent='Sin tema';
+        it.appendChild(tag);
+      }
+      it.onclick=()=>{try{r.ir()}catch(e){showTip('No se ha podido abrir ese resultado')}};
+      box.appendChild(it);
+    });
+  });
+}
+
+document.getElementById('tb-findall').onclick=()=>{
+  openPanel('findall-panel');renderFindAll();
+  setTimeout(()=>{
+    const i=document.querySelector('#findall-static .panel-search input');
+    if(i)i.focus();
+  },90);
+};
+document.querySelector('#findall-panel .sp-close').onclick=()=>closePanel('findall-panel');
+addPanelSwipe('findall-panel');
+
+/* ══════════════════════════════════════════════════════════════════
    PROGRESO DEL DOCUMENTO
    Cuánto llevas trabajado: páginas tocadas, qué has ido creando y cómo se
    reparte por tema. NO guarda nada nuevo: se calcula cada vez a partir de
@@ -7067,7 +7299,7 @@ const notesPanel=document.getElementById('notes-panel');
    ══════════════════════════════════════════════════════════════════ */
 const ALL_PANELS=['notes-panel','summary-panel','bookmarks-panel','thumbs-panel',
                   'proc-panel','glossary-panel','conclusions-panel','aclar-panel','resumen-panel','cmap-panel',
-                  'stats-panel','review-panel'];
+                  'stats-panel','review-panel','findall-panel'];
 function closeAllPanels(except){
   ALL_PANELS.forEach(id=>{
     if(id===except)return;
@@ -9898,7 +10130,7 @@ function moveTheme(themeId,dir){
    estos paneles se repintan enteros: si el estado viviera en el propio
    campo, se perdería en cada repintado.
    Devuelve el elemento ya cableado; el panel decide dónde colocarlo. */
-const panelSearch={glos:'',conc:'',aclar:'',node:''};
+const panelSearch={glos:'',conc:'',aclar:'',node:'',findall:''};
 function buildPanelSearch(key,onChange,placeholder){
   const wrap=document.createElement('div');wrap.className='panel-search';
   const inp=document.createElement('input');
@@ -10367,6 +10599,30 @@ function refreshEntAddThemeSelect(kind){
 
 function renderEnts(kind){ensureEntStatic(kind);refreshEntAddThemeSelect(kind);renderEntsList(kind)}
 
+/* Abre el panel de glosario/conclusiones justo en UNA ficha y la despliega.
+   Lo usa "Buscar en mis apuntes". Mismo criterio que openAclarInPanel: hay
+   que vaciar el buscador del panel y desplegar su grupo de tema, porque si la
+   ficha está filtrada o su tema plegado, la tarjeta no existe en la lista y
+   no habría nada que abrir. */
+function openEntInPanel(kind,id){
+  const g=loadEnts(kind).find(z=>z.id===id);if(!g)return;
+  panelSearch[kind]='';
+  themeGroupOpen[kind+':'+(g.themeId||'')]=true;
+  const panelId=kind==='glos'?'glossary-panel':'conclusions-panel';
+  openPanel(panelId);
+  renderEnts(kind);
+  const inp=document.querySelector('#'+kind+'-ent-static .panel-search input');
+  if(inp)inp.value='';                  // el buscador es fijo: hay que vaciarlo a mano
+  setTimeout(()=>{
+    const card=document.querySelector('#'+kind+'-ent-list .ent-card[data-eid="'+id+'"]');
+    if(!card){showTip('Ábrela desde la lista');return}
+    try{card.scrollIntoView({block:'center',behavior:'smooth'})}catch(_){}
+    const bd=card.querySelector('.ent-body');
+    const hd=card.querySelector('.ent-hd');
+    if(bd&&hd&&!bd.classList.contains('open'))hd.click();
+  },140);
+}
+
 function renderEntsList(kind){
   const K=ENT_KINDS[kind];
   const body=document.getElementById(kind+'-ent-list');
@@ -10450,6 +10706,10 @@ function renderEntsList(kind){
 function buildEntCard(kind,g){
   const K=ENT_KINDS[kind];
   const card=document.createElement('div');card.className='ent-card';
+  /* el id en el DOM es lo que permite que "Buscar en mis apuntes" abra el
+     panel justo en esta ficha (ver openEntInPanel), igual que las
+     aclaraciones con data-aid */
+  card.dataset.eid=g.id;
 
   const hd=document.createElement('div');hd.className='ent-hd';
   const arrow=document.createElement('span');arrow.className='ent-arrow';arrow.textContent='›';
