@@ -1025,6 +1025,30 @@ body.fullscreen #rd-bottom-show{display:none}
 .cmap-link{color:#3a7afe;text-decoration:underline;text-decoration-style:dotted;cursor:pointer}
 .cmap-link:active{opacity:.6}
 #cmap-link-btn{font-size:12.5px}
+/* viñeta de cómic con la ficha entera: se abre justo encima de la palabra
+   enlazada, sin tapar la pantalla como hacía el cuadro centrado de antes.
+   Aquí solo se LEE; para editar está el ojo, que lleva a la ficha en su panel.
+   Por encima de los paneles (600) y de los cuadros (900), porque los enlaces
+   viven dentro del panel del mapa y de las tarjetas de la página. */
+#cmap-bubble{position:fixed;z-index:958;width:min(330px,calc(100vw - 24px));
+  background:var(--card);border:1px solid var(--border);border-radius:14px;
+  padding:11px 13px 12px;box-shadow:0 10px 30px rgba(120,100,140,.30)}
+#cmap-bubble.hidden{display:none}
+#cmap-bubble-hd{display:flex;align-items:center;gap:7px;margin-bottom:7px}
+#cmap-bubble-kind{flex:0 0 auto;display:inline-flex;color:var(--ink3)}
+#cmap-bubble-title{flex:1;min-width:0;font-size:13.5px;font-weight:600;
+  color:var(--ink);line-height:1.3;overflow-wrap:anywhere}
+#cmap-bubble-eye{flex:0 0 auto;width:31px;height:29px;border:none;
+  background:var(--bg2);border-radius:9px;color:var(--ink2);display:inline-flex;
+  align-items:center;justify-content:center;padding:0;cursor:pointer;
+  touch-action:manipulation}
+#cmap-bubble-eye:active{background:var(--acento);transform:scale(.9)}
+#cmap-bubble-body{font-size:13.5px;color:var(--ink2);line-height:1.55;
+  max-height:42vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+/* el pico de la viñeta: un cuadrado girado 45°, tapado a medias por la caja */
+#cmap-bubble-tail{position:absolute;width:12px;height:12px;background:var(--card);
+  border-right:1px solid var(--border);border-bottom:1px solid var(--border);
+  transform:rotate(45deg)}
 /* mapa conceptual plasmado en la página: mismo árbol, solo lectura */
 .cmap-ro-item{margin:2px 0}
 .cmap-ro-hd{display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer}
@@ -1912,16 +1936,17 @@ body.fullscreen #gid-bar{bottom:20px}
   </div>
 </div>
 
-<!-- vista rápida de la ficha vinculada (clic en un enlace del mapa) -->
-<div class="modal-bg hidden" id="modal-cmap-preview">
-  <div class="modal">
-    <h3 id="cmap-preview-title"></h3>
-    <div id="cmap-preview-body" class="rich-content" style="font-size:14px;color:var(--ink2);line-height:1.55;max-height:50vh;overflow-y:auto;margin-bottom:14px"></div>
-    <div class="modal-btns">
-      <button class="mbtn cancel" id="cmap-preview-close">Cerrar</button>
-      <button class="mbtn ok" id="cmap-preview-open">Ver ficha completa</button>
-    </div>
+<!-- vista rápida de la ficha vinculada (clic en un enlace del mapa):
+     viñeta de cómic encima de la palabra, solo lectura, con un ojo que lleva
+     a la ficha de verdad dentro de su panel -->
+<div id="cmap-bubble" class="hidden">
+  <div id="cmap-bubble-hd">
+    <span id="cmap-bubble-kind"></span>
+    <span id="cmap-bubble-title"></span>
+    <button id="cmap-bubble-eye" title="Ver la ficha en su panel"></button>
   </div>
+  <div id="cmap-bubble-body" class="rich-content"></div>
+  <span id="cmap-bubble-tail"></span>
 </div>
 
 <!-- modal de proceso/teoría: título + tema -->
@@ -2204,7 +2229,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v148'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v149'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -9735,8 +9760,9 @@ function buildAclarCard(a){
    solo se lee; se escribe siempre en el panel. Hay que desplegar su grupo de
    tema y limpiar el buscador, porque si la ficha está filtrada u oculta no
    existe en la lista y no habría nada que abrir. */
-function openAclarInPanel(id){
+function openAclarInPanel(id,edit){
   const a=loadAclars().find(z=>z.id===id);if(!a)return;
+  const wantEdit=edit!==false;          // por defecto se edita, como hacía siempre
   panelSearch.aclar='';
   themeGroupOpen['aclar:'+(a.themeId||'')]=true;
   openPanel('aclar-panel');refreshAclarPanel();
@@ -9746,7 +9772,14 @@ function openAclarInPanel(id){
     const card=document.querySelector('#aclar-ent-list .ent-card[data-aid="'+id+'"]');
     if(!card){showTip('Abre la aclaración desde la lista');return}
     try{card.scrollIntoView({block:'center',behavior:'smooth'})}catch(_){}
-    const b=card.querySelector('.nd-btn[data-act="pencil"]');if(b)b.click();
+    if(wantEdit){
+      const b=card.querySelector('.nd-btn[data-act="pencil"]');if(b)b.click();
+    }else{
+      /* solo abrirla para verla (lo hace el ojo de la viñeta): se despliega
+         igual que si la tocaras con el dedo, sin entrar a escribir */
+      const bd=card.querySelector('.ent-body');
+      if(bd&&!bd.classList.contains('open'))card.querySelector('.ent-hd').click();
+    }
   },140);
 }
 
@@ -12422,34 +12455,83 @@ addPanelSwipe('cmap-panel');
 function cmapLinkTarget(kind,ref){
   if(kind==='aclar'){
     const a=loadAclars().find(x=>x.id===ref);
-    return a?{title:a.ref||'Aclaración',body:a.text||''}:null;
+    return a?{title:a.ref||'Aclaración',body:a.text||'',id:a.id}:null;
   }
+  /* el enlace puede guardar el gid (ficha automática) o el id; se devuelve
+     SIEMPRE el id, que es lo que necesita openEntInPanel para encontrarla */
   const it=loadEnts(kind).find(x=>x.gid===ref||x.id===ref);
-  return it?{title:it.title||'(sin título)',body:it.body||''}:null;
+  return it?{title:it.title||'(sin título)',body:it.body||'',id:it.id}:null;
 }
-function cmapOpenLinkedPanel(kind){
-  if(kind==='glos'){openPanel('glossary-panel');autoUpdateEnts('glos').then(()=>renderEnts('glos'))}
-  else if(kind==='conc'){openPanel('conclusions-panel');autoUpdateEnts('conc').then(()=>renderEnts('conc'))}
-  else if(kind==='aclar'){openPanel('aclar-panel');refreshAclarPanel()}
+/* El ojo de la viñeta: abre la ficha CONCRETA dentro de su panel, desplegada
+   y con la lista desplazada hasta ella. Antes solo se abría el panel y había
+   que buscarla a mano. La aclaración se abre SIN entrar a editar (el false):
+   allí ya está su lápiz para quien quiera cambiarla. */
+function cmapOpenLinkedCard(kind,id){
+  if(kind==='aclar')openAclarInPanel(id,false);
+  else openEntInPanel(kind,id);          // el mismo camino que "Buscar en mis apuntes"
 }
-let cmapPreviewKind=null;
-const mCmapPreview=document.getElementById('modal-cmap-preview');
-document.getElementById('cmap-preview-close').onclick=()=>mCmapPreview.classList.add('hidden');
-document.getElementById('cmap-preview-open').onclick=()=>{mCmapPreview.classList.add('hidden');if(cmapPreviewKind)cmapOpenLinkedPanel(cmapPreviewKind)};
-/* delegado a nivel de documento: funciona tanto en el panel como, más
-   adelante, en la tarjeta plasmada en la página (mismo span, mismo click) */
+
+/* ── viñeta de vista rápida ──
+   Se abre justo encima de la palabra enlazada, con la ficha entera en solo
+   lectura. Antes era un cuadro centrado que tapaba la pantalla y su botón
+   llevaba al panel, pero no a la ficha. */
+const cmapBubble=document.getElementById('cmap-bubble');
+const cmapBubbleTail=document.getElementById('cmap-bubble-tail');
+let cmapBubbleTarget=null;                       // {kind,id} de lo que se mira
+function hideCmapBubble(){cmapBubble.classList.add('hidden');cmapBubbleTarget=null}
+/* Coloca la viñeta encima de la palabra; si arriba no cabe, debajo, y el pico
+   cambia de lado. Coordenadas de pantalla (position:fixed): valen igual dentro
+   del panel que sobre el PDF, esté como esté escalada la página. */
+function placeCmapBubble(rect){
+  const bw=cmapBubble.offsetWidth,bh=cmapBubble.offsetHeight;
+  const M=8,GAP=11;
+  let left=rect.left+rect.width/2-bw/2;
+  left=Math.max(M,Math.min(left,innerWidth-bw-M));
+  let top=rect.top-GAP-bh,below=false;
+  if(top<M){top=rect.bottom+GAP;below=true}
+  top=Math.max(M,Math.min(top,innerHeight-bh-M));
+  cmapBubble.style.left=left+'px';cmapBubble.style.top=top+'px';
+  const tx=Math.max(12,Math.min(rect.left+rect.width/2-left-6,bw-24));
+  cmapBubbleTail.style.left=tx+'px';
+  cmapBubbleTail.style.top=below?'-7px':(bh-7)+'px';
+  cmapBubbleTail.style.transform=below?'rotate(225deg)':'rotate(45deg)';
+}
+const cmapBubbleEye=document.getElementById('cmap-bubble-eye');
+cmapBubbleEye.innerHTML=svg('eye');
+cmapBubbleEye.onclick=e=>{
+  e.stopPropagation();
+  const t=cmapBubbleTarget;hideCmapBubble();
+  if(t)cmapOpenLinkedCard(t.kind,t.id);
+};
+/* delegado a nivel de documento: funciona tanto en el panel como en la
+   tarjeta plasmada en la página (mismo span, mismo click) */
 document.addEventListener('click',e=>{
   const link=e.target.closest('.cmap-link');
-  if(!link)return;
+  if(!link){
+    /* un toque en cualquier otro sitio cierra la viñeta (dentro de ella, no:
+       se puede leer y desplazar el texto sin que se cierre) */
+    if(!cmapBubble.classList.contains('hidden')&&!e.target.closest('#cmap-bubble'))hideCmapBubble();
+    return;
+  }
   e.preventDefault();e.stopPropagation();
   const kind=link.dataset.kind,ref=link.dataset.ref;
   const t=cmapLinkTarget(kind,ref);
-  if(!t){showTip('Esa ficha ya no existe (puede que se haya borrado)');return}
-  cmapPreviewKind=kind;
-  document.getElementById('cmap-preview-title').textContent=t.title;
-  document.getElementById('cmap-preview-body').innerHTML=t.body?richHTML(t.body):'(vacío)';
-  mCmapPreview.classList.remove('hidden');
+  if(!t){hideCmapBubble();showTip('Esa ficha ya no existe (puede que se haya borrado)');return}
+  cmapBubbleTarget={kind,id:t.id};
+  document.getElementById('cmap-bubble-kind').innerHTML=svg(LINK_KIND_ICON[kind]||'file');
+  document.getElementById('cmap-bubble-title').textContent=t.title;
+  document.getElementById('cmap-bubble-body').innerHTML=t.body?richHTML(t.body):'(vacío)';
+  cmapBubble.classList.remove('hidden');   // hay que mostrarla para poder medirla
+  placeCmapBubble(link.getBoundingClientRect());
 });
+/* si se mueve lo de debajo, la viñeta ya no apunta a nada: se cierra */
+window.addEventListener('scroll',e=>{
+  if(cmapBubble.classList.contains('hidden'))return;
+  const t=e.target;
+  if(t&&t.closest&&t.closest('#cmap-bubble'))return;   // el propio texto de la viñeta
+  hideCmapBubble();
+},true);
+window.addEventListener('resize',()=>{if(!cmapBubble.classList.contains('hidden'))hideCmapBubble()});
 
 /* selector de ficha: lista agrupada por tipo, elegir una resuelve la promesa */
 let cmapLinkRes=null;
@@ -12875,7 +12957,6 @@ const MODAL_OK={
   'modal-node':'modal-node-ok',          // Crear
   'modal-subnode':'modal-subnode-ok',    // Anadir
   'modal-cmap':'modal-cmap-ok',          // Guardar
-  'modal-cmap-preview':'cmap-preview-open', // Ver ficha completa
   'modal-proc':'modal-proc-ok',          // Guardar
   'modal-proc-step':'modal-proc-step-ok', // Guardar
   'modal-bookmark':'modal-bookmark-ok',  // Guardar
@@ -12899,7 +12980,6 @@ const MODAL_CANCEL={
   'modal-subnode':'modal-subnode-cancel',
   'modal-cmap':'modal-cmap-cancel',
   'modal-cmap-link':'modal-cmap-link-cancel',
-  'modal-cmap-preview':'cmap-preview-close',
   'modal-proc':'modal-proc-cancel',
   'modal-proc-step':'modal-proc-step-cancel',
   'modal-bookmark':'modal-bookmark-cancel',
@@ -12957,6 +13037,14 @@ function isTypingEl(t){
 window.addEventListener('keydown',e=>{
   const k=e.key;
   if(k!=='Enter'&&k!=='Escape')return;
+
+  /* La viñeta de un hipervínculo es lo más de arriba que hay: Escape la cierra
+     a ella primero, sin tocar el panel ni el cuadro que haya debajo. */
+  if(k==='Escape'&&cmapBubble&&!cmapBubble.classList.contains('hidden')){
+    e.preventDefault();e.stopPropagation();
+    if(e.stopImmediatePropagation)e.stopImmediatePropagation();
+    hideCmapBubble();return;
+  }
 
   const t=e.target;
   const typing=isTypingEl(t);
