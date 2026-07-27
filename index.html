@@ -2229,7 +2229,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v150'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v151'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -14587,38 +14587,57 @@ function selRange(){
   const a=selAnchor,b=selFocus;
   return(a.pos<b.pos||(a.pos===b.pos&&a.i<=b.i))?{from:a,to:b}:{from:b,to:a};
 }
-function selEmpty(){const r=selRange();return!r||(r.from.pos===r.to.pos&&r.from.i===r.to.i)}
+/* ── VARIOS TROZOS A LA VEZ (Ctrl) ──
+   Con Ctrl pulsado, cada clic AÑADE en vez de empezar de cero: un clic marca la
+   palabra entera y un arrastre marca el trozo. Volver a pulsar Ctrl sobre una
+   palabra ya marcada la quita. Lo ya marcado vive en selPieces; lo que se está
+   arrastrando ahora sigue siendo selAnchor/selFocus, como siempre. Todo lo que
+   lee la selección (pintar, copiar) pasa por selAllRanges y así no hay dos
+   caminos distintos que puedan descuadrarse. */
+let selPieces=[];        // trozos ya fijados con Ctrl
+let selCtrlAdd=false;    // el arrastre en curso SUMA, no reemplaza
+function selVacioRg(r){return!r||(r.from.pos===r.to.pos&&r.from.i===r.to.i)}
+function selAllRanges(){
+  const out=selPieces.slice();
+  const r=selRange();
+  if(!selVacioRg(r))out.push(r);
+  out.sort((a,b)=>(a.from.pos-b.from.pos)||(a.from.i-b.from.i));
+  return out;
+}
+function selEmpty(){return selAllRanges().length===0}
 function clearSelHl(){pagesInner.querySelectorAll('.sel-hl').forEach(e=>e.remove())}
 function paintTextSel(){
   clearSelHl();
-  const rg=selRange();if(!rg)return;
   /* Solo se pinta lo que se puede ver (y un poco más). Una selección de
      muchas páginas seguidas crearía miles de bandas invisibles y el arrastre
      daría tirones. Al desplazarte se vuelve a pintar (ver el scroll). */
   const cr=canvasWrap.getBoundingClientRect();
   const vTop=cr.top-cr.height, vBot=cr.bottom+cr.height;
-  for(let pos=rg.from.pos;pos<=rg.to.pos;pos++){
-    const slot=pageOrder[pos-1];if(!slot||slot.type!=='pdf')continue;
-    const pid=slot.pid;
-    const wrap=pagesInner.querySelector(`[data-page="${pid}"]`);if(!wrap)continue;
-    const wr=wrap.getBoundingClientRect();
-    if(wr.bottom<vTop||wr.top>vBot)continue;
-    const d=selIdx(pid);
-    if(!d){selNeedText(pid);continue}
-    const a=pos===rg.from.pos?rg.from.i:0;
-    const b=pos===rg.to.pos?rg.to.i:d.idx.txt.length;
-    if(b<=a)continue;
-    findRects(d.items,d.idx,a,b).forEach(r=>{
-      const el=document.createElement('div');el.className='sel-hl';
-      el.style.left=(r.x*scale)+'px';el.style.top=(r.y*scale)+'px';
-      el.style.width=(r.w*scale)+'px';el.style.height=(r.h*scale)+'px';
-      wrap.appendChild(el);
-    });
-  }
+  selAllRanges().forEach(rg=>{
+    for(let pos=rg.from.pos;pos<=rg.to.pos;pos++){
+      const slot=pageOrder[pos-1];if(!slot||slot.type!=='pdf')continue;
+      const pid=slot.pid;
+      const wrap=pagesInner.querySelector(`[data-page="${pid}"]`);if(!wrap)continue;
+      const wr=wrap.getBoundingClientRect();
+      if(wr.bottom<vTop||wr.top>vBot)continue;
+      const d=selIdx(pid);
+      if(!d){selNeedText(pid);continue}
+      const a=pos===rg.from.pos?rg.from.i:0;
+      const b=pos===rg.to.pos?rg.to.i:d.idx.txt.length;
+      if(b<=a)continue;
+      findRects(d.items,d.idx,a,b).forEach(r=>{
+        const el=document.createElement('div');el.className='sel-hl';
+        el.style.left=(r.x*scale)+'px';el.style.top=(r.y*scale)+'px';
+        el.style.width=(r.w*scale)+'px';el.style.height=(r.h*scale)+'px';
+        wrap.appendChild(el);
+      });
+    }
+  });
 }
 function repaintTextSel(){if(!selEmpty())paintTextSel()}
 function clearTextSel(){
   selAnchor=selFocus=selDrag=null;
+  selPieces=[];selCtrlAdd=false;
   clearSelHl();
   selCopyBtn.classList.remove('on');
   if(selEdgeTimer){clearInterval(selEdgeTimer);selEdgeTimer=null}
@@ -14636,18 +14655,26 @@ function selRawText(items,idx,a,b){
   return s;
 }
 async function selGetText(){
-  const rg=selRange();if(!rg)return'';
-  const out=[];
-  for(let pos=rg.from.pos;pos<=rg.to.pos;pos++){
-    const slot=pageOrder[pos-1];
-    if(!slot||slot.type!=='pdf')continue;         // hojas insertadas: sin texto
-    const items=await ensurePageText(slot.pid);
-    const d=selIdx(slot.pid);if(!d)continue;
-    const a=pos===rg.from.pos?rg.from.i:0;
-    const b=pos===rg.to.pos?rg.to.i:d.idx.txt.length;
-    if(b>a)out.push(selRawText(d.items,d.idx,a,b));
+  const rgs=selAllRanges();if(!rgs.length)return'';
+  /* Los trozos marcados con Ctrl salen en el orden en que están en el
+     documento (no en el que se pincharon) y separados por un espacio: así,
+     picoteando palabras sueltas, sale una frase seguida y no una lista. */
+  const trozos=[];
+  for(const rg of rgs){
+    const out=[];
+    for(let pos=rg.from.pos;pos<=rg.to.pos;pos++){
+      const slot=pageOrder[pos-1];
+      if(!slot||slot.type!=='pdf')continue;         // hojas insertadas: sin texto
+      const items=await ensurePageText(slot.pid);
+      const d=selIdx(slot.pid);if(!d)continue;
+      const a=pos===rg.from.pos?rg.from.i:0;
+      const b=pos===rg.to.pos?rg.to.i:d.idx.txt.length;
+      if(b>a)out.push(selRawText(d.items,d.idx,a,b));
+    }
+    const t=out.join('\n').replace(/[ \t]+/g,' ').trim();
+    if(t)trozos.push(t);
   }
-  return out.join('\n').replace(/[ \t]+/g,' ').trim();
+  return trozos.join(' ').trim();
 }
 async function selCopy(){
   const t=await selGetText();
@@ -14678,13 +14705,31 @@ function showSelCopy(cx,cy){
 }
 selCopyBtn.addEventListener('click',()=>selCopy());
 
+/* palabra entera que hay en la posición i (para el Ctrl+clic). El índice del
+   buscador ya separa las palabras con UN espacio, así que los límites de la
+   palabra son el espacio anterior y el siguiente. */
+function selWordAt(pid,pos,i){
+  const d=selIdx(pid);if(!d)return null;
+  const t=d.idx.txt;if(!t.length)return null;
+  let k=Math.max(0,Math.min(i,t.length-1));
+  if(t[k]===' '&&k>0)k--;                 // justo en el hueco: la palabra de antes
+  if(t[k]===' ')return null;              // ahí no hay palabra
+  let a=k;while(a>0&&t[a-1]!==' ')a--;
+  let b=k+1;while(b<t.length&&t[b]!==' ')b++;
+  return{from:{pid,pos,i:a},to:{pid,pos,i:b}};
+}
+
 /* ── arrastre ── */
 function selStart(e,right){
-  clearTextSel();
+  /* con Ctrl (o Cmd) se SUMA a lo ya marcado; sin él, se empieza de cero como
+     siempre. El botón derecho nunca suma: ese gesto es "seleccionar y copiar". */
+  const sumar=!right&&!!(e.ctrlKey||e.metaKey);
+  if(!sumar)clearTextSel();
   const p=selPointAt(e.clientX,e.clientY);
   if(!p)return false;
   selAnchor=p;selFocus={pid:p.pid,pos:p.pos,i:p.i};
   selDrag={id:e.pointerId,right:!!right};selLastXY={x:e.clientX,y:e.clientY};
+  selCtrlAdd=sumar;
   paintTextSel();
   return true;
 }
@@ -14711,8 +14756,26 @@ function selMoveTo(cx,cy){
 function selEnd(cx,cy){
   if(!selDrag)return;
   const conRaton=selDrag.right;
-  selDrag=null;
+  const sumando=selCtrlAdd;
+  selDrag=null;selCtrlAdd=false;
   if(selEdgeTimer){clearInterval(selEdgeTimer);selEdgeTimer=null}
+
+  /* Ctrl: lo que se acaba de marcar pasa a la lista de trozos. Si no se
+     arrastró (fue un clic seco), se toma la PALABRA entera de debajo; y si esa
+     palabra ya estaba marcada, se quita — así el mismo gesto pone y despone. */
+  if(sumando){
+    const rg=selRange();
+    if(selVacioRg(rg)){
+      const q=selAnchor,w=q?selWordAt(q.pid,q.pos,q.i):null;
+      if(w){
+        const k=selPieces.findIndex(p=>p.from.pid===w.from.pid&&p.from.i===w.from.i&&p.to.i===w.to.i);
+        if(k>=0)selPieces.splice(k,1);else selPieces.push(w);
+      }
+    }else selPieces.push(rg);
+    selAnchor=selFocus=null;
+    paintTextSel();
+  }
+
   if(selEmpty()){clearTextSel();return}
   showSelCopy(cx,cy);
   /* SELECCIÓN CON EL BOTÓN DERECHO = COPIAR DIRECTAMENTE.
@@ -14724,11 +14787,12 @@ function selEnd(cx,cy){
   if(conRaton)selCopy();
   /* si la selección cruzó páginas que aún no tenían el texto extraído, se
      pintan en cuanto llegue */
-  const rg=selRange();
-  for(let pos=rg.from.pos;pos<=rg.to.pos;pos++){
-    const slot=pageOrder[pos-1];
-    if(slot&&slot.type==='pdf')selNeedText(slot.pid);
-  }
+  selAllRanges().forEach(rg=>{
+    for(let pos=rg.from.pos;pos<=rg.to.pos;pos++){
+      const slot=pageOrder[pos-1];
+      if(slot&&slot.type==='pdf')selNeedText(slot.pid);
+    }
+  });
 }
 
 /* ── botón derecho mantenido ──
@@ -14781,6 +14845,9 @@ window.addEventListener('pointerdown',e=>{
   if(e.button===2)selRightUsed=false;
   if(selEmpty())return;
   if(selCopyBtn.contains(e.target))return;
+  /* con Ctrl pulsado sobre el documento se están SUMANDO trozos: este clic
+     no puede borrar lo que ya hay marcado */
+  if((e.ctrlKey||e.metaKey)&&canvasWrap.contains(e.target))return;
   clearTextSel();
 },true);
 window.addEventListener('keydown',e=>{
