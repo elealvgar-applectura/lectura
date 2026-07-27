@@ -70,18 +70,22 @@ body.dark{
   --acento:#8E6478;                 /* el mismo rosa, desaturado para la noche */
   --border:#332E3F;--danger:#D97A7A;
   --shadow:0 2px 14px rgba(0,0,0,.4);
-  --pdf-filter:none;                /* el documento se ve igual que de día */
+  /* OJO: aquí NO se declara --pdf-filter. El brillo del papel lo pone el
+     regulador de "Luz y papel" escribiendo la variable en el estilo del
+     propio <body>, y vale igual de día que de noche. Si este bloque la
+     volviera a declarar, de noche pisaría al regulador y la hoja se quedaría
+     siempre a tope de brillo (ya pasó). */
   --ed-bg:#322C41;--ed-ink:#F3F0F8; /* el cuadro de escribir, menos oscuro */
 }
-/* El filtro del documento se deja CABLEADO aunque ahora valga "none" en los
-   dos modos: si algun dia se quisiera volver a oscurecer la hoja, basta con
-   darle valor a --pdf-filter y las tres capas se tratan juntas.
-   Por que las tres a la vez: los subrayados se pintan en .annot-cv copiando el
-   texto desde .pdf-cv (asi consiguen la "negrita" bajo el color). Si solo se
-   tocara el papel, el texto subrayado quedaria distinto del resto. */
-body.dark .pdf-cv,
-body.dark .annot-cv,
-body.dark .thumb-canvas{filter:var(--pdf-filter)}
+/* BRILLO DEL PAPEL. --pdf-filter lo pone el regulador de "Luz y papel", y
+   vale igual de dia que de noche (antes solo se aplicaba en modo oscuro).
+   Es un brightness() a secas, NUNCA un sepia ni un invert: bajar el brillo
+   apaga la hoja como si bajaras una lampara, sin mover ni un grado el tono de
+   los subrayados, que es lo que distingue una definicion de una conclusion.
+   Por que las tres capas a la vez: los subrayados se pintan en .annot-cv
+   copiando el texto desde .pdf-cv (asi consiguen la "negrita" bajo el color).
+   Si solo se tocara el papel, el texto subrayado quedaria distinto del resto. */
+.pdf-cv,.annot-cv,.thumb-canvas{filter:var(--pdf-filter)}
 body.dark input[type=color]{background:var(--bg2)}
 
 /* ══ LUZ CÁLIDA SOBRE EL DOCUMENTO ══
@@ -2012,6 +2016,29 @@ body.fullscreen #gid-bar{bottom:20px}
     </div>
   </div>
 </div>
+<!-- LUZ Y PAPEL: un solo sitio para regular cómo se ve la hoja. Sustituye al
+     interruptor suelto de luz cálida, que se quedaba corto: lo que molesta de
+     noche no es el color del papel, es el brillo. -->
+<div class="modal-bg hidden" id="modal-luz">
+  <div class="modal">
+    <h3>Luz y papel</h3>
+    <p style="font-size:12.5px;color:var(--ink2);margin-bottom:14px;line-height:1.5">
+      Solo cambia cómo <b>se ve</b> el documento en pantalla. No toca el PDF ni tus subrayados,
+      y no sale en lo que exportes.
+    </p>
+    <div class="set-row">
+      <label>Brillo del papel <span id="luz-bright-val">100%</span></label>
+      <input type="range" id="luz-bright" min="45" max="100" value="100" step="5">
+    </div>
+    <div class="set-row" style="flex-direction:row;align-items:center;justify-content:space-between">
+      <label style="margin:0">Luz cálida (papel ámbar)</label>
+      <label class="gswitch"><input type="checkbox" id="luz-warm"><span class="gslider"></span></label>
+    </div>
+    <div class="modal-btns">
+      <button class="mbtn ok" id="luz-close" style="background:var(--acento)">Listo</button>
+    </div>
+  </div>
+</div>
 <div class="modal-bg hidden" id="modal-insert">
   <div class="modal">
     <h3>Insertar página</h3>
@@ -2119,7 +2146,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v138'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v139'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -10116,7 +10143,7 @@ const DOC_KEY_PREFIXES=['lp_order_','lp_margin_','lp_nodes_','lp_embeds_','lp_bm
    de seguridad: hasta ver:5 se quedaban fuera y al restaurar en un iPad nuevo
    las paletas que te habias creado desaparecian sin decir nada. */
 const GLOBAL_KEYS=['lp_custompals','lp_toolcfg','lp_color','lp_boldstrength',
-  'lp_boldbycolor','lp_bartab','lp_panelwin','lp_panelw','lp_dark','lp_warm','lp_gest',
+  'lp_boldbycolor','lp_bartab','lp_panelwin','lp_panelw','lp_dark','lp_warm','lp_paper','lp_gest',
   'lp_bottommin','lp_lastbackup','lp_autocorr','lp_dicc','lp_diccno','lp_richcols'];
 function collectGlobalData(){
   const out={};
@@ -12069,27 +12096,66 @@ function applyDark(){
 }
 document.getElementById('tb-dark').onclick=()=>{darkOn=!darkOn;applyDark()};
 
-/* ══ LUZ CÁLIDA SOBRE EL DOCUMENTO ══
-   Independiente del modo oscuro: se puede tener la app clara con el papel
-   cálido, o la app oscura con el papel blanco, o las dos cosas. Apagado de
-   fábrica (el documento, blanco). Ver el comentario del CSS para saber por
-   qué es una capa y no un filtro sepia. */
-let warmOn=false;
+/* ══════════════════════════════════════════════════════════════════
+   LUZ Y PAPEL
+   ──────────────────────────────────────────────────────────────────
+   Dos ajustes en un mismo sitio, porque van juntos:
+
+   · BRILLO DEL PAPEL (45–100%). Es el importante. Lo que cansa la vista de
+     noche no es el COLOR de la hoja, es el brillo: una hoja blanca sobre una
+     app oscura es una linterna. Bajarlo la apaga como si bajaras una lámpara,
+     y —esto es la clave— NO mueve el tono de nada: el texto sigue negro y
+     cada subrayado conserva su color exacto. Antes se probó a invertir la
+     hoja y a teñirla de ámbar, y las dos cosas estropeaban los colores, que
+     son justo los que distinguen una definición de una conclusión.
+   · LUZ CÁLIDA. La capa ámbar de antes, ahora como una casilla más. El
+     regulador de brillo funciona igual con ella encendida o apagada.
+
+   Los dos son solo de PANTALLA: no tocan el PDF, ni las anotaciones, ni lo
+   que se exporta. Y son de este aparato (se pueden tener distintos en el PC
+   y en el iPad, que es lo suyo: la luz de cada sitio es distinta).
+   ══════════════════════════════════════════════════════════════════ */
+let warmOn=false, paperBright=100;
 try{warmOn=localStorage.getItem('lp_warm')==='1'}catch(e){}
+try{
+  const v=parseInt(localStorage.getItem('lp_paper')||'',10);
+  if(v>=45&&v<=100)paperBright=v;
+}catch(e){}
 function applyWarm(){
   document.body.classList.toggle('warm',warmOn);
+  /* al 100% no se pone ningún filtro: así el navegador ni se molesta en
+     componer las capas, que en el iPad con páginas grandes se nota */
+  /* va en el <body>, no en :root: los lienzos heredan la variable a través
+     del body, y una regla como body.dark la pisaría si estuviera más arriba */
+  document.body.style.setProperty('--pdf-filter',
+    paperBright>=100?'none':('brightness('+(paperBright/100).toFixed(2)+')'));
   const b=document.getElementById('tb-warm');
   if(b){
     b.innerHTML=svg('warm');
-    b.classList.toggle('on',warmOn);
-    b.title=warmOn?'Quitar la luz cálida (documento en blanco)':'Luz cálida sobre el documento';
+    b.classList.toggle('on',warmOn||paperBright<100);
+    b.title='Luz y papel (brillo de la hoja y luz cálida)';
   }
-  try{localStorage.setItem('lp_warm',warmOn?'1':'0')}catch(e){}
+  try{
+    localStorage.setItem('lp_warm',warmOn?'1':'0');
+    localStorage.setItem('lp_paper',String(paperBright));
+  }catch(e){}
 }
-document.getElementById('tb-warm').onclick=()=>{
-  warmOn=!warmOn;applyWarm();
-  showTip(warmOn?'Luz cálida encendida':'Documento en blanco',1400);
-};
+{
+  const mLuz=document.getElementById('modal-luz');
+  const sl=document.getElementById('luz-bright');
+  const val=document.getElementById('luz-bright-val');
+  const sw=document.getElementById('luz-warm');
+  const pinta=()=>{val.textContent=paperBright+'%'};
+  document.getElementById('tb-warm').onclick=()=>{
+    sl.value=paperBright;pinta();
+    sw.checked=warmOn;
+    mLuz.classList.remove('hidden');
+  };
+  /* en vivo mientras se arrastra: es la única forma de encontrar tu punto */
+  sl.addEventListener('input',()=>{paperBright=parseInt(sl.value,10)||100;pinta();applyWarm()});
+  sw.addEventListener('change',()=>{warmOn=sw.checked;applyWarm()});
+  document.getElementById('luz-close').onclick=()=>mLuz.classList.add('hidden');
+}
 applyWarm();
 applyDark();
 
@@ -12281,6 +12347,7 @@ const MODAL_OK={
   'modal-palette':'custom-apply',        // Usar este color (si la pestana Libre esta abierta)
   'modal-insert':'ins-blank',            // Hoja en blanco (la opcion por defecto)
   'modal-settings':'set-close',          // solo cierra: no hay nada que confirmar
+  'modal-luz':'luz-close',               // igual: el brillo se aplica al vuelo
   'modal-margin':'mg-close',
   'modal-gest':'gest-close',
   'modal-dicc':'dicc-close',             // Enter dentro del campo ya anade
@@ -12306,6 +12373,7 @@ const MODAL_CANCEL={
   /* Estos modales solo tienen "Listo"/"Cerrar": no guardan al pulsarlo (los
      ajustes se aplican al vuelo), asi que cerrarlos ES retroceder. */
   'modal-settings':'set-close',
+  'modal-luz':'luz-close',
   'modal-margin':'mg-close',
   'modal-gest':'gest-close',
   'modal-dicc':'dicc-close',
