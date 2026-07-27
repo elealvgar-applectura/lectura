@@ -2146,7 +2146,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v139'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v140'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -3292,17 +3292,22 @@ function tblCabecera(){
    llevaría por delante una tabla que has tardado en rellenar. */
 async function tblBorrarTabla(){
   if(!tblSel)return;
-  const t=tblSel.tabla;
+  /* LA TABLA Y SU CUADRO SE GUARDAN AQUÍ, ANTES DE PREGUNTAR NADA.
+     Esto no es un detalle: al tocar el botón del aviso se suelta la tabla
+     (cualquier toque fuera la deselecciona), así que al volver de la
+     pregunta `tblSel` ya vale null. Leerlo entonces reventaba por dentro y
+     la tabla NO se borraba: parecía que el botón no hacía nada. */
+  const t=tblSel.tabla, ed=tblSel.ed;
   const tieneTexto=(t.textContent||'').trim().length>0;
   if(tieneTexto){
     const ok=await askConfirm('¿Eliminar la tabla entera con todo lo que tiene escrito?',
       {ok:'Eliminar la tabla',cancel:'No, dejarla'});
-    if(!ok)return;
+    /* si dice que no, se vuelve a marcar la tabla: la pregunta la habia soltado */
+    if(!ok){if(t.isConnected&&ed.isConnected)tblSelect(ed,t);return}
   }
-  const ed=tblSel.ed;
   tblDeselect();
   if(t.parentNode)t.parentNode.removeChild(t);
-  ed.focus();
+  if(ed.focus)ed.focus();
 }
 /* mover la tabla un bloque arriba o abajo, igual que las imágenes */
 function tblMover(dir){
@@ -3349,6 +3354,9 @@ document.addEventListener('pointerdown',e=>{
   if(!tblSel)return;
   if(tblBox.contains(e.target)||tblTb.contains(e.target))return;
   if(tblSel.tabla.contains(e.target))return;
+  /* Un cuadro de aviso NO cuenta como "has tocado fuera": si contara, pulsar
+     "¿seguro?" soltaría la tabla justo antes de hacerle nada. */
+  if(e.target&&e.target.closest&&e.target.closest('.modal-bg'))return;
   tblDeselect();
 },true);
 
@@ -3625,6 +3633,8 @@ document.addEventListener('pointerdown',e=>{
   if(!imgSel)return;
   if(imgBox.contains(e.target)||imgTb.contains(e.target))return;
   if(e.target===imgSel.img)return;
+  /* igual que con las tablas: un cuadro de aviso no suelta la imagen */
+  if(e.target&&e.target.closest&&e.target.closest('.modal-bg'))return;
   imgDeselect();
 },true);
 
