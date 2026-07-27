@@ -37,16 +37,29 @@
   --acento:#F5C7D8;
   --border:#F1E7EC;--danger:#E58B8B;
   --r:14px;--shadow:0 2px 12px rgba(120,100,140,.08);
-  --pdf-filter:none;                 /* el PDF no se toca en modo claro */
+  /* el documento NUNCA se toca: ni de día ni de noche (ver MODO OSCURO) */
+  --pdf-filter:none;
+  /* cuadro de escribir: de día, exactamente lo de siempre */
+  --ed-bg:#F5EEF1;--ed-ink:#4A4458;
   --font:'Inter',-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif;
 }
 
 /* ══ MODO OSCURO ══
    No es el claro invertido: los fondos van a un gris-violeta calido (no negro
    puro, que en OLED vibra y cansa de noche) y los pasteles se desaturan para
-   que no quemen sobre fondo oscuro. El PDF se invierte con un filtro que
-   conserva el tono de los subrayados (invert + hue-rotate se cancelan en el
-   color, pero no en el blanco/negro del papel y la tinta). */
+   que no quemen sobre fondo oscuro.
+
+   EL DOCUMENTO NO SE TOCA. Antes el PDF se invertia con un filtro y de noche
+   se leia en negativo: papel negro y letra blanca. Ahora la hoja se queda como
+   es, con sus subrayados y sus colores tal cual, y lo unico que se oscurece
+   son la app y sus herramientas. El motivo: el documento es lo que se estudia
+   y tiene que verse SIEMPRE igual, de dia y de noche; ademas los colores de
+   los subrayados (que significan cosas distintas) cambiaban de aspecto al
+   invertirse y costaba distinguirlos.
+
+   El cuadro de escribir es la excepcion a "todo oscuro": va en un gris mas
+   claro que el resto de la app, para que se distinga como una hoja donde
+   escribir, y con la letra casi blanca. */
 body.dark{
   --bg:#191722;--bg2:#221F2E;--card:#26232F;
   --ink:#E6E1EF;--ink2:#9C95AD;--ink3:#6B6479;
@@ -57,15 +70,15 @@ body.dark{
   --acento:#8E6478;                 /* el mismo rosa, desaturado para la noche */
   --border:#332E3F;--danger:#D97A7A;
   --shadow:0 2px 14px rgba(0,0,0,.4);
-  --pdf-filter:invert(1) hue-rotate(180deg);
+  --pdf-filter:none;                /* el documento se ve igual que de día */
+  --ed-bg:#322C41;--ed-ink:#F3F0F8; /* el cuadro de escribir, menos oscuro */
 }
-/* El PDF y la capa de anotaciones se invierten JUNTOS.
-   Por que las dos: los subrayados se pintan en .annot-cv copiando el texto
-   desde .pdf-cv (asi consiguen la "negrita" bajo el color). Si solo se
-   invirtiera el papel, el texto subrayado quedaria en positivo sobre el resto
-   en negativo. Invirtiendo ambas capas con el mismo filtro, todo queda
-   coherente: papel oscuro, tinta clara, y el subrayado conserva su tono
-   (invert+hue-rotate se compensan en el matiz, no en la luminosidad). */
+/* El filtro del documento se deja CABLEADO aunque ahora valga "none" en los
+   dos modos: si algun dia se quisiera volver a oscurecer la hoja, basta con
+   darle valor a --pdf-filter y las tres capas se tratan juntas.
+   Por que las tres a la vez: los subrayados se pintan en .annot-cv copiando el
+   texto desde .pdf-cv (asi consiguen la "negrita" bajo el color). Si solo se
+   tocara el papel, el texto subrayado quedaria distinto del resto. */
 body.dark .pdf-cv,
 body.dark .annot-cv,
 body.dark .thumb-canvas{filter:var(--pdf-filter)}
@@ -823,7 +836,7 @@ body.fullscreen #rd-bottom-show{display:none}
 /* sin line-height propio: lo pone .rich-content (1,5 por defecto), que va
    antes en la hoja. Si se dejara aquí, ganaría éste por ir después y el
    cuadro de escribir se vería más apretado que el texto ya guardado. */
-.rich-ed{width:100%;min-height:110px;max-height:40vh;overflow-y:auto;background:var(--bg2);border:none;border-radius:12px;color:var(--ink);font-size:16px;padding:12px 14px;outline:none;margin-bottom:12px;font-family:inherit}
+.rich-ed{width:100%;min-height:110px;max-height:40vh;overflow-y:auto;background:var(--ed-bg);border:none;border-radius:12px;color:var(--ed-ink);font-size:16px;padding:12px 14px;outline:none;margin-bottom:12px;font-family:inherit}
 .rich-ed:empty:before{content:attr(data-ph);color:var(--ink3)}
 /* ═══ EDICIÓN EN LÍNEA (dentro del propio panel) ═══
    Antes, editar cualquier ficha abría el modal de abajo, que tapa el
@@ -847,7 +860,10 @@ body.fullscreen #rd-bottom-show{display:none}
   padding:9px;outline:none;font-family:inherit}
 .inline-ed .rich-tb{margin-bottom:6px}
 .inline-ed .rich-tb button,.inline-ed .rich-tb input[type=color]{min-width:28px;height:28px;padding:0 6px}
-.inline-ed .rich-ed{min-height:96px;max-height:44vh;background:var(--card);
+/* el editor en línea (dentro de un panel) usa el MISMO fondo de escribir que
+   los cuadros grandes: si se quedara con var(--card) sería más oscuro que
+   ellos de noche y parecería otra cosa */
+.inline-ed .rich-ed{min-height:96px;max-height:44vh;background:var(--ed-bg);
   border:1px solid var(--border);margin-bottom:8px}
 .inline-ed .rich-ed:focus{border-color:var(--acento)}
 .inline-ed-btns{display:flex;gap:8px}
@@ -2052,7 +2068,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v135'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v136'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
