@@ -2146,7 +2146,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v140'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v141'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -7011,25 +7011,37 @@ function renderNote(nl,nd,num,focus){
   nl.appendChild(note);
   setMode(nd.mode||'text');
 
-  /* drag via header — use PointerEvents to avoid moving the page */
+  /* Arrastrar la nota (con PointerEvents, para no mover la página debajo).
+     Antes solo se cogía por la cabecera. Al ampliar una nota mucho, la
+     cabecera podía quedar fuera de la pantalla y no había de dónde agarrarla,
+     así que ahora también se mueve desde los HUECOS VACÍOS: el propio cuerpo,
+     la fila de colores, la fila Teclado/Lápiz y el marco de la nota.
+     Lo que NO arrastra (a propósito): el título, el texto, la zona de dibujo
+     y los botones, para no estorbar al escribir ni al dibujar con el Pencil.
+     Mismo criterio que las tarjetas plasmadas. */
   let dragOx,dragOy,dragging=false;
-  header.addEventListener('pointerdown',e=>{
-    if(e.target===delEl||e.target===fold||e.target===titleIn)return;
-    dragging=true;header.setPointerCapture(e.pointerId);
-    const nr=note.getBoundingClientRect();
-    dragOx=e.clientX-nr.left;dragOy=e.clientY-nr.top;
-    e.preventDefault();
-  },{passive:false});
-  header.addEventListener('pointermove',e=>{
-    if(!dragging)return;e.preventDefault();
-    const lr=nl.getBoundingClientRect();
-    const nx=e.clientX-lr.left-dragOx,ny=e.clientY-lr.top-dragOy;
-    note.style.left=Math.max(0,nx)+'px';note.style.top=Math.max(0,ny)+'px';
-    nd.x=nx/scale;nd.y=ny/scale;
-    const ann=annotations[num];if(ann){const x=ann.notes.find(n=>n.id===nd.id);if(x){x.x=nd.x;x.y=nd.y}}
-  },{passive:false});
-  header.addEventListener('pointerup',()=>{if(dragging){dragging=false;scheduleSave()}});
-  header.addEventListener('pointercancel',()=>{dragging=false});
+  const dragFrom=(el,ok)=>{
+    el.addEventListener('pointerdown',e=>{
+      if(!ok(e))return;
+      dragging=true;el.setPointerCapture(e.pointerId);
+      const nr=note.getBoundingClientRect();
+      dragOx=e.clientX-nr.left;dragOy=e.clientY-nr.top;
+      e.preventDefault();
+    },{passive:false});
+    el.addEventListener('pointermove',e=>{
+      if(!dragging)return;e.preventDefault();
+      const lr=nl.getBoundingClientRect();
+      const nx=e.clientX-lr.left-dragOx,ny=e.clientY-lr.top-dragOy;
+      note.style.left=Math.max(0,nx)+'px';note.style.top=Math.max(0,ny)+'px';
+      nd.x=nx/scale;nd.y=ny/scale;
+      const ann=annotations[num];if(ann){const x=ann.notes.find(n=>n.id===nd.id);if(x){x.x=nd.x;x.y=nd.y}}
+    },{passive:false});
+    el.addEventListener('pointerup',()=>{if(dragging){dragging=false;scheduleSave()}});
+    el.addEventListener('pointercancel',()=>{dragging=false});
+  };
+  dragFrom(header,e=>!(e.target===delEl||e.target===fold||e.target===titleIn));
+  dragFrom(body,e=>e.target===body||e.target===modeRow||e.target===colRow);
+  dragFrom(note,e=>e.target===note);
   if(focus)setTimeout(()=>titleIn.focus(),80);
 }
 
@@ -9682,24 +9694,32 @@ function renderAclar(nl,a,num){
     mk.remove();bub.remove();scheduleAnchors();refreshAclarPanelIfOpen();
   });
 
-  /* arrastrar la viñeta por la cabecera (persistir solo al soltar) */
+  /* Arrastrar la viñeta: por la cabecera y también por los huecos vacíos (el
+     borde del cuerpo y el marco), igual que las notas y las tarjetas
+     plasmadas. El texto NO arrastra: ahí se lee, se selecciona y se desplaza.
+     Se guarda solo al soltar. */
   let dg=false,ox,oy;
-  head.addEventListener('pointerdown',e=>{
-    if(e.target.closest&&e.target.closest('.ac-close,.ac-del,.ac-edit'))return;
-    dg=true;head.setPointerCapture(e.pointerId);
-    const r=bub.getBoundingClientRect();ox=e.clientX-r.left;oy=e.clientY-r.top;e.preventDefault();
-  },{passive:false});
-  head.addEventListener('pointermove',e=>{
-    if(!dg)return;e.preventDefault();
-    const lr=nl.getBoundingClientRect(),br=bub.getBoundingClientRect();
-    /* no dejamos que la viñeta se salga de la página, para que el asa de
-       ampliar de la esquina siempre quede alcanzable */
-    const maxX=Math.max(0,lr.width-br.width),maxY=Math.max(0,lr.height-br.height);
-    const nx=Math.min(maxX,Math.max(0,e.clientX-lr.left-ox)),ny=Math.min(maxY,Math.max(0,e.clientY-lr.top-oy));
-    bub.style.left=nx+'px';bub.style.top=ny+'px';a.bx=nx/scale;a.by=ny/scale;
-  },{passive:false});
-  head.addEventListener('pointerup',()=>{if(dg){dg=false;patchAclar(a.id,{bx:a.bx,by:a.by})}});
-  head.addEventListener('pointercancel',()=>{dg=false});
+  const dragFrom=(el,ok)=>{
+    el.addEventListener('pointerdown',e=>{
+      if(!ok(e))return;
+      dg=true;el.setPointerCapture(e.pointerId);
+      const r=bub.getBoundingClientRect();ox=e.clientX-r.left;oy=e.clientY-r.top;e.preventDefault();
+    },{passive:false});
+    el.addEventListener('pointermove',e=>{
+      if(!dg)return;e.preventDefault();
+      const lr=nl.getBoundingClientRect(),br=bub.getBoundingClientRect();
+      /* no dejamos que la viñeta se salga de la página, para que el asa de
+         ampliar de la esquina siempre quede alcanzable */
+      const maxX=Math.max(0,lr.width-br.width),maxY=Math.max(0,lr.height-br.height);
+      const nx=Math.min(maxX,Math.max(0,e.clientX-lr.left-ox)),ny=Math.min(maxY,Math.max(0,e.clientY-lr.top-oy));
+      bub.style.left=nx+'px';bub.style.top=ny+'px';a.bx=nx/scale;a.by=ny/scale;
+    },{passive:false});
+    el.addEventListener('pointerup',()=>{if(dg){dg=false;patchAclar(a.id,{bx:a.bx,by:a.by})}});
+    el.addEventListener('pointercancel',()=>{dg=false});
+  };
+  dragFrom(head,e=>!(e.target.closest&&e.target.closest('.ac-close,.ac-del,.ac-edit')));
+  dragFrom(body,e=>e.target===body);
+  dragFrom(bub,e=>e.target===bub);
 
   /* ampliar por la esquina (persistir solo al soltar) */
   let rzing=false,rx,ry,rw,rh;
