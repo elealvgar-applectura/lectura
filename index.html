@@ -346,6 +346,10 @@ body.panel-dragging #reader-bottom{transition:none}
    taparía el lápiz y el desplazamiento de la página. */
 .sel-hl{position:absolute;pointer-events:none;border-radius:2px;z-index:5;
   background:var(--rosa-band)}
+/* varios trozos marcados a la vez DENTRO de una ficha. El navegador solo deja
+   tener un trozo seleccionado de verdad, así que los demás se pintan con esto
+   (::highlight), que no toca ni una letra del texto escrito. */
+::highlight(lp-multi){background-color:var(--rosa-band)}
 /* pastilla flotante para copiar lo seleccionado (en el iPad no hay Ctrl+C) */
 #sel-copy{position:fixed;z-index:900;display:none;align-items:center;gap:7px;
   background:var(--card);border:1px solid var(--border);border-radius:12px;
@@ -2233,7 +2237,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v153'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v154'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2692,8 +2696,19 @@ let richLastCols={fore:'#B03A48',hilite:'#FFF0A6'};
 try{const s=JSON.parse(localStorage.getItem('lp_richcols')||'null');if(s)richLastCols=Object.assign(richLastCols,s)}catch(e){}
 function richSaveCols(){try{localStorage.setItem('lp_richcols',JSON.stringify(richLastCols))}catch(e){}}
 
-/* ejecuta un comando de formato del navegador sobre el cuadro que tiene el foco */
+/* ejecuta un comando de formato del navegador sobre el cuadro que tiene el foco.
+   Si hay varios trozos marcados con Ctrl (ver VARIOS TROZOS A LA VEZ), el
+   formato se aplica a TODOS. Solo los formatos de letra: los de párrafo
+   (listas, sangrías, insertar) siguen yendo al cursor de siempre, porque
+   repetirlos trozo a trozo no significa nada. */
+const MULTI_CMDS={bold:1,italic:1,underline:1,strikeThrough:1,foreColor:1,hiliteColor:1};
 function richRun(cmd,val){
+  if(MULTI_CMDS[cmd]&&mrPieces.length&&mrEd&&mrEd.isConnected){
+    if(mrRunOnPieces(cmd,val))return;
+  }
+  richRunDirecto(cmd,val);
+}
+function richRunDirecto(cmd,val){
   /* styleWithCSS: sin esto, el resaltado y los márgenes se hacen con
      etiquetas antiguas (<font>, <blockquote>) que se ven distinto en el iPad.
      Con esto se hacen con estilos normales, iguales en todas partes. */
@@ -3884,10 +3899,13 @@ function pintaSelFmt(){
     b.classList.toggle('on',on);
   });
 }
-function posSelFmt(){
-  const s=window.getSelection();
-  if(!s||!s.rangeCount){hideSelFmt();return}
-  const r=s.getRangeAt(0).getBoundingClientRect();
+function posSelFmt(rect){
+  let r=rect;
+  if(!r){
+    const s=window.getSelection();
+    if(!s||!s.rangeCount){hideSelFmt();return}
+    r=s.getRangeAt(0).getBoundingClientRect();
+  }
   if(!r||(!r.width&&!r.height)){hideSelFmt();return}
   const w=selFmt.offsetWidth,h=selFmt.offsetHeight;
   let top=r.top-h-8;
@@ -3897,6 +3915,13 @@ function posSelFmt(){
 }
 function actualizaSelFmt(){
   const ed=richEdActivo();
+  /* con varios trozos marcados la barrita se queda puesta aunque el cursor
+     esté "sin nada seleccionado": lo que se va a formatear son los trozos */
+  if(ed&&mrEd===ed&&mrPieces.length){
+    selFmtEd=ed;selFmt.classList.remove('hidden');
+    pintaSelFmt();posSelFmt(mrLastRect());
+    return;
+  }
   const s=window.getSelection();
   if(!ed||!s||!s.rangeCount||s.isCollapsed||!ed.contains(s.anchorNode)){hideSelFmt();return}
   selFmtEd=ed;
@@ -3912,6 +3937,188 @@ document.addEventListener('pointerdown',e=>{
 },true);
 addEventListener('scroll',()=>{if(!selFmt.classList.contains('hidden'))posSelFmt()},true);
 addEventListener('resize',()=>{if(!selFmt.classList.contains('hidden'))posSelFmt()});
+
+/* ══════════════════════════════════════════════════════════════════
+   VARIOS TROZOS A LA VEZ DENTRO DE UNA FICHA (Ctrl+clic)
+
+   El problema: el navegador (Chrome y Safari) solo deja tener UN trozo de
+   texto seleccionado dentro de un cuadro de escritura. Por eso, al pinchar la
+   segunda palabra, la primera se soltaba. No es un fallo que se pueda
+   arreglar: es como funciona el navegador.
+
+   Lo que se hace: llevamos la cuenta nosotros. Cada trozo se guarda como
+   "de la letra 12 a la 18" contando las letras del cuadro, NO como un trozo
+   de HTML. Es la parte importante: dar negrita cambia las etiquetas de
+   dentro, pero NO cambia ni una letra, así que esas cuentas siguen valiendo
+   después de formatear y se pueden encadenar varios formatos seguidos.
+
+   Se pintan con ::highlight, que es un pintado por encima: no mete ni una
+   etiqueta en tu texto. Si el navegador fuera muy viejo y no lo tuviera, se
+   avisa y no se marca nada, en vez de inventar algo que ensucie las fichas.
+
+   Se sueltan solos en cuanto ESCRIBES (las cuentas dejarían de valer y se
+   formatearía donde no toca) y con un clic normal o Escape.
+   ══════════════════════════════════════════════════════════════════ */
+let mrEd=null;                       // cuadro donde se está marcando
+let mrPieces=[];                     // [{a,b}] en número de letra dentro del cuadro
+const mrSoportado=()=>!!(window.CSS&&CSS.highlights&&window.Highlight);
+
+/* letra nº X del cuadro → punto exacto del texto (y al revés) */
+function mrTextNodes(ed){
+  const out=[],w=document.createTreeWalker(ed,NodeFilter.SHOW_TEXT,null);
+  let n;while(n=w.nextNode())out.push(n);
+  return out;
+}
+function mrRangeFrom(ed,a,b){
+  const nodes=mrTextNodes(ed);
+  let acc=0,puesto=false;const r=document.createRange();
+  for(const n of nodes){
+    const len=n.nodeValue.length;
+    if(!puesto&&a<=acc+len){r.setStart(n,Math.max(0,a-acc));puesto=true}
+    if(puesto&&b<=acc+len){r.setEnd(n,Math.max(0,b-acc));return r}
+    acc+=len;
+  }
+  if(puesto&&nodes.length){const u=nodes[nodes.length-1];r.setEnd(u,u.nodeValue.length);return r}
+  return null;
+}
+/* cuántas letras hay en el cuadro antes de este punto */
+function mrOffsetDe(ed,cont,off){
+  try{
+    const pre=document.createRange();
+    pre.selectNodeContents(ed);
+    pre.setEnd(cont,off);
+    return pre.toString().length;
+  }catch(e){return null}
+}
+function mrLastRect(){
+  if(!mrEd||!mrPieces.length)return null;
+  const p=mrPieces[mrPieces.length-1];
+  const r=mrRangeFrom(mrEd,p.a,p.b);
+  return r?r.getBoundingClientRect():null;
+}
+function mrPaint(){
+  if(!mrSoportado())return;
+  try{CSS.highlights.delete('lp-multi')}catch(e){}
+  if(!mrEd||!mrEd.isConnected||!mrPieces.length)return;
+  const hl=new Highlight();
+  mrPieces.forEach(p=>{const r=mrRangeFrom(mrEd,p.a,p.b);if(r)hl.add(r)});
+  try{CSS.highlights.set('lp-multi',hl)}catch(e){}
+}
+function mrClear(){
+  if(!mrEd&&!mrPieces.length)return;
+  mrEd=null;mrPieces=[];
+  if(mrSoportado()){try{CSS.highlights.delete('lp-multi')}catch(e){}}
+}
+/* la palabra que hay bajo el dedo/ratón, dentro del cuadro */
+function mrWordAtPoint(ed,x,y){
+  let cont=null,off=0;
+  if(document.caretRangeFromPoint){
+    const cr=document.caretRangeFromPoint(x,y);
+    if(cr){cont=cr.startContainer;off=cr.startOffset}
+  }else if(document.caretPositionFromPoint){
+    const cp=document.caretPositionFromPoint(x,y);
+    if(cp){cont=cp.offsetNode;off=cp.offset}
+  }
+  if(!cont||!ed.contains(cont))return null;
+  if(cont.nodeType!==3)return null;              // no ha caído en texto
+  const t=cont.nodeValue||'';
+  const esLetra=c=>c&&/[^\s.,;:()¿?¡!"«»…]/.test(c);
+  let k=Math.min(off,t.length-1);
+  if(k<0)return null;
+  if(!esLetra(t[k])&&k>0)k--;                    // en el hueco: la palabra de antes
+  if(!esLetra(t[k]))return null;
+  let a=k;while(a>0&&esLetra(t[a-1]))a--;
+  let b=k+1;while(b<t.length&&esLetra(t[b]))b++;
+  const ga=mrOffsetDe(ed,cont,a),gb=mrOffsetDe(ed,cont,b);
+  return(ga==null||gb==null||gb<=ga)?null:{a:ga,b:gb};
+}
+function mrAdd(pieza){
+  if(!pieza)return;
+  const k=mrPieces.findIndex(p=>p.a===pieza.a&&p.b===pieza.b);
+  if(k>=0)mrPieces.splice(k,1);                  // ya estaba: se quita
+  else{
+    /* si se solapa con uno anterior se funden, para no formatear dos veces
+       lo mismo (dar negrita dos veces la quitaría) */
+    mrPieces=mrPieces.filter(p=>{
+      if(pieza.a<p.b&&p.a<pieza.b){pieza.a=Math.min(pieza.a,p.a);pieza.b=Math.max(pieza.b,p.b);return false}
+      return true;
+    });
+    mrPieces.push(pieza);
+  }
+  mrPieces.sort((x,y)=>x.a-y.a);
+}
+/* ── el gesto ── */
+document.addEventListener('pointerup',e=>{
+  const ed=e.target&&e.target.closest?e.target.closest('.rich-ed'):null;
+  if(!ed)return;
+  if(!(e.ctrlKey||e.metaKey)){                   // clic normal: se suelta todo
+    if(mrPieces.length){mrClear();setTimeout(actualizaSelFmt,0)}
+    return;
+  }
+  if(!mrSoportado()){showTip('Este navegador no puede marcar varios trozos a la vez',2200);return}
+  if(mrEd&&mrEd!==ed)mrClear();
+  mrEd=ed;
+  const s=window.getSelection();
+  let pieza=null;
+  /* arrastrando con Ctrl se marca lo arrastrado; con un clic seco, la palabra */
+  if(s&&s.rangeCount&&!s.isCollapsed&&ed.contains(s.anchorNode)){
+    const r=s.getRangeAt(0);
+    const a=mrOffsetDe(ed,r.startContainer,r.startOffset);
+    const b=mrOffsetDe(ed,r.endContainer,r.endOffset);
+    if(a!=null&&b!=null&&b>a)pieza={a,b};
+    s.removeAllRanges();                          // el pintado lo llevamos nosotros
+  }
+  if(!pieza)pieza=mrWordAtPoint(ed,e.clientX,e.clientY);
+  if(!pieza){showTip('Ahí no hay ninguna palabra');return}
+  mrAdd(pieza);mrPaint();
+  const n=mrPieces.length;
+  showTip(n?(n===1?'1 trozo marcado':n+' trozos marcados'):'Trozo quitado',1300);
+  setTimeout(actualizaSelFmt,0);
+},true);
+/* al escribir, las cuentas dejan de valer: se sueltan los trozos. OJO: dar
+   formato también avisa de "he escrito", así que mientras somos NOSOTROS los
+   que formateamos no hay que soltar nada (mrAplicando). */
+let mrAplicando=false;
+document.addEventListener('input',()=>{if(!mrAplicando&&mrPieces.length)mrClear()},true);
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&mrPieces.length){mrClear();setTimeout(actualizaSelFmt,0);return}
+  /* Ctrl+C con varios trozos marcados: el navegador no copiaría nada (para él
+     no hay nada seleccionado), así que se copia a mano, en orden y separados
+     por un espacio, igual que en el PDF */
+  if(!(e.ctrlKey||e.metaKey))return;
+  if(e.key!=='c'&&e.key!=='C')return;
+  if(!mrPieces.length||!mrEd||!mrEd.isConnected)return;
+  const txt=mrPieces.map(p=>{const r=mrRangeFrom(mrEd,p.a,p.b);return r?r.toString().trim():''})
+    .filter(Boolean).join(' ');
+  if(!txt)return;
+  e.preventDefault();
+  navigator.clipboard.writeText(txt).then(()=>showTip('Copiado')).catch(()=>showTip('No he podido copiar'));
+},true);
+
+/* Aplica un formato a TODOS los trozos marcados. Se va de atrás hacia
+   delante: así, aunque el navegador reordene las etiquetas al formatear, los
+   trozos que quedan por hacer siguen estando donde decían sus cuentas. */
+function mrRunOnPieces(cmd,val){
+  const ed=mrEd,piezas=mrPieces.slice().sort((a,b)=>a.a-b.a);
+  if(!ed||!ed.isConnected||!piezas.length)return false;
+  const s=window.getSelection();
+  ed.focus();
+  mrAplicando=true;
+  try{
+    for(let i=piezas.length-1;i>=0;i--){
+      const r=mrRangeFrom(ed,piezas[i].a,piezas[i].b);
+      if(!r)continue;
+      s.removeAllRanges();s.addRange(r);
+      richRunDirecto(cmd,val);
+    }
+  }finally{
+    mrAplicando=false;
+  }
+  s.removeAllRanges();
+  mrPaint();                        // los trozos siguen marcados: se repintan
+  setTimeout(actualizaSelFmt,0);
+  return true;
+}
 
 /* conecta una barra de formato a un área editable */
 function wireRichToolbar(tb,ed){
