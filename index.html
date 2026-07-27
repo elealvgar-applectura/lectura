@@ -2204,7 +2204,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v146'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v147'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -13422,9 +13422,12 @@ function acCase(orig,rep){
     return rep.charAt(0).toUpperCase()+rep.slice(1);
   return rep;
 }
-/* Que clase de cuadro de texto es (o null si no hay que tocarlo) */
-function acKind(el){
-  if(!el||!acOn)return null;
+/* Que clase de cuadro de texto es (o null si no hay que tocarlo).
+   Va aparte de acKind porque la flecha automatica (-> se convierte en →) usa
+   los MISMOS cuadros pero NO depende del interruptor del autocorrector: son
+   dos cosas distintas y se apagan por separado. */
+function campoTexto(el){
+  if(!el)return null;
   if(el.getAttribute&&(el.getAttribute('autocorrect')||'').toLowerCase()==='off')return null;
   if(el.closest&&el.closest('[data-noac]'))return null;
   const tag=(el.tagName||'').toUpperCase();
@@ -13433,6 +13436,7 @@ function acKind(el){
   if(el.isContentEditable)return 'rich';
   return null;
 }
+function acKind(el){return acOn?campoTexto(el):null}
 /* La palabra que acaba justo antes del cursor (o null) */
 function acWordAt(text,pos){
   if(pos<=0||!AC_LET.test(text.charAt(pos-1)))return null;
@@ -13651,6 +13655,43 @@ document.addEventListener('beforeinput',e=>{
      que impedir el separador que iba a poner el navegador (si no, saldria dos
      veces). Solo se impide cuando de verdad hay correccion. */
   if(acCorrect(e.target,kind,d))e.preventDefault();
+},true);
+
+/* ══════════════════════════════════════════════════════════════════
+   LA FLECHA AUTOMATICA:  ->  se convierte en  →
+
+   Funciona en TODOS los cuadros de escribir de la app (fichas con formato,
+   notas, titulos...), los mismos que usa el autocorrector, pero NO depende de
+   su interruptor: son dos cosas distintas.
+
+   Se escucha 'beforeinput' y no las teclas por el mismo motivo que el
+   autocorrector: el teclado en pantalla del iPad no manda teclas fiables,
+   pero este evento si dice exactamente que se va a escribir.
+
+   Cuando se va a escribir un ">" y justo antes hay un "-", se impide el ">"
+   y se cambia el "-" por la flecha. Como se hace con execCommand, un Ctrl+Z
+   lo deshace: si alguna vez quieres el "->" literal, se recupera al momento.
+   ══════════════════════════════════════════════════════════════════ */
+document.addEventListener('beforeinput',e=>{
+  if(acBusy||!e.cancelable)return;
+  if(e.inputType!=='insertText'||e.data!=='>')return;
+  const el=e.target, kind=campoTexto(el);
+  if(!kind)return;
+  if(kind==='val'){
+    const pos=el.selectionStart;
+    if(pos==null||pos!==el.selectionEnd||pos<1)return;   // hay algo seleccionado: no tocar
+    if(el.value.charAt(pos-1)!=='-')return;
+    e.preventDefault();
+    acBusy=true;try{acPutVal(el,pos-1,pos,'→')}finally{acBusy=false}
+  }else{
+    const sel=window.getSelection();
+    if(!sel||!sel.rangeCount||!sel.isCollapsed)return;
+    const node=sel.anchorNode, off=sel.anchorOffset;
+    if(!node||node.nodeType!==3||off<1)return;
+    if((node.nodeValue||'').charAt(off-1)!=='-')return;
+    e.preventDefault();
+    acBusy=true;try{acPutRich(el,node,off-1,off,'→')}finally{acBusy=false}
+  }
 },true);
 
 /* Enter va aparte: se corrige la palabra y se deja que el Enter siga su
