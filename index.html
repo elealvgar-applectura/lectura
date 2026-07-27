@@ -2229,7 +2229,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v149'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v150'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -4153,6 +4153,9 @@ function askEmbedEdit(title,text,opts){return new Promise(r=>{
    tener que acordarse de tocar dos sitios.
    ══════════════════════════════════════════════════════════════════ */
 let closeInlineEdit=null;   // cierra el editor en línea abierto, si lo hay
+/* dice si el editor en línea abierto tiene algo escrito sin guardar. Lo usa el
+   aviso de cierre de la ventana (ver AVISO AL CERRAR LA VENTANA). */
+let inlineEdDirty=null;
 
 /* {panelId, filtro} mientras el GESTOR DE TEMAS ocupa el cuerpo de un panel.
    Se declara aquí arriba, y no junto a openThemesInPanel, porque closePanel
@@ -4244,7 +4247,7 @@ function askInlineEdit(host,title,text,opts){return new Promise(res=>{
   let done=false;
   const finish=v=>{
     if(done)return;done=true;
-    closeInlineEdit=null;
+    closeInlineEdit=null;inlineEdDirty=null;
     box.remove();
     prev.forEach(c=>{c.style.display=c.dataset.ieDisp||'';delete c.dataset.ieDisp});
     res(v);
@@ -4265,6 +4268,7 @@ function askInlineEdit(host,title,text,opts){return new Promise(res=>{
     return false;
   };
   closeInlineEdit=salir;
+  inlineEdDirty=()=>!done&&foto()!==foto0;
 
   bCan.onclick=e=>{e.stopPropagation();salir()};
   bOk.onclick=e=>{
@@ -4354,6 +4358,36 @@ DIRTY_EDS.forEach(cfg=>{
       cfg.saltar=true;b.click();cfg.saltar=false;
     });
   },true);
+});
+
+/* ══════════════════════════════════════════════════════════════════
+   AVISO AL CERRAR LA VENTANA
+
+   Pasó de verdad: escribiendo una ficha, un Ctrl+W sin querer cerró la
+   pestaña y se perdió todo lo escrito. Los atajos del navegador (Ctrl+W,
+   Ctrl+Shift+W, la X de la ventana) NO se pueden desactivar desde una página
+   web: el navegador no deja. Lo único que sí se puede es esto: pedirle al
+   navegador que pregunte "¿Seguro que quieres salir?" antes de cerrar.
+
+   Solo se pregunta si hay algo QUE PERDER (un editor abierto con texto
+   cambiado). Todo lo demás — subrayados, notas, fichas guardadas — ya está
+   escrito en el disco, así que preguntar siempre sería marear para nada.
+
+   El texto del aviso lo pone el navegador y no se puede cambiar; por eso
+   basta con marcar el evento.
+   ══════════════════════════════════════════════════════════════════ */
+function hayTextoSinGuardar(){
+  try{if(inlineEdDirty&&inlineEdDirty())return true}catch(e){}
+  for(const cfg of DIRTY_EDS){
+    if(!cfg.abierto||cfg.snap===undefined)continue;
+    try{if(edSnap(cfg.f)!==cfg.snap)return true}catch(e){}
+  }
+  return false;
+}
+window.addEventListener('beforeunload',e=>{
+  if(!hayTextoSinGuardar())return;
+  e.preventDefault();
+  e.returnValue='';        // los navegadores viejos piden esto para preguntar
 });
 
 /* selector de tema → devuelve id de tema, o null si "sin tema" */
