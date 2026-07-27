@@ -2204,7 +2204,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v147'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v148'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2614,9 +2614,9 @@ function richToPlain(html){
    de saber si la negrita estaba activa.
    ══════════════════════════════════════════════════════════════════ */
 const RICH_TB_HTML=`
-<button type="button" data-cmd="bold" title="Negrita (Ctrl+B)"><b>B</b></button>
-<button type="button" data-cmd="italic" title="Cursiva (Ctrl+I)"><i>I</i></button>
-<button type="button" data-cmd="underline" title="Subrayado (Ctrl+U)"><u>U</u></button>
+<button type="button" data-cmd="bold" title="Negrita (Ctrl+E o Ctrl+B)"><b>B</b></button>
+<button type="button" data-cmd="italic" title="Cursiva (Ctrl+D o Ctrl+I)"><i>I</i></button>
+<button type="button" data-cmd="underline" title="Subrayado (Ctrl+S o Ctrl+U)"><u>U</u></button>
 <button type="button" data-cmd="strikeThrough" title="Tachado"><s>S</s></button>
 <button type="button" data-cmd="subscript" title="Subíndice (H₂O)">x<sub>2</sub></button>
 <button type="button" data-cmd="superscript" title="Superíndice (m²)">x<sup>2</sup></button>
@@ -3789,16 +3789,15 @@ document.addEventListener('selectionchange',()=>{
    Dos formas de aplicar lo mismo, para no tener que subir a la barra de
    arriba cada vez:
 
-   1. ATAJOS. Los de Word en español: Ctrl+N negrita, Ctrl+D cursiva,
-      Ctrl+S subrayado. Siguen valiendo los de siempre (Ctrl+B/I/U), que
-      los pone el navegador solo.
+   1. ATAJOS: Ctrl+E negrita, Ctrl+D cursiva, Ctrl+S subrayado. Siguen
+      valiendo los de siempre (Ctrl+B/I/U), que los pone el navegador solo.
 
-      AVISO SOBRE Ctrl+N: esa combinación se la queda el NAVEGADOR para
-      abrir una ventana nueva, y una página web no puede impedírselo. Aquí
-      se intenta igualmente (en la app instalada en el iPad sí suele
-      llegar), pero si en el PC te abre una ventana en vez de poner
-      negrita, no es un fallo de la app: usa Ctrl+B, que hace lo mismo.
-      Ctrl+D y Ctrl+S sí se pueden interceptar, y se interceptan.
+      POR QUÉ ESAS TRES Y NO LAS DE WORD. En Word español la negrita es
+      Ctrl+N, pero esa combinación se la queda el NAVEGADOR para abrir una
+      ventana nueva y una página web no puede impedírselo: en el PC abría
+      una ventana en vez de poner negrita. Ctrl+E, Ctrl+D y Ctrl+S sí se
+      pueden interceptar, y se interceptan. Ctrl+A se descartó a propósito:
+      es "seleccionar todo" y hace falta.
 
       Solo actúan DENTRO de un cuadro de escribir con formato. Fuera de
       ahí no se toca nada del teclado: Ctrl+S sigue siendo "guardar
@@ -3815,7 +3814,7 @@ function richEdActivo(){
   if(!a||!a.isContentEditable)return null;
   return richWired.some(w=>w.ed===a)?a:null;
 }
-const RICH_ATAJOS={n:'bold',d:'italic',s:'underline'};
+const RICH_ATAJOS={e:'bold',d:'italic',s:'underline'};
 window.addEventListener('keydown',e=>{
   if(!(e.ctrlKey||e.metaKey)||e.altKey||e.shiftKey)return;
   const cmd=RICH_ATAJOS[(e.key||'').toLowerCase()];
@@ -3831,7 +3830,7 @@ window.addEventListener('keydown',e=>{
 const selFmt=document.createElement('div');
 selFmt.id='sel-fmt';selFmt.className='hidden';
 selFmt.innerHTML=
-  '<button type="button" data-c="bold" title="Negrita (Ctrl+N)"><b>N</b></button>'+
+  '<button type="button" data-c="bold" title="Negrita (Ctrl+E)"><b>N</b></button>'+
   '<button type="button" data-c="italic" title="Cursiva (Ctrl+D)"><i>C</i></button>'+
   '<button type="button" data-c="underline" title="Subrayado (Ctrl+S)"><u>S</u></button>';
 document.body.appendChild(selFmt);
