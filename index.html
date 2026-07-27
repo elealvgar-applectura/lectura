@@ -2283,7 +2283,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v156'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v157'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -12042,6 +12042,67 @@ const PDF_LV=[
   {size:9.8, bold:false,ind:64, gap:5}    // y más hondos
 ];
 
+/* ══════════════════════════════════════════════════════════════════
+   LO QUE LA LETRA DEL PDF SABE ESCRIBIR
+   ──────────────────────────────────────────────────────────────────
+   El PDF se escribe con las fuentes de siempre (Helvetica), que solo
+   entienden el alfabeto occidental. En cuanto aparecía UN carácter de fuera
+   —una flecha →, un emoji, un visto ✓, una letra griega— jsPDF cambiaba
+   TODA la línea a una codificación de dos bytes; y como la fuente no es
+   Unicode, el lector pintaba un hueco entre cada letra. Un título quedaba
+   así:
+
+       1.3.2  D i m e n s i ó n   t e m p o r a l  !’  p r i n c i p i o…
+
+   Y encima, al ocupar mucho más de lo calculado, se salía por la derecha y
+   se montaba encima del número de página. UN SOLO CARÁCTER destrozaba el
+   renglón entero, y no avisaba: solo se veía al abrir el PDF.
+
+   Aquí se traduce lo que tiene equivalente (las flechas y los signos que se
+   escriben de verdad en unos apuntes) y se quita lo que no lo tiene (los
+   emojis). Los acentos, las eñes, las rayas —, las comillas curvas, los
+   puntos suspensivos y el punto de lista • SÍ los entiende: esos no se
+   tocan.
+
+   OJO: esto es SOLO para el papel. Lo guardado no se toca; en la app se
+   sigue viendo la flecha de verdad.
+   ══════════════════════════════════════════════════════════════════ */
+const PDF_TRAD={
+  '→':'->','➔':'->','➜':'->','⟶':'->','⇨':'->','►':'->','▶':'->','↦':'->','⇢':'->',
+  '⇒':'=>','⟹':'=>','⇐':'<=','⟸':'<=',
+  '←':'<-','⟵':'<-','◄':'<-','◀':'<-','⇠':'<-',
+  '↔':'<->','⟷':'<->','⇔':'<=>',
+  '↑':'^','⇑':'^','↓':'v','⇓':'v','↗':'/','↙':'/','↘':'\\','↖':'\\',
+  '✓':'v','✔':'v','☑':'[v]','✗':'x','✘':'x','☒':'[x]','☐':'[ ]',
+  '≈':'~','≠':'=/=','≤':'<=','≥':'>=','≡':'=','∞':'infinito','∅':'vacio',
+  '√':'raiz de ','∑':'suma','∏':'producto','∫':'integral','∴':'por tanto','∵':'porque',
+  /* las marcas de lista de tercer y cuarto nivel: se dibujan como carácter */
+  '◦':'o','▪':'-','▫':'-','■':'-','□':'-','‣':'-','⁃':'-','◆':'-','◇':'-','♦':'-','♥':'-',
+  '★':'*','☆':'*','⭐':'*','✦':'*','✱':'*','❖':'*','☺':':)','☹':':(',
+  '−':'-','‑':'-','‒':'-','―':'—','⁄':'/','′':"'",'″':'"','⋅':'·','∙':'·',
+  /* letras griegas: en unos apuntes de psicología salen tarde o temprano */
+  'α':'alfa','β':'beta','γ':'gamma','δ':'delta','ε':'epsilon','θ':'theta','λ':'lambda',
+  'π':'pi','ρ':'rho','σ':'sigma','τ':'tau','φ':'fi','χ':'ji','ψ':'psi','ω':'omega',
+  'Δ':'delta','∆':'delta','Σ':'suma','Ω':'omega','Φ':'fi','Ψ':'psi','Θ':'theta','Λ':'lambda'
+};
+/* Caracteres que SÍ entiende aunque estén fuera del Latin-1 (van en la tabla
+   WinAnsi del PDF): euro, rayas, comillas curvas, puntos suspensivos, punto
+   de lista, marca registrada… Si se tocaran, se perderían sin necesidad. */
+const PDF_WINANSI='€‚ƒ„…†‡ˆ‰Š‹Œ'+
+                  'Ž‘’“”•–—˜™š›'+
+                  'œžŸ';
+const PDF_RARO=new RegExp('[^\\x09\\x0A\\x0D\\x20-\\xFF'+PDF_WINANSI+']','g');
+function pdfTexto(s){
+  return String(s==null?'':s).replace(PDF_RARO,c=>{
+    if(PDF_TRAD[c]!==undefined)return PDF_TRAD[c];
+    /* una ligadura o una letra con adorno: se deja su versión sencilla (la
+       "ﬁ" pegada se convierte en "fi"). Se vuelve a pasar por aquí por si lo
+       que sale sigue teniendo algo raro; a la segunda ya no cambia y para. */
+    const n=c.normalize('NFKD').replace(/[̀-ͯ]/g,'');
+    return n!==c?pdfTexto(n):'';
+  });
+}
+
 /* Abre un PDF y devuelve las cuatro cosas que necesita cualquier herramienta:
    portada, rótulo de apartado, texto con formato y guardar. Devuelve null si
    jsPDF no está disponible (sin conexión la primera vez, por ejemplo). */
@@ -12049,6 +12110,16 @@ function pdfExport(){
   if(!(window.jspdf&&window.jspdf.jsPDF))return null;
   const{jsPDF}=window.jspdf;
   const doc=new jsPDF({unit:'pt',format:'a4'});
+  /* TODO lo que se escriba pasa antes por el traductor de arriba. Se envuelven
+     las tres funciones de jsPDF que reciben texto (escribir, medir y partir en
+     renglones) en vez de llamar al traductor en cada sitio: hay siete
+     exportaciones distintas y con acordarse de una sola que fallara, volvía el
+     problema. Medir y escribir tienen que traducir LO MISMO, o el renglón se
+     mediría con un texto y se pintaría con otro. */
+  const _text=doc.text.bind(doc),_ancho=doc.getTextWidth.bind(doc),_partir=doc.splitTextToSize.bind(doc);
+  doc.text=function(t,...a){return _text(Array.isArray(t)?t.map(pdfTexto):pdfTexto(t),...a)};
+  doc.getTextWidth=function(t){return _ancho(pdfTexto(t))};
+  doc.splitTextToSize=function(t,...a){return _partir(pdfTexto(t),...a)};
   const PH=doc.internal.pageSize.getHeight();
   const ML=54,MT=58,MB=62,RIGHT=doc.internal.pageSize.getWidth()-54;
   const INK=[74,68,88],INK2=[104,98,120],INK3=[152,146,168];
