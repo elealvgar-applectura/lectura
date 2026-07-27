@@ -2052,7 +2052,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v134'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v135'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -10799,6 +10799,45 @@ function richToRuns(html){
       cur=null;
     });
   };
+  /* ══ UNA TABLA ══
+     Se guarda con su forma: las filas, el texto con estilo de cada celda,
+     cuáles son de cabecera y el ancho de cada columna (el <colgroup> que deja
+     el editor al arrastrar los bordes). Con eso el PDF puede dibujarla de
+     verdad, con sus recuadros, en vez de pegar todo el texto seguido.
+
+     Cada celda se convierte con el MISMO motor, llamándolo otra vez sobre su
+     contenido: así dentro de una celda siguen valiendo la negrita, el color y
+     los subrayados sin repetir aquí nada de eso. Si una celda tuviera varios
+     párrafos, se juntan separados por un punto medio (en una casilla de
+     tabla no caben renglones sueltos con sentido). */
+  const tablaPara=(node,st,prof)=>{
+    const celdaRuns=html=>{
+      const runs=[];
+      richToRuns(html).forEach((p,i)=>{
+        if(i>0)runs.push({t:' · ',b:false,i:false,u:false,color:null});
+        p.runs.forEach(r=>runs.push(r));
+      });
+      return runs;
+    };
+    const filas=[];
+    [...node.querySelectorAll('tr')].forEach(tr=>{
+      const celdas=[];
+      [...tr.children].forEach(c=>{
+        if(c.tagName!=='TD'&&c.tagName!=='TH')return;
+        celdas.push({runs:celdaRuns(c.innerHTML),cab:c.tagName==='TH'});
+      });
+      if(celdas.length)filas.push(celdas);
+    });
+    if(!filas.length)return;
+    const n=filas.reduce((m,f)=>Math.max(m,f.length),0);
+    const cols=[...node.querySelectorAll('col')];
+    let anchos=(cols.length===n)?cols.map(c=>parseFloat(c.style.width)||(100/n)):null;
+    if(!anchos)anchos=new Array(n).fill(100/n);
+    /* que sumen 100 exactos: si no, la tabla se sale por la derecha */
+    const suma=anchos.reduce((a,b)=>a+b,0)||100;
+    anchos=anchos.map(w=>w/suma*100);
+    paras.push({tabla:{filas,anchos,n},sangria:prof,runs:[]});
+  };
   const walk=(node,st,prof)=>{
     node.childNodes.forEach(ch=>{
       if(ch.nodeType===3){meter(ch.nodeValue.replace(/\s+/g,' '),st,prof);return}
@@ -10823,6 +10862,12 @@ function richToRuns(html){
         return;
       }
       if(tag==='ul'||tag==='ol'){cur=null;lista(ch,st,prof);cur=null;return}
+      /* ── TABLA ──
+         Antes no había ningún caso para las tablas: el recorrido se metía
+         dentro y pegaba el texto de todas las celdas seguido, así que en el
+         PDF salía "FaseLugarGlucólisisCitosol…", ilegible. Aquí se guarda con
+         su forma (filas, celdas y anchos de columna) para poder dibujarla. */
+      if(tag==='table'){cur=null;tablaPara(ch,st,prof);cur=null;return}
       if(tag==='div'||tag==='p'){cur=null;walk(ch,st,prof);cur=null;return}
       const st2=Object.assign({},st);
       if(tag==='b'||tag==='strong')st2.b=true;
@@ -10837,9 +10882,9 @@ function richToRuns(html){
   walk(root,{},0);
   /* fuera los párrafos que se quedaron sin texto (los <div> vacíos que deja
      el editor al pulsar Enter): en el PDF serían huecos sin sentido */
-  /* las imágenes no llevan texto: si no se salvaran aquí, este filtro las
-     tiraría junto con los <div> vacíos */
-  return paras.filter(p=>p.img||p.runs.some(r=>r.t&&r.t.trim()));
+  /* las imágenes y las tablas no llevan texto suelto: si no se salvaran aquí,
+     este filtro las tiraría junto con los <div> vacíos */
+  return paras.filter(p=>p.img||p.tabla||p.runs.some(r=>r.t&&r.t.trim()));
 }
 
 /* estilo de cada nivel de profundidad: el 0 es el rótulo con banda de color
@@ -10871,6 +10916,79 @@ function pdfExport(){
   const sitio=h=>{if(y+h>PH-MB){doc.addPage();y=MT}};
   const nivel=p=>PDF_LV[Math.min(p||0,PDF_LV.length-1)];
   const xDe=p=>ML+nivel(p).ind+(p>4?(p-4)*12:0);
+
+  /* ── UNA TABLA ──
+     Se dibuja de verdad: cada celda con su texto partido en renglones que
+     quepan en SU columna, la fila tan alta como la celda que más ocupe, y un
+     recuadro por casilla. Las de cabecera van con fondo suave y en negrita,
+     igual que se ven en la app.
+     Los anchos vienen en % (los que dejaste al arrastrar los bordes), así que
+     la tabla ocupa siempre el ancho útil de la hoja, sin salirse. */
+  const dibujarTabla=(tb,x,size,colorBase)=>{
+    const anchoTotal=RIGHT-x;
+    const cols=tb.anchos.map(w=>anchoTotal*w/100);
+    const pad=4, lh=size*1.3;
+    /* parte el texto de cada celda en renglones que quepan en SU columna */
+    const trocear=celdas=>celdas.map((c,i)=>{
+      const maxW=(cols[i]||anchoTotal)-pad*2;
+      const pal=[];
+      c.runs.forEach(r=>String(r.t||'').split(/(\s+)/).forEach(w=>{if(w!=='')pal.push({t:w,st:r})}));
+      const lineas=[];let linea=[],ancho=0;
+      pal.forEach(w=>{
+        fuente(w.st.b||c.cab,w.st.i);doc.setFontSize(size);
+        const ww=doc.getTextWidth(w.t);
+        if(ancho+ww>maxW&&linea.length&&w.t.trim()){lineas.push(linea);linea=[];ancho=0}
+        if(!linea.length&&!w.t.trim())return;   // ningún renglón empieza por espacio
+        linea.push(w);ancho+=ww;
+      });
+      if(linea.length)lineas.push(linea);
+      return{lineas,cab:c.cab};
+    });
+    const altoDe=trozos=>trozos.reduce((m,t)=>Math.max(m,t.lineas.length),1)*lh+pad*2;
+    const pintaFila=(trozos,alto)=>{
+      /* el borde de arriba se calcula con la `y` de AHORA: si acaba de entrar
+         hoja nueva, `y` ha vuelto al principio y el recuadro se saldría */
+      const y0=Math.max(MT,y-size*.85);
+      let cx=x;
+      trozos.forEach((t,i)=>{
+        const w=cols[i]||anchoTotal;
+        if(t.cab){doc.setFillColor(244,241,248);doc.rect(cx,y0,w,alto,'F')}
+        doc.setDrawColor(206,200,220);doc.setLineWidth(.5);
+        doc.rect(cx,y0,w,alto,'S');
+        let ty=y0+pad+size*.85;
+        t.lineas.forEach(ln=>{
+          let tx=cx+pad;
+          ln.forEach(seg=>{
+            fuente(seg.st.b||t.cab,seg.st.i);doc.setFontSize(size);
+            const col=parseColorRGB(seg.st.color)||colorBase;
+            tinta(col);
+            doc.text(seg.t,tx,ty);
+            const sw=doc.getTextWidth(seg.t);
+            if(seg.st.u){doc.setDrawColor(col[0],col[1],col[2]);doc.line(tx,ty+1.4,tx+sw,ty+1.4)}
+            tx+=sw;
+          });
+          ty+=lh;
+        });
+        cx+=w;
+      });
+      y=y0+alto+size*.85;
+    };
+    /* LA CABECERA SE REPITE EN CADA HOJA, como en Word. Una tabla larga (un
+       glosario de 40 filas ocupa tres hojas) sin cabecera en la segunda hoja
+       no hay quien la lea: no sabes qué es cada columna. */
+    let cabTrozos=null, cabAlto=0;
+    const hojas=()=>doc.internal.getNumberOfPages();
+    tb.filas.forEach((celdas,fi)=>{
+      const trozos=trocear(celdas);
+      const alto=altoDe(trozos);
+      if(fi===0&&celdas.some(c=>c.cab)){cabTrozos=trozos;cabAlto=alto}
+      const antes=hojas();
+      sitio(alto+2);
+      if(hojas()>antes&&cabTrozos&&fi>0)pintaFila(cabTrozos,cabAlto);
+      pintaFila(trozos,alto);
+    });
+    y+=size*.9;                                   // aire después de la tabla
+  };
 
   /* ── párrafos ya troceados en {bullet, sangria, runs:[{t,b,i,u,color}]} ──
      `marca` es un texto que se pinta en el margen izquierdo a la altura de la
@@ -10904,6 +11022,11 @@ function pdfExport(){
           doc.addImage(p.img.src,props.fileType,ix,top,w,h);
           y=top+h+size*.6;
         }catch(e){console.error('[pdf] no se pudo dibujar una imagen:',e)}
+        return;
+      }
+      if(p.tabla){
+        try{dibujarTabla(p.tabla,x,size,colorBase)}
+        catch(e){console.error('[pdf] no se pudo dibujar una tabla:',e)}
         return;
       }
       const bx=x+(p.sangria>0?(p.sangria-1)*11:0);
