@@ -874,6 +874,20 @@ body.fullscreen #rd-bottom-show{display:none}
 .rt-size:active{transform:scale(.94)}
 /* tipo de letra: en columna y cada nombre escrito con SU propia letra, para
    verla antes de elegirla (como en Word) */
+/* barra flotante sobre el texto seleccionado: tres botones y nada más. Por
+   debajo de .rt-pop (960) para que los desplegables de la barra de arriba no
+   queden tapados. */
+#sel-fmt{position:fixed;z-index:955;display:flex;gap:2px;padding:4px;
+  background:var(--card);border:1px solid var(--border);border-radius:11px;
+  box-shadow:0 6px 22px rgba(120,100,140,.28)}
+#sel-fmt.hidden{display:none}
+#sel-fmt button{width:32px;height:30px;border:none;background:transparent;
+  border-radius:8px;color:var(--ink);font-family:inherit;font-size:15px;
+  line-height:1;padding:0;cursor:pointer;touch-action:manipulation}
+#sel-fmt button:hover{background:var(--bg2)}
+#sel-fmt button.on{background:var(--acento)}
+#sel-fmt button:active{transform:scale(.9)}
+
 /* emojis: parrilla limpia, sin recuadros. El color lo ponen ellos; el rosa
    de la casa solo aparece al pulsar. 30px de lado para acertar con el dedo. */
 .rt-emoji-wrap{max-height:min(56vh,320px);overflow-y:auto;padding-right:2px}
@@ -2190,7 +2204,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v145'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v146'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -3768,6 +3782,108 @@ document.addEventListener('selectionchange',()=>{
   const a=document.activeElement;if(!a)return;
   richWired.forEach(w=>{if(w.ed===a)richUpdateState(w.tb,w.ed)});
 });
+
+/* ══════════════════════════════════════════════════════════════════
+   NEGRITA / CURSIVA / SUBRAYADO A MANO: ATAJOS + BARRA FLOTANTE
+
+   Dos formas de aplicar lo mismo, para no tener que subir a la barra de
+   arriba cada vez:
+
+   1. ATAJOS. Los de Word en español: Ctrl+N negrita, Ctrl+D cursiva,
+      Ctrl+S subrayado. Siguen valiendo los de siempre (Ctrl+B/I/U), que
+      los pone el navegador solo.
+
+      AVISO SOBRE Ctrl+N: esa combinación se la queda el NAVEGADOR para
+      abrir una ventana nueva, y una página web no puede impedírselo. Aquí
+      se intenta igualmente (en la app instalada en el iPad sí suele
+      llegar), pero si en el PC te abre una ventana en vez de poner
+      negrita, no es un fallo de la app: usa Ctrl+B, que hace lo mismo.
+      Ctrl+D y Ctrl+S sí se pueden interceptar, y se interceptan.
+
+      Solo actúan DENTRO de un cuadro de escribir con formato. Fuera de
+      ahí no se toca nada del teclado: Ctrl+S sigue siendo "guardar
+      página" en el resto de la app.
+
+   2. BARRA FLOTANTE. Al seleccionar texto sale encima una barrita con
+      N · C · S. Se pinta en rosa el que ya esté puesto. No roba la
+      selección (pointerdown con preventDefault), que si no se perdería
+      justo lo que hay que formatear.
+   ══════════════════════════════════════════════════════════════════ */
+/* el cuadro de escritura con formato donde está el cursor, o null */
+function richEdActivo(){
+  const a=document.activeElement;
+  if(!a||!a.isContentEditable)return null;
+  return richWired.some(w=>w.ed===a)?a:null;
+}
+const RICH_ATAJOS={n:'bold',d:'italic',s:'underline'};
+window.addEventListener('keydown',e=>{
+  if(!(e.ctrlKey||e.metaKey)||e.altKey||e.shiftKey)return;
+  const cmd=RICH_ATAJOS[(e.key||'').toLowerCase()];
+  if(!cmd)return;
+  const ed=richEdActivo();
+  if(!ed)return;
+  e.preventDefault();e.stopPropagation();
+  richRun(cmd);
+  richWired.forEach(w=>{if(w.ed===ed)richUpdateState(w.tb,w.ed)});
+  pintaSelFmt();
+},true);
+
+const selFmt=document.createElement('div');
+selFmt.id='sel-fmt';selFmt.className='hidden';
+selFmt.innerHTML=
+  '<button type="button" data-c="bold" title="Negrita (Ctrl+N)"><b>N</b></button>'+
+  '<button type="button" data-c="italic" title="Cursiva (Ctrl+D)"><i>C</i></button>'+
+  '<button type="button" data-c="underline" title="Subrayado (Ctrl+S)"><u>S</u></button>';
+document.body.appendChild(selFmt);
+let selFmtEd=null;
+/* tocar la barrita NO debe quitarle el foco al texto: si se lo quitara, se
+   perdería la selección, que es justo lo que hay que formatear */
+selFmt.addEventListener('pointerdown',e=>e.preventDefault());
+selFmt.querySelectorAll('button').forEach(b=>{
+  b.addEventListener('click',e=>{
+    e.preventDefault();
+    const ed=selFmtEd;if(!ed)return;
+    ed.focus();
+    richRun(b.dataset.c);
+    richWired.forEach(w=>{if(w.ed===ed)richUpdateState(w.tb,w.ed)});
+    pintaSelFmt();posSelFmt();
+  });
+});
+function hideSelFmt(){selFmt.classList.add('hidden');selFmtEd=null}
+function pintaSelFmt(){
+  selFmt.querySelectorAll('button').forEach(b=>{
+    let on=false;try{on=document.queryCommandState(b.dataset.c)}catch(err){}
+    b.classList.toggle('on',on);
+  });
+}
+function posSelFmt(){
+  const s=window.getSelection();
+  if(!s||!s.rangeCount){hideSelFmt();return}
+  const r=s.getRangeAt(0).getBoundingClientRect();
+  if(!r||(!r.width&&!r.height)){hideSelFmt();return}
+  const w=selFmt.offsetWidth,h=selFmt.offsetHeight;
+  let top=r.top-h-8;
+  if(top<8)top=r.bottom+8;                      // no cabe encima: se pone debajo
+  selFmt.style.left=Math.max(8,Math.min(r.left+r.width/2-w/2,innerWidth-w-8))+'px';
+  selFmt.style.top=Math.min(top,innerHeight-h-8)+'px';
+}
+function actualizaSelFmt(){
+  const ed=richEdActivo();
+  const s=window.getSelection();
+  if(!ed||!s||!s.rangeCount||s.isCollapsed||!ed.contains(s.anchorNode)){hideSelFmt();return}
+  selFmtEd=ed;
+  selFmt.classList.remove('hidden');
+  pintaSelFmt();posSelFmt();
+}
+document.addEventListener('selectionchange',actualizaSelFmt);
+/* al cerrarse el cuadro (o al tocar fuera) el navegador no siempre avisa del
+   cambio de selección: se vuelve a comprobar a mano */
+document.addEventListener('pointerdown',e=>{
+  if(selFmt.contains(e.target))return;
+  setTimeout(actualizaSelFmt,0);
+},true);
+addEventListener('scroll',()=>{if(!selFmt.classList.contains('hidden'))posSelFmt()},true);
+addEventListener('resize',()=>{if(!selFmt.classList.contains('hidden'))posSelFmt()});
 
 /* conecta una barra de formato a un área editable */
 function wireRichToolbar(tb,ed){
