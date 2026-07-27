@@ -108,6 +108,31 @@ body.warm .page-wrap::after{
   content:'';position:absolute;inset:0;z-index:6;pointer-events:none;
   background:var(--warm-tint);mix-blend-mode:multiply;
 }
+/* ── …Y TAMBIÉN LA APP (sepia integral) ──
+   Teñir solo la hoja arreglaba media cosa: la hoja cálida quedaba pegada a
+   una app fría (blanca de día, casi negra de noche) y ese salto es justo lo
+   que cansa la vista de noche. Con la luz cálida encendida, TODO el entorno
+   se va a los mismos tonos.
+   El rosa de la casa NO se toca: sigue siendo el color de "esto está activo".
+   Y todo esto solo existe con el filtro encendido: apagado, la app se ve
+   exactamente igual que siempre. */
+body.warm{
+  --bg:#FAF4EA;--bg2:#F2E8D9;--card:#FFFCF6;
+  --ink:#4A4134;--ink2:#8E8271;--ink3:#C6BAA8;
+  --border:#EFE3D1;
+  --ed-bg:#F2E8D9;--ed-ink:#4A4134;
+}
+body.warm.dark{
+  --bg:#211C16;--bg2:#2B251E;--card:#322B22;
+  --ink:#EDE4D5;--ink2:#A99C89;--ink3:#75695B;
+  --border:#3D352B;
+  --ed-bg:#3A3228;--ed-ink:#F5EFE4;
+}
+/* EL BORDE ALREDEDOR DE LA HOJA sube a un tono medio, ni claro ni oscuro.
+   Es lo que de verdad quita el deslumbre: entre la hoja y el fondo hay un
+   escalón de brillo, y cuanto más pequeño, menos cansa. */
+body.warm #canvas-wrap{background:#E8DAC2}
+body.warm.dark #canvas-wrap{background:#463C30}
 /* Las notas adhesivas y nodos son DOM, no canvas: ya heredan las variables. */
 /* El azul chillón de serie al seleccionar texto (cuadros de escritura, fichas,
    paneles…) se cambia por el rosa de la casa. Es lo único que quedaba con un
@@ -2094,7 +2119,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v137'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v138'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
