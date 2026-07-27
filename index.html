@@ -2233,7 +2233,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v152'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v153'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -6223,7 +6223,7 @@ async function openReader(fileId,fileName){
     /* la selección de texto y los recuadros de cada letra son de ESTE
        documento: si no se vacían, al abrir otro se leerían posiciones ajenas
        (las claves son pid y se repiten entre documentos, igual que textCache) */
-    clearTextSel();selBoxes={};
+    clearTextSel(true);selBoxes={};
     pageDims=[null];
     marginCfg=loadMargin();
     for(let i=1;i<=pdfPages;i++){const vp=(await pdfDoc.getPage(i)).getViewport({scale:1});pageDims[i]={w:vp.width,h:vp.height}}
@@ -14612,6 +14612,7 @@ function selRange(){
    caminos distintos que puedan descuadrarse. */
 let selPieces=[];        // trozos ya fijados con Ctrl
 let selCtrlAdd=false;    // el arrastre en curso SUMA, no reemplaza
+let selCtrlDown=false;   // Ctrl (o Cmd) pulsado ahora mismo
 function selVacioRg(r){return!r||(r.from.pos===r.to.pos&&r.from.i===r.to.i)}
 function selAllRanges(){
   const out=selPieces.slice();
@@ -14651,12 +14652,24 @@ function paintTextSel(){
   });
 }
 function repaintTextSel(){if(!selEmpty())paintTextSel()}
-function clearTextSel(){
+/* MIENTRAS CTRL ESTÁ PULSADO, LOS TROZOS MARCADOS NO SE BORRAN NUNCA.
+   Tener la tecla pulsada significa "estoy sumando": cualquier borrado que
+   llegue en medio es un efecto secundario de otra cosa, no una orden. Costó
+   encontrarlo: entre clic y clic algo vaciaba la lista y solo quedaba la
+   última palabra. En vez de perseguir quién lo hacía, se cierra la puerta
+   aquí, que es el ÚNICO sitio del programa que vacía la selección.
+   clearTextSel(true) fuerza el borrado de verdad (al abrir otro documento). */
+function clearTextSel(forzar){
   selAnchor=selFocus=selDrag=null;
+  if(selEdgeTimer){clearInterval(selEdgeTimer);selEdgeTimer=null}
+  if(!forzar&&selCtrlDown&&selPieces.length){
+    selCtrlAdd=false;
+    paintTextSel();          // los trozos siguen ahí: se repintan
+    return;
+  }
   selPieces=[];selCtrlAdd=false;
   clearSelHl();
   selCopyBtn.classList.remove('on');
-  if(selEdgeTimer){clearInterval(selEdgeTimer);selEdgeTimer=null}
 }
 /* el texto TAL CUAL está en el PDF (el índice del buscador lo guarda sin
    tildes y en minúsculas: eso solo vale para comparar, no para copiar) */
@@ -14720,8 +14733,9 @@ function showSelCopy(cx,cy){
   selCopyBtn.style.top =Math.max(8,Math.min(arriba>8?arriba:cy+18,innerHeight-h-8))+'px';
 }
 selCopyBtn.addEventListener('click',()=>selCopy());
-/* Ctrl pulsado → la pastilla de Copiar no estorba (ver #sel-copy.pasa) */
-const selCtrlUI=on=>selCopyBtn.classList.toggle('pasa',!!on);
+/* Ctrl pulsado → la pastilla de Copiar no estorba (ver #sel-copy.pasa) y los
+   trozos marcados quedan protegidos (ver clearTextSel) */
+const selCtrlUI=on=>{selCtrlDown=!!on;selCopyBtn.classList.toggle('pasa',!!on)};
 window.addEventListener('keydown',e=>{if(e.key==='Control'||e.key==='Meta')selCtrlUI(true)},true);
 window.addEventListener('keyup',e=>{if(e.key==='Control'||e.key==='Meta')selCtrlUI(false)},true);
 window.addEventListener('blur',()=>selCtrlUI(false));   // soltar la tecla fuera de la ventana
@@ -14749,7 +14763,10 @@ function selStart(e,right){
   const p=selPointAt(e.clientX,e.clientY);
   if(!p)return false;
   selAnchor=p;selFocus={pid:p.pid,pos:p.pos,i:p.i};
-  selDrag={id:e.pointerId,right:!!right};selLastXY={x:e.clientX,y:e.clientY};
+  /* se guarda dónde se pulsó para saber luego si fue un clic seco o un
+     arrastre de verdad: el ratón siempre tiembla uno o dos píxeles */
+  selDrag={id:e.pointerId,right:!!right,x0:e.clientX,y0:e.clientY};
+  selLastXY={x:e.clientX,y:e.clientY};
   selCtrlAdd=sumar;
   paintTextSel();
   return true;
@@ -14777,16 +14794,21 @@ function selMoveTo(cx,cy){
 function selEnd(cx,cy){
   if(!selDrag)return;
   const conRaton=selDrag.right;
+  const x0=selDrag.x0,y0=selDrag.y0;
   const sumando=selCtrlAdd;
   selDrag=null;selCtrlAdd=false;
   if(selEdgeTimer){clearInterval(selEdgeTimer);selEdgeTimer=null}
 
   /* Ctrl: lo que se acaba de marcar pasa a la lista de trozos. Si no se
      arrastró (fue un clic seco), se toma la PALABRA entera de debajo; y si esa
-     palabra ya estaba marcada, se quita — así el mismo gesto pone y despone. */
+     palabra ya estaba marcada, se quita — así el mismo gesto pone y despone.
+     "Clic seco" = menos de 5 píxeles de recorrido: si se mira solo si el tramo
+     está vacío, el temblor normal del ratón marcaba media letra en vez de la
+     palabra entera. */
   if(sumando){
     const rg=selRange();
-    if(selVacioRg(rg)){
+    const clicSeco=Math.abs(cx-x0)<5&&Math.abs(cy-y0)<5;
+    if(clicSeco||selVacioRg(rg)){
       const q=selAnchor,w=q?selWordAt(q.pid,q.pos,q.i):null;
       if(w){
         const k=selPieces.findIndex(p=>p.from.pid===w.from.pid&&p.from.i===w.from.i&&p.to.i===w.to.i);
