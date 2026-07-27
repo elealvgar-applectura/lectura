@@ -83,6 +83,31 @@ body.dark .pdf-cv,
 body.dark .annot-cv,
 body.dark .thumb-canvas{filter:var(--pdf-filter)}
 body.dark input[type=color]{background:var(--bg2)}
+
+/* ══ LUZ CÁLIDA SOBRE EL DOCUMENTO ══
+   El filtro tipo "luz de noche": el papel deja de ser blanco puro y se pone
+   color ámbar, que cansa mucho menos la vista de noche. VA APARTE del modo
+   oscuro: se encienden y se apagan por separado, y de fábrica está APAGADO
+   (el documento, blanco).
+
+   POR QUÉ UNA CAPA CON `multiply` Y NO UN FILTRO `sepia()`:
+   sepia() aplana los colores y deja todos los subrayados del mismo tono
+   amarillento, y aquí cada color significa una cosa (definiciones,
+   conclusiones, aclaraciones…). Multiplicar por un ámbar claro tiñe el papel
+   blanco pero respeta las diferencias entre colores: el rosa sigue siendo
+   rosa y el verde sigue siendo verde, solo que más cálidos.
+
+   pointer-events:none es obligatorio: sin eso la capa se comería los trazos
+   del Pencil y no se podría subrayar. */
+/* El tono es a propósito suave. Con un ámbar más fuerte el papel se ve más
+   cálido, sí, pero los subrayados azul y verde se acercan tanto que cuesta
+   distinguirlos, y aquí cada color significa una cosa. Si algún día se quiere
+   más o menos amarillo, se cambia SOLO este valor. */
+:root{--warm-tint:#FFE6BC}
+body.warm .page-wrap::after{
+  content:'';position:absolute;inset:0;z-index:6;pointer-events:none;
+  background:var(--warm-tint);mix-blend-mode:multiply;
+}
 /* Las notas adhesivas y nodos son DOM, no canvas: ya heredan las variables. */
 /* El azul chillón de serie al seleccionar texto (cuadros de escritura, fichas,
    paneles…) se cambia por el rosa de la casa. Es lo único que quedaba con un
@@ -1410,6 +1435,7 @@ body.fullscreen #gid-bar{bottom:20px}
       <svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
     </button>
     <button class="tool-btn" id="tb-dark" title="Modo oscuro"></button>
+    <button class="tool-btn" id="tb-warm" title="Luz cálida sobre el documento"></button>
     <button class="tool-btn" id="tb-gest" title="Gestos y escritura">
       <svg viewBox="0 0 24 24"><path d="M8 13V5.5a1.5 1.5 0 013 0V12M11 11.5v-2a1.5 1.5 0 013 0V12M14 10.5a1.5 1.5 0 013 0V16a6 6 0 01-6 6h-2c-2.1 0-3.6-.9-4.8-2.4L4 15.6c-.6-.8-.4-1.9.4-2.5.7-.5 1.7-.4 2.3.3L8 15"/></svg>
     </button>
@@ -2068,7 +2094,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v136'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v137'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2250,6 +2276,8 @@ const ICON={
   trash:'<path d="M4.8 6.7h14.4"/><path d="M9.3 6.7V5.3a1.4 1.4 0 0 1 1.4-1.4h2.6a1.4 1.4 0 0 1 1.4 1.4v1.4"/><path d="M6.6 6.7v12a1.6 1.6 0 0 0 1.6 1.6h7.6a1.6 1.6 0 0 0 1.6-1.6v-12"/><path d="M10.3 10.5v5.8M13.7 10.5v5.8"/>',
   share:'<path d="M12 15.4V3.9"/><path d="M8.4 7.5 12 3.9l3.6 3.6"/><path d="M5 14v4.6a1.6 1.6 0 0 0 1.6 1.6h10.8a1.6 1.6 0 0 0 1.6-1.6V14"/>',
   bookmark:'<path d="M6.5 4.2h11a1 1 0 0 1 1 1v15l-6.5-4.3-6.5 4.3v-15a1 1 0 0 1 1-1Z"/>',
+  /* sol con ondas: la luz cálida sobre el documento */
+  warm:'<circle cx="12" cy="9.4" r="3.4"/><path d="M12 2.8v1.5M18.2 9.4h1.5M4.3 9.4h1.5M16.4 5l1-1M6.6 4l1 1"/><path d="M5.6 16.6c1.4-1.2 2.9-1.2 4.3 0s2.9 1.2 4.3 0 2.9-1.2 4.3 0"/><path d="M5.6 20.2c1.4-1.2 2.9-1.2 4.3 0s2.9 1.2 4.3 0 2.9-1.2 4.3 0"/>',
   /* etiqueta: el chip de "tema automatico" de la barra de colores */
   tagAuto:'<path d="M12.7 3.8H19a1.2 1.2 0 0 1 1.2 1.2v6.3a1.2 1.2 0 0 1-.35.85l-7.7 7.7a1.2 1.2 0 0 1-1.7 0l-6.3-6.3a1.2 1.2 0 0 1 0-1.7l7.7-7.7a1.2 1.2 0 0 1 .85-.35Z"/><circle cx="16.2" cy="7.8" r="1.25"/>',
   plus:'<path d="M12 5.5v13M5.5 12h13"/>',
@@ -10063,7 +10091,7 @@ const DOC_KEY_PREFIXES=['lp_order_','lp_margin_','lp_nodes_','lp_embeds_','lp_bm
    de seguridad: hasta ver:5 se quedaban fuera y al restaurar en un iPad nuevo
    las paletas que te habias creado desaparecian sin decir nada. */
 const GLOBAL_KEYS=['lp_custompals','lp_toolcfg','lp_color','lp_boldstrength',
-  'lp_boldbycolor','lp_bartab','lp_panelwin','lp_panelw','lp_dark','lp_gest',
+  'lp_boldbycolor','lp_bartab','lp_panelwin','lp_panelw','lp_dark','lp_warm','lp_gest',
   'lp_bottommin','lp_lastbackup','lp_autocorr','lp_dicc','lp_diccno','lp_richcols'];
 function collectGlobalData(){
   const out={};
@@ -12015,6 +12043,29 @@ function applyDark(){
   try{localStorage.setItem('lp_dark',darkOn?'1':'0')}catch(e){}
 }
 document.getElementById('tb-dark').onclick=()=>{darkOn=!darkOn;applyDark()};
+
+/* ══ LUZ CÁLIDA SOBRE EL DOCUMENTO ══
+   Independiente del modo oscuro: se puede tener la app clara con el papel
+   cálido, o la app oscura con el papel blanco, o las dos cosas. Apagado de
+   fábrica (el documento, blanco). Ver el comentario del CSS para saber por
+   qué es una capa y no un filtro sepia. */
+let warmOn=false;
+try{warmOn=localStorage.getItem('lp_warm')==='1'}catch(e){}
+function applyWarm(){
+  document.body.classList.toggle('warm',warmOn);
+  const b=document.getElementById('tb-warm');
+  if(b){
+    b.innerHTML=svg('warm');
+    b.classList.toggle('on',warmOn);
+    b.title=warmOn?'Quitar la luz cálida (documento en blanco)':'Luz cálida sobre el documento';
+  }
+  try{localStorage.setItem('lp_warm',warmOn?'1':'0')}catch(e){}
+}
+document.getElementById('tb-warm').onclick=()=>{
+  warmOn=!warmOn;applyWarm();
+  showTip(warmOn?'Luz cálida encendida':'Documento en blanco',1400);
+};
+applyWarm();
 applyDark();
 
 /* ══ ICONO DE CARPETA (asignaturas) ══
