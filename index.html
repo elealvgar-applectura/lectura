@@ -799,6 +799,37 @@ body.fullscreen #rd-bottom-show{display:none}
 .rich-content td,.rich-content th{border:1px solid var(--border);padding:6px 8px;
   font-size:14px;vertical-align:top;word-break:break-word;min-width:0}
 .rich-content th{background:var(--bg2);font-weight:600;text-align:left}
+/* ══ BLOQUES DE UN TOQUE: RECUADRO, CITA, NOTA Y SEPARADOR ══
+   Nacieron de un apaño: para que una aclaración de la IA se distinguiera del
+   texto propio se metía dentro de una TABLA de una sola casilla. Se veía
+   bien, pero era lento de poner y arrastraba toda la maquinaria de tablas
+   (bordes, filas, columnas) para algo que solo quería ser un recuadro.
+
+   Ahora son clases sueltas: se ponen de un toque y el color va en la CLASE,
+   nunca en un estilo escrito a mano. Eso importa por tres razones:
+     · el modo noche puede cambiarlos (más abajo) sin tocar lo guardado;
+     · si algún día se cambia un tono, cambia en TODOS los apuntes viejos;
+     · el exportador a PDF sabe por la clase qué está mirando.
+   El fondo y el borde de cada tipo viven en dos variables (--lpc-bg y
+   --lpc-bd) para no repetir la regla del recuadro cuatro veces. */
+.rich-content .lp-caja{--lpc-bg:#F3F1F6;--lpc-bd:#E4DFEB;
+  background:var(--lpc-bg);border:1px solid var(--lpc-bd);border-radius:10px;
+  padding:9px 13px;margin:10px 0;text-align:left}
+.rich-content .lp-caja-ojo{--lpc-bg:#FFF6DF;--lpc-bd:#F0DEAB}
+.rich-content .lp-caja-res{--lpc-bg:#EDF6EE;--lpc-bd:#CFE5D2}
+.rich-content .lp-caja-ej {--lpc-bg:#FDEFF4;--lpc-bd:#F5D6E1}
+body.dark .rich-content .lp-caja{--lpc-bg:#2A2735;--lpc-bd:#3A3448}
+body.dark .rich-content .lp-caja-ojo{--lpc-bg:#332D1E;--lpc-bd:#4A4029}
+body.dark .rich-content .lp-caja-res{--lpc-bg:#1F2E24;--lpc-bd:#2E4335}
+body.dark .rich-content .lp-caja-ej {--lpc-bg:#32202A;--lpc-bd:#4A2E3C}
+/* un respiro entre los párrafos de dentro, que si no se lee como un ladrillo
+   (el PDF hace lo mismo: ver dibujarTabla) */
+.rich-content .lp-caja>div+div,.rich-content .lp-cita>div+div{margin-top:.4em}
+.rich-content .lp-cita{border-left:3px solid var(--rosa-fuerte);
+  padding:1px 0 1px 13px;margin:10px 0;font-style:italic;text-align:left}
+.rich-content .lp-nota{font-size:.86em;color:var(--ink2);margin:7px 0}
+.rich-content hr.lp-sep{border:none;border-top:1px solid var(--border);
+  height:0;margin:14px 0}
 /* Los contenedores de texto llevan white-space:pre-wrap para respetar los saltos
    del texto plano de siempre. Cuando el contenido YA es HTML con formato, los
    saltos van en <br>/<div>, y pre-wrap los duplicaría dejando huecos enormes. */
@@ -919,6 +950,21 @@ body.fullscreen #rd-bottom-show{display:none}
 .rt-tcell{width:26px;height:22px;border:1px solid var(--border);background:var(--bg2);
   border-radius:4px;padding:0;cursor:pointer;touch-action:manipulation}
 .rt-tcell.on{background:var(--rosa-suave);border-color:var(--rosa-fuerte)}
+/* ── menú de bloques (recuadro, cita, nota, separador) ──
+   En lista y con una muestra del color a la izquierda: así se elige mirando,
+   sin tener que leer. Los renglones van altos a propósito, que en el iPad se
+   tocan con el dedo. */
+.rt-blos{display:flex;flex-direction:column;gap:3px;min-width:216px}
+.rt-blos2{margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+.rt-blo{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;
+  border:none;background:transparent;color:var(--ink);font-family:inherit;
+  font-size:13.5px;text-align:left;border-radius:9px;cursor:pointer;touch-action:manipulation}
+.rt-blo:hover,.rt-blo:active{background:var(--bg2)}
+.rt-blo>i{flex:0 0 auto;width:22px;height:16px;border-radius:5px;
+  border:1px solid var(--border);background:var(--bg2);font-style:normal;
+  font-size:10px;line-height:14px;text-align:center;color:var(--ink2)}
+.rt-blo>i.rt-blo-c{border:none;border-left:3px solid var(--rosa-fuerte);border-radius:0;background:transparent}
+.rt-blo>i.rt-blo-s{border:none;border-top:1px solid var(--ink3);border-radius:0;background:transparent;height:9px}
 /* sin line-height propio: lo pone .rich-content (1,5 por defecto), que va
    antes en la hoja. Si se dejara aquí, ganaría éste por ir después y el
    cuadro de escribir se vería más apretado que el texto ya guardado. */
@@ -2237,7 +2283,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v155'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v156'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2618,20 +2664,21 @@ const esc=s=>{const d=document.createElement('div');d.textContent=s;return d.inn
 /* OJO: si una ficha lleva SOLO una tabla o SOLO una foto, esta lista es lo
    único que evita que se muestre el HTML en crudo ("<table>…") como si fuera
    texto. Al añadir una etiqueta nueva al editor, añadirla también aquí. */
-function isRich(s){return /<(\/?)(b|i|u|s|strike|strong|em|span|ul|ol|li|br|div|p|font|a|img|table|thead|tbody|tr|td|th|blockquote|h[1-6])\b[^>]*>/i.test(s||'')}
+function isRich(s){return /<(\/?)(b|i|u|s|strike|strong|em|span|ul|ol|li|br|div|p|font|a|img|hr|table|thead|tbody|tr|td|th|blockquote|h[1-6])\b[^>]*>/i.test(s||'')}
 function richHTML(s){s=s==null?'':String(s);return isRich(s)?s:esc(s).replace(/\n/g,'<br>')}
 /* área editable → HTML limpio (vacío si solo hay espacios/<br>) */
 function getRich(el){const plain=el.textContent.replace(/ /g,'').trim();const h=el.innerHTML.trim();
   /* una tabla vacía NO es "texto vacío": si no se nombra aquí, se tira al
      guardar y parece que no se ha guardado nada */
-  if(!plain && !/<(img|li|ul|ol|table)\b/i.test(h))return '';return h}
+  if(!plain && !/<(img|li|ul|ol|table|hr)\b/i.test(h))return '';return h}
 function setRich(el,v){el.innerHTML=richHTML(v)}
 /* HTML con formato → texto plano legible (para exportaciones .txt) */
 function richToPlain(html){
   if(!html)return '';
   if(!isRich(html))return String(html);
   const d=document.createElement('div');
-  d.innerHTML=String(html).replace(/<li[^>]*>/gi,'• ').replace(/<\/(li|div|p|h[1-6])>/gi,'\n').replace(/<br\s*\/?>/gi,'\n');
+  d.innerHTML=String(html).replace(/<li[^>]*>/gi,'• ').replace(/<\/(li|div|p|h[1-6])>/gi,'\n')
+    .replace(/<br\s*\/?>/gi,'\n').replace(/<hr[^>]*>/gi,'\n———\n');
   return (d.textContent||'').replace(/\n{3,}/g,'\n\n').replace(/[ \t]+\n/g,'\n').trim();
 }
 /* ══════════════════════════════════════════════════════════════════
@@ -2672,6 +2719,7 @@ const RICH_TB_HTML=`
 <button type="button" data-cmd="case" title="MAYÚSCULAS / minúsculas / Tipo oración">Aa</button>
 <button type="button" data-cmd="image" title="Insertar una imagen"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 16-5-5L5 20"/></svg></button>
 <button type="button" data-cmd="table" title="Insertar una tabla"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16M15 4v16"/></svg></button>
+<button type="button" data-cmd="bloque" title="Recuadro, cita, nota pequeña o separador"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 10h10M7 14h6"/></svg></button>
 <button type="button" data-cmd="emoji" title="Insertar un emoji"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8.4 14.3a4.3 4.3 0 0 0 7.2 0"/><path d="M9 9.4h.01M15 9.4h.01"/></svg></button>
 <span class="rt-sep"></span>
 <button type="button" data-cmd="removeFormat" title="Quitar el formato"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.4 19.4h11"/><path d="M15.6 5.2 5.4 15.4a1.6 1.6 0 0 0 0 2.3l1.7 1.7h4l7.8-7.8a1.6 1.6 0 0 0 0-2.3l-3.3-3.3a1.6 1.6 0 0 0-2.3 0Z"/></svg></button>
@@ -3165,6 +3213,136 @@ function richInsertTable(filas,cols,ed){
       tblSelect(ed,t);
     },30);
   }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   BLOQUES DE UN TOQUE: RECUADRO, CITA, NOTA Y SEPARADOR
+   ──────────────────────────────────────────────────────────────────
+   Para que una aclaración de la IA se distinguiera del texto propio se
+   estaba metiendo dentro de una TABLA de una sola casilla: se veía bien,
+   pero había que elegir tamaño, entrar en la celda y luego pelearse con la
+   barrita de tablas. Demasiado trabajo para lo que era.
+
+   Aquí van los cuatro bloques que hacían falta, todos de un toque:
+     · RECUADRO en cuatro colores (aclaración, ojo, resumen, ejemplo);
+     · PEGAR DENTRO DE UN RECUADRO: lo que tengas copiado entra ya metido
+       en la caja gris y con sus párrafos separados. Es el atajo real: se
+       copia la explicación de la IA y se acabó;
+     · CITA del libro, con su barra de color a la izquierda;
+     · NOTA pequeña y SEPARADOR.
+
+   Todos van detrás de UN solo botón. La barra de formato ya tiene veinte
+   botones y en el iPad se hace larguísima: seis más no cabían.
+
+   Detrás de cada bloque queda SIEMPRE un párrafo vacío. Sin él, un recuadro
+   al final del texto no se puede "salir": el cursor se queda atrapado dentro
+   y no hay manera de seguir escribiendo por debajo.
+   ══════════════════════════════════════════════════════════════════ */
+/* La clave (gris/ojo/res/ej) es la que se guarda en la clase del recuadro y
+   la que lee el exportador a PDF. NO cambiar las claves ya usadas: los
+   apuntes viejos se quedarían sin color. */
+const RICH_CAJAS=[
+  ['gris','Recuadro · aclaración','#F3F1F6','#E4DFEB'],
+  ['ojo', 'Recuadro · ojo',       '#FFF6DF','#F0DEAB'],
+  ['res', 'Recuadro · resumen',   '#EDF6EE','#CFE5D2'],
+  ['ej',  'Recuadro · ejemplo',   '#FDEFF4','#F5D6E1']
+];
+function openRichBloque(btn,ed){
+  const restore=richKeepSel(ed);
+  let html='<div class="rt-pop-t">Insertar un bloque</div><div class="rt-blos">';
+  RICH_CAJAS.forEach(([k,lab,bg,bd])=>{
+    html+='<button type="button" class="rt-blo" data-k="'+k+'">'+
+          '<i style="background:'+bg+';border-color:'+bd+'"></i>'+lab+'</button>';
+  });
+  html+='</div><div class="rt-blos rt-blos2">'+
+    '<button type="button" class="rt-blo" data-k="pegar"><i>⎘</i>Pegar dentro de un recuadro</button>'+
+    '<button type="button" class="rt-blo" data-k="cita"><i class="rt-blo-c"></i>Cita del libro</button>'+
+    '<button type="button" class="rt-blo" data-k="nota"><i>a</i>Nota pequeña</button>'+
+    '<button type="button" class="rt-blo" data-k="sep"><i class="rt-blo-s"></i>Separador</button>'+
+    '</div>';
+  showRichPop(btn,html);
+  richPop.querySelectorAll('.rt-blo').forEach(b=>{
+    b.onclick=()=>{hideRichPop();restore();richInsertBloque(b.dataset.k,ed,restore)};
+  });
+}
+/* deja el cursor DENTRO del bloque recién puesto, listo para escribir */
+function richCursorEn(n){
+  const dest=n.querySelector('div')||n;
+  const r=document.createRange();r.selectNodeContents(dest);r.collapse(true);
+  const s=window.getSelection();s.removeAllRanges();s.addRange(r);
+}
+/* ── NADA DE BLOQUES DENTRO DE BLOQUES ──
+   Al poner un recuadro el cursor se queda DENTRO, listo para escribir. Si
+   justo después se pedía otro bloque, se metía dentro del primero: un
+   recuadro dentro de un recuadro dentro de una cita. Eso no hay manera de
+   deshacerlo a mano desde la app, así que aquí, si el cursor está dentro de
+   un bloque, el nuevo se coloca JUSTO DEBAJO del que lo contiene (del de más
+   afuera, si hubiera varios). */
+function richSalirDeBloque(ed){
+  const s=window.getSelection();
+  if(!ed||!s||!s.rangeCount)return;
+  let n=s.getRangeAt(0).startContainer,blo=null;
+  if(n&&n.nodeType===3)n=n.parentNode;
+  while(n&&n!==ed){
+    if(n.classList&&(n.classList.contains('lp-caja')||n.classList.contains('lp-cita')||
+                     n.classList.contains('lp-nota')))blo=n;
+    n=n.parentNode;
+  }
+  if(!blo||!ed.contains(blo))return;
+  const r=document.createRange();
+  r.setStartAfter(blo);r.collapse(true);
+  s.removeAllRanges();s.addRange(r);
+}
+function richInsertBloque(k,ed,restore){
+  richSalirDeBloque(ed);
+  if(k==='sep'){document.execCommand('insertHTML',false,'<hr class="lp-sep"><div><br></div>');return}
+  if(k==='pegar'){richPegarEnCaja(ed,restore);return}
+  /* id de usar y tirar para encontrar el bloque después (insertHTML no
+     devuelve el nodo). Se quita en el acto: de la ficha se guarda todo lo que
+     hay dentro del cuadro, así que ese id acabaría dentro de los apuntes. */
+  const marca='lpblo'+Date.now();
+  let html;
+  if(k==='cita')     html='<div class="lp-cita" id="'+marca+'"><div><br></div></div><div><br></div>';
+  else if(k==='nota')html='<div class="lp-nota" id="'+marca+'"><br></div><div><br></div>';
+  else               html='<div class="lp-caja lp-caja-'+k+'" id="'+marca+'"><div><br></div></div><div><br></div>';
+  document.execCommand('insertHTML',false,html);
+  const n=document.getElementById(marca);
+  if(!n)return;
+  n.removeAttribute('id');
+  if(ed&&ed.contains(n))richCursorEn(n);
+}
+/* ── PEGAR DENTRO DE UN RECUADRO ──
+   Lo que hay en el portapapeles entra ya dentro de la caja gris, un párrafo
+   por renglón. Las líneas en blanco se tiran: el aire entre párrafos lo pone
+   el estilo del recuadro, y así no quedan huecos dobles.
+
+   Se pega como TEXTO, escapado: si lo copiado trajera etiquetas HTML se
+   colarían dentro de los apuntes y no hay forma de quitarlas después.
+
+   OJO con el iPad: para leer el portapapeles Safari saca su propio botón de
+   "Pegar", y al tocarlo el cuadro de texto pierde el foco. Por eso se vuelve
+   a colocar el cursor (restore) DESPUÉS de que llegue el texto, no antes. Y
+   si el aparato no deja leerlo, se pone el recuadro vacío igualmente: es
+   preferible pegar a mano dentro que quedarse sin nada. */
+function richPegarEnCaja(ed,restore){
+  const insertar=txt=>{
+    richSalirDeBloque(ed);
+    const lineas=String(txt||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    const cuerpo=lineas.length?lineas.map(l=>'<div>'+esc(l)+'</div>').join(''):'<div><br></div>';
+    const marca='lpblo'+Date.now();
+    document.execCommand('insertHTML',false,
+      '<div class="lp-caja lp-caja-gris" id="'+marca+'">'+cuerpo+'</div><div><br></div>');
+    const n=document.getElementById(marca);
+    if(!n)return;
+    n.removeAttribute('id');
+    if(!lineas.length&&ed&&ed.contains(n))richCursorEn(n);
+  };
+  if(!(navigator.clipboard&&navigator.clipboard.readText)){
+    insertar('');showTip('Recuadro puesto: pega dentro');return;
+  }
+  navigator.clipboard.readText()
+    .then(t=>{if(restore)restore();insertar(t)})
+    .catch(()=>{if(restore)restore();insertar('');showTip('No se pudo leer lo copiado: pega dentro del recuadro')});
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -4147,6 +4325,7 @@ function wireRichToolbar(tb,ed){
       if(cmd==='fontName'){openRichFonts(btn,ed);return}
       if(cmd==='lineH'){openRichLineH(btn,ed);return}
       if(cmd==='table'){openRichTable(btn,ed);return}
+      if(cmd==='bloque'){openRichBloque(btn,ed);return}
       if(cmd==='image'){richInsertImage(ed);return}
       if(cmd==='emoji'){openRichEmoji(btn,ed);return}
       if(cmd==='listOpts'){openListOpts(btn,ed);return}
@@ -11740,19 +11919,31 @@ function richToRuns(html){
      marca de salto ({br:true}) y el dibujante corta el renglón ahí. Los
      puntos de una lista dentro de una celda tampoco salían: se les pone
      delante su marca (•, 1., …), que si no desaparecían sin avisar. */
+  const celdaRuns=html=>{
+    const runs=[];
+    richToRuns(html).forEach(p=>{
+      /* las fotos y las tablas dentro de una celda no se dibujan: si se
+         colara su párrafo vacío, dejaría un renglón en blanco suelto */
+      if(!p.runs.length)return;
+      if(runs.length)runs.push({br:true,t:''});
+      if(p.bullet)runs.push({t:p.bullet+' ',b:false,i:false,u:false,color:null});
+      p.runs.forEach(r=>runs.push(r));
+    });
+    return runs;
+  };
+  /* ══ UN RECUADRO O UNA CITA ══
+     Se dibujan con la MISMA maquinaria que una tabla, porque un recuadro no
+     es más que una tabla de una casilla: así se aprovecha lo que ya sabe
+     partir el texto en renglones, medir el alto y pasar de hoja. Lo único
+     propio es el color del fondo (`caja`), que el dibujante mira para
+     pintarla redondeada y sin las rayas de las casillas. */
+  const cajaPara=(node,prof,tipo)=>{
+    const runs=celdaRuns(node.innerHTML);
+    if(!runs.length)return;
+    paras.push({tabla:{filas:[[{runs,cab:false}]],anchos:[100],n:1,caja:tipo},
+                sangria:prof,runs:[]});
+  };
   const tablaPara=(node,st,prof)=>{
-    const celdaRuns=html=>{
-      const runs=[];
-      richToRuns(html).forEach(p=>{
-        /* las fotos y las tablas dentro de una celda no se dibujan: si se
-           colara su párrafo vacío, dejaría un renglón en blanco suelto */
-        if(!p.runs.length)return;
-        if(runs.length)runs.push({br:true,t:''});
-        if(p.bullet)runs.push({t:p.bullet+' ',b:false,i:false,u:false,color:null});
-        p.runs.forEach(r=>runs.push(r));
-      });
-      return runs;
-    };
     const filas=[];
     [...node.querySelectorAll('tr')].forEach(tr=>{
       const celdas=[];
@@ -11802,6 +11993,26 @@ function richToRuns(html){
          PDF salía "FaseLugarGlucólisisCitosol…", ilegible. Aquí se guarda con
          su forma (filas, celdas y anchos de columna) para poder dibujarla. */
       if(tag==='table'){cur=null;tablaPara(ch,st,prof);cur=null;return}
+      /* ── BLOQUES DE UN TOQUE (recuadro, cita, nota, separador) ──
+         Van ANTES del caso general de <div>: si no, se tratarían como un
+         párrafo cualquiera y en el PDF saldrían sin recuadro ni color, o
+         sea, sin distinguirse del resto del texto, que es justo para lo
+         único que se ponen. */
+      if(tag==='hr'){cur=null;paras.push({sep:true,sangria:prof,runs:[]});return}
+      const cls=ch.classList;
+      if(cls&&cls.contains('lp-caja')){
+        cur=null;
+        const tipo=(RICH_CAJAS.find(c=>cls.contains('lp-caja-'+c[0]))||RICH_CAJAS[0])[0];
+        cajaPara(ch,prof,tipo);cur=null;return;
+      }
+      if(cls&&cls.contains('lp-cita')){cur=null;cajaPara(ch,prof,'cita');cur=null;return}
+      if(cls&&cls.contains('lp-nota')){
+        cur=null;
+        richToRuns(ch.innerHTML).forEach(p=>{
+          p.chico=true;if(!p.sangria)p.sangria=prof;paras.push(p);
+        });
+        cur=null;return;
+      }
       if(tag==='div'||tag==='p'){cur=null;walk(ch,st,prof);cur=null;return}
       const st2=Object.assign({},st);
       if(tag==='b'||tag==='strong')st2.b=true;
@@ -11818,7 +12029,7 @@ function richToRuns(html){
      el editor al pulsar Enter): en el PDF serían huecos sin sentido */
   /* las imágenes y las tablas no llevan texto suelto: si no se salvaran aquí,
      este filtro las tiraría junto con los <div> vacíos */
-  return paras.filter(p=>p.img||p.tabla||p.runs.some(r=>r.t&&r.t.trim()));
+  return paras.filter(p=>p.img||p.tabla||p.sep||p.runs.some(r=>r.t&&r.t.trim()));
 }
 
 /* estilo de cada nivel de profundidad: el 0 es el rótulo con banda de color
@@ -11861,13 +12072,20 @@ function pdfExport(){
   const dibujarTabla=(tb,x,size,colorBase)=>{
     const anchoTotal=RIGHT-x;
     const cols=tb.anchos.map(w=>anchoTotal*w/100);
-    const pad=4, lh=size*1.3;
+    /* un recuadro es una tabla de una casilla, pero se pinta distinto: fondo
+       de color, esquinas redondeadas y más aire dentro. La cita no lleva
+       recuadro, solo su barra rosa a la izquierda. */
+    const caja=tb.caja?(RICH_CAJAS.find(c=>c[0]===tb.caja)||null):null;
+    const esCita=tb.caja==='cita';
+    const pad=tb.caja?(esCita?5:9):4;      // aire por arriba y por abajo
+    const padL=tb.caja?11:4;               // …y por la izquierda (la cita, tras su barra)
+    const lh=size*1.3;
     /* parte el texto de cada celda en renglones que quepan en SU columna.
        Cada renglón es {segs, aire}: `aire` marca el que empieza párrafo nuevo,
        para dejarle un respiro por encima y que no parezca todo el mismo
        bloque (igual que se ve en la app). */
     const trocear=celdas=>celdas.map((c,i)=>{
-      const maxW=(cols[i]||anchoTotal)-pad*2;
+      const maxW=(cols[i]||anchoTotal)-padL-pad;
       const pal=[];
       c.runs.forEach(r=>{
         if(r.br){pal.push({br:true});return}     // aquí acaba un párrafo
@@ -11877,7 +12095,7 @@ function pdfExport(){
       const cerrar=()=>{lineas.push({segs:linea,aire:nuevo});linea=[];ancho=0;nuevo=false};
       pal.forEach(w=>{
         if(w.br){if(linea.length)cerrar();nuevo=true;return}
-        fuente(w.st.b||c.cab,w.st.i);doc.setFontSize(size);
+        fuente(w.st.b||c.cab,w.st.i||esCita);doc.setFontSize(size);
         const ww=doc.getTextWidth(w.t);
         if(ancho+ww>maxW&&linea.length&&w.t.trim())cerrar();
         if(!linea.length&&!w.t.trim())return;   // ningún renglón empieza por espacio
@@ -11896,15 +12114,27 @@ function pdfExport(){
       let cx=x;
       trozos.forEach((t,i)=>{
         const w=cols[i]||anchoTotal;
-        if(t.cab){doc.setFillColor(244,241,248);doc.rect(cx,y0,w,alto,'F')}
-        doc.setDrawColor(206,200,220);doc.setLineWidth(.5);
-        doc.rect(cx,y0,w,alto,'S');
+        if(esCita){
+          /* la cita no lleva marco: solo la barra rosa pegada a la izquierda,
+             igual que se ve en la app */
+          doc.setFillColor(231,155,192);doc.rect(cx,y0,2.4,alto,'F');
+        }else if(caja){
+          const bg=parseColorRGB(caja[2])||[243,241,246];
+          const bd=parseColorRGB(caja[3])||[228,223,235];
+          doc.setFillColor(bg[0],bg[1],bg[2]);
+          doc.setDrawColor(bd[0],bd[1],bd[2]);doc.setLineWidth(.6);
+          doc.roundedRect(cx,y0,w,alto,6,6,'FD');
+        }else{
+          if(t.cab){doc.setFillColor(244,241,248);doc.rect(cx,y0,w,alto,'F')}
+          doc.setDrawColor(206,200,220);doc.setLineWidth(.5);
+          doc.rect(cx,y0,w,alto,'S');
+        }
         let ty=y0+pad+size*.85;
         t.lineas.forEach(ln=>{
           if(ln.aire)ty+=lh*.45;               // respiro antes de un párrafo nuevo
-          let tx=cx+pad;
+          let tx=cx+padL;
           ln.segs.forEach(seg=>{
-            fuente(seg.st.b||t.cab,seg.st.i);doc.setFontSize(size);
+            fuente(seg.st.b||t.cab,seg.st.i||esCita);doc.setFontSize(size);
             const col=parseColorRGB(seg.st.color)||colorBase;
             tinta(col);
             doc.text(seg.t,tx,ty);
@@ -11938,15 +12168,30 @@ function pdfExport(){
   /* ── párrafos ya troceados en {bullet, sangria, runs:[{t,b,i,u,color}]} ──
      `marca` es un texto que se pinta en el margen izquierdo a la altura de la
      primera línea (lo usa el resumen para los números de página). */
-  const dibujarParrafos=(paras,x,size,colorBase,marca)=>{
+  const dibujarParrafos=(paras,x,sizeBase,colorBase,marca)=>{
     if(!paras||!paras.length)return;
-    const lh=size*1.42;
     let pendiente=marca||null;
     /* `y` llega en el borde superior del hueco, pero jsPDF dibuja sobre la
        línea base: sin este empujón la primera línea se montaría encima del
        rótulo que va justo arriba */
-    y+=size*.95;
+    y+=sizeBase*.95;
     paras.forEach(p=>{
+      /* La NOTA PEQUEÑA se escribe más chica y en gris: es un apunte al
+         margen y no debe pesar lo mismo que el texto de al lado. Por eso el
+         tamaño y el color se deciden PÁRRAFO A PÁRRAFO y no una vez para
+         todos, como se hacía antes. */
+      const size=p.chico?sizeBase*.86:sizeBase;
+      const lh=size*1.42;
+      const colBase=p.chico?INK2:colorBase;
+      /* ── SEPARADOR ── una raya fina de lado a lado */
+      if(p.sep){
+        sitio(lh);
+        const sy=y-size*.35;
+        doc.setDrawColor(214,208,226);doc.setLineWidth(.6);
+        doc.line(x,sy,RIGHT,sy);
+        y+=lh*.85;
+        return;
+      }
       /* ── IMAGEN ──
          Se dibuja con el ancho en % que tenga en la app y del lado en que
          esté puesta. Si no cupiera ni en una hoja entera, se reduce hasta que
@@ -12020,7 +12265,7 @@ function pdfExport(){
         let cx=bx+sangraViñeta;
         linea.forEach(seg=>{
           fuente(seg.st.b,seg.st.i);doc.setFontSize(size);
-          const col=parseColorRGB(seg.st.color)||colorBase;
+          const col=parseColorRGB(seg.st.color)||colBase;
           tinta(col);
           doc.text(seg.t,cx,y);
           const w=doc.getTextWidth(seg.t);
