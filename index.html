@@ -354,6 +354,10 @@ body.panel-dragging #reader-bottom{transition:none}
   touch-action:manipulation;user-select:none}
 #sel-copy.on{display:flex}
 #sel-copy:active{transform:scale(.95)}
+/* mientras Ctrl está pulsado, la pastilla deja pasar los clics: se coloca justo
+   encima de donde acabas de pinchar y, si no, tapaba la palabra siguiente y el
+   Ctrl+clic no llegaba al documento (parecía que no hacía nada) */
+#sel-copy.pasa{pointer-events:none}
 #sel-copy svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;
   stroke-linecap:round;stroke-linejoin:round}
 
@@ -2229,7 +2233,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v151'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v152'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -7010,6 +7014,18 @@ function setupPageEvents(wrap,aCv,nl,num){
     if(e.pointerType==='mouse'&&e.button!==0)return;
 
     if(e.pointerType==='pen'){pencilConnected=true;pencilBadge.classList.remove('hidden');clearTimeout(pencilBadge._t);pencilBadge._t=setTimeout(()=>pencilBadge.classList.add('hidden'),2000)}
+
+    /* CTRL (o Cmd) + CLIC = seleccionar texto SUMANDO trozos, en CUALQUIER
+       herramienta y sin cambiarla, igual que el botón derecho mantenido. Antes
+       solo funcionaba con la herramienta de selección puesta, y si estabas con
+       el subrayador o el lápiz no pasaba nada y parecía que no servía. */
+    if((e.ctrlKey||e.metaKey)&&isDrawingInput(e)){
+      if(selStart(e)){
+        e.preventDefault();
+        if(e.pointerType==='pen'){penActive=true;penActiveT=Date.now()}
+      }
+      return;
+    }
 
     const p=basePos(e);
     const ann=annotations[num];
@@ -14704,6 +14720,11 @@ function showSelCopy(cx,cy){
   selCopyBtn.style.top =Math.max(8,Math.min(arriba>8?arriba:cy+18,innerHeight-h-8))+'px';
 }
 selCopyBtn.addEventListener('click',()=>selCopy());
+/* Ctrl pulsado → la pastilla de Copiar no estorba (ver #sel-copy.pasa) */
+const selCtrlUI=on=>selCopyBtn.classList.toggle('pasa',!!on);
+window.addEventListener('keydown',e=>{if(e.key==='Control'||e.key==='Meta')selCtrlUI(true)},true);
+window.addEventListener('keyup',e=>{if(e.key==='Control'||e.key==='Meta')selCtrlUI(false)},true);
+window.addEventListener('blur',()=>selCtrlUI(false));   // soltar la tecla fuera de la ventana
 
 /* palabra entera que hay en la posición i (para el Ctrl+clic). El índice del
    buscador ya separa las palabras con UN espacio, así que los límites de la
@@ -14772,8 +14793,14 @@ function selEnd(cx,cy){
         if(k>=0)selPieces.splice(k,1);else selPieces.push(w);
       }
     }else selPieces.push(rg);
-    selAnchor=selFocus=null;
+    /* el ancla se queda donde se soltó, en vez de borrarla: es un tramo de
+       longitud cero (no se pinta ni se copia), pero deja rastro de en qué
+       página estamos. Sin él, si el siguiente clic cae en un hueco sin texto,
+       la app no sabe por dónde ibas y el clic se pierde en silencio. */
+    if(selAnchor)selFocus={pid:selAnchor.pid,pos:selAnchor.pos,i:selAnchor.i};
     paintTextSel();
+    const n=selPieces.length;
+    showTip(n?(n===1?'1 trozo marcado · Ctrl+C para copiar':n+' trozos marcados · Ctrl+C para copiar'):'Trozo quitado',1400);
   }
 
   if(selEmpty()){clearTextSel();return}
