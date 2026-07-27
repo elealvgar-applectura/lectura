@@ -2180,7 +2180,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v142'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v143'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -13681,14 +13681,138 @@ document.getElementById('rd-prev').onclick=()=>{if(curPage>1){curPage--;goPage(c
 document.getElementById('rd-next').onclick=()=>{if(curPage<totalPages){curPage++;goPage(curPage);updateNav()}};
 pgJump.addEventListener('change',()=>{const v=Math.max(1,Math.min(totalPages,+pgJump.value));curPage=v;goPage(v);updateNav()});
 
+/* ══════════════════════════════════════════════════════════════════
+   TAPAR DE GOLPE (tapas de estudio en bloque)
+
+   Las tapas se ponían de una en una, arrastrando. Para convertir un tema
+   entero en un autoexamen había que taparlo subrayado a subrayado.
+
+   Aquí se crea UNA tapa por cada subrayado, eligiendo antes de qué temas
+   (el tema de un subrayado se sabe por su grupo: gid → mapa de temas; los
+   subrayados sueltos cuentan como "Sin tema").
+
+   SEGURIDAD, que esto sí crea datos:
+     · Las tapas creadas así llevan `auto:true`. "Quitar las tapas
+       automáticas" borra SOLO esas: una tapa hecha a mano no se toca nunca.
+     · No se tocan ni subrayados, ni trazos, ni notas: solo `covers`.
+     · `auto` es un campo nuevo dentro de la propia tapa, no una clave nueva
+       de localStorage, así que ni la copia de seguridad ni el sync cambian.
+     · Tapar SOLO esta página entra en Deshacer. Tapar el documento entero no,
+       porque llenaría la pila de deshacer y se perdería todo lo anterior:
+       para eso está "Quitar las tapas automáticas".
+   ══════════════════════════════════════════════════════════════════ */
+function coverPagesAfectadas(soloEstaPagina){
+  return soloEstaPagina?[curPid()]:pageOrder.map(s=>s.pid);
+}
+async function taparSubrayados(soloEstaPagina){
+  const pids=coverPagesAfectadas(soloEstaPagina);
+  const map=loadThemeMap();
+  const cands=[];
+  pids.forEach(pid=>{
+    const ann=annotations[pid];
+    if(!ann||!ann.highlights)return;
+    ann.highlights.forEach(h=>cands.push({pid,h,tid:(h.gid&&map[h.gid])||null}));
+  });
+  if(!cands.length){
+    showTip(soloEstaPagina?'En esta página no hay subrayados que tapar':'Todavía no hay subrayados que tapar');
+    return;
+  }
+  const sel=await filtrarPorTemas(cands,c=>c.tid);
+  if(!sel)return;                               // cancelado en el selector de temas
+  if(!sel.length){showTip('No has elegido ningún tema');return}
+
+  const ok=await askConfirm(
+    'Se van a tapar '+sel.length+(sel.length===1?' subrayado':' subrayados')+
+    (soloEstaPagina?' de esta página.':' de todo el documento.')+
+    ' Podrás quitarlas todas de golpe con "Quitar las tapas automáticas".',
+    {ok:'Tapar',cancel:'Cancelar',danger:false});
+  if(!ok)return;
+
+  const porPag=new Map();
+  sel.forEach(c=>{if(!porPag.has(c.pid))porPag.set(c.pid,[]);porPag.get(c.pid).push(c.h)});
+
+  let n=0;
+  porPag.forEach((hs,pid)=>{
+    const ann=annotations[pid];if(!ann)return;
+    if(!ann.covers)ann.covers=[];
+    if(soloEstaPagina){pushUndo(pid);clearRedo()}
+    hs.forEach(h=>{
+      /* un poco más grande que el subrayado: si la banda es fina, el texto
+         asomaría por arriba y por abajo y la tapa no taparía nada */
+      const x=h.x-1,y=h.y-2,w=h.w+2,hh=h.h+4;
+      /* no duplicar si ya hay una tapa automática prácticamente encima */
+      if(ann.covers.some(c=>c.auto&&Math.abs(c.x-x)<2&&Math.abs(c.y-y)<2&&Math.abs(c.w-w)<3))return;
+      ann.covers.push({id:uid(),x,y,w,h:hh,color:h.color||curColor,open:false,auto:true});
+      n++;
+    });
+  });
+  porPag.forEach((hs,pid)=>forceNoteLayerRefresh(pid));
+  scheduleSave();
+  showTip(n?(n===1?'Tapado 1 subrayado. Tócalo para destapar.'
+                  :'Tapados '+n+' subrayados. Tócalos para destapar.')
+           :'Ya estaban tapados',2400);
+}
+
+/* cerrar (tapar) o abrir (destapar) TODAS las tapas del documento */
+function coversSetOpen(abrir){
+  let n=0;
+  pageOrder.forEach(s=>{
+    const ann=annotations[s.pid];
+    if(!ann||!ann.covers||!ann.covers.length)return;
+    ann.covers.forEach(c=>{if(!!c.open!==abrir){c.open=abrir;n++}});
+    if(n)forceNoteLayerRefresh(s.pid);
+  });
+  if(!n){showTip(abrir?'No hay tapas que abrir':'Ya estaban todas cerradas');return}
+  scheduleSave();
+  showTip(abrir?('Destapadas '+n):('Vueltas a tapar '+n),2000);
+}
+
+/* quita SOLO las tapas creadas automáticamente; las hechas a mano se quedan */
+async function quitarTapasAuto(){
+  let total=0;
+  pageOrder.forEach(s=>{
+    const ann=annotations[s.pid];
+    if(ann&&ann.covers)total+=ann.covers.filter(c=>c.auto).length;
+  });
+  if(!total){showTip('No hay tapas automáticas que quitar');return}
+  const ok=await askConfirm(
+    '¿Quitar '+total+(total===1?' tapa automática':' tapas automáticas')+'? '+
+    'Las tapas que hiciste a mano se quedan como están, y los subrayados no se tocan.',
+    {ok:'Quitar',cancel:'Dejarlas'});
+  if(!ok)return;
+  pageOrder.forEach(s=>{
+    const ann=annotations[s.pid];
+    if(!ann||!ann.covers)return;
+    const antes=ann.covers.length;
+    ann.covers=ann.covers.filter(c=>!c.auto);
+    if(ann.covers.length!==antes)forceNoteLayerRefresh(s.pid);
+  });
+  scheduleSave();
+  showTip('Quitadas '+total+(total===1?' tapa automática':' tapas automáticas'),2200);
+}
+
+function openCoverMenu(btn){
+  const r=btn.getBoundingClientRect();
+  showCtx(r.left-40,r.bottom+6,[
+    {icon:'pin',   label:'Tapar los subrayados de esta página…', action:()=>taparSubrayados(true)},
+    {icon:'pin',   label:'Tapar los subrayados de todo el documento…', action:()=>taparSubrayados(false)},
+    {icon:'jump',  label:'Volver a cerrar todas las tapas', action:()=>coversSetOpen(false)},
+    {icon:'jump',  label:'Destapar todas', action:()=>coversSetOpen(true)},
+    {icon:'trash', label:'Quitar las tapas automáticas', danger:true, action:quitarTapasAuto}
+  ]);
+}
+
 /* ══ TOOLS ══ */
 const toolMap={'tb-select':'select','tb-highlight':'highlight','tb-pen':'pen','tb-note':'note','tb-cover':'cover','tb-eraser':'eraser'};
 const CONFIGURABLE=['highlight','pen','eraser'];
 Object.entries(toolMap).forEach(([id,tool])=>{
   document.getElementById(id).onclick=()=>{
     if(curTool===tool&&CONFIGURABLE.includes(tool)){openSettings(tool);return}
+    /* la tapa no tiene grosor ni opacidad que ajustar: su "toca 2x" abre las
+       acciones en bloque (tapar de golpe, cerrar todas, quitar las automáticas) */
+    if(curTool===tool&&tool==='cover'){openCoverMenu(document.getElementById(id));return}
     curTool=tool;Object.keys(toolMap).forEach(k=>document.getElementById(k).classList.remove('on'));document.getElementById(id).classList.add('on');
-    const tips={select:'Dedo = desplazar · Lápiz o ratón = seleccionar texto',highlight:'Sigue el texto · baja para subrayar varias líneas · toca 2x para el grosor',pen:'Lápiz fino · mantén quieto para línea recta',note:'Toca el PDF para añadir una nota',cover:'Arrastra para tapar · toca la tapa para destapar · mantén para eliminar',eraser:'Pasa por encima para borrar · toca 2x para ajustes'};
+    const tips={select:'Dedo = desplazar · Lápiz o ratón = seleccionar texto',highlight:'Sigue el texto · baja para subrayar varias líneas · toca 2x para el grosor',pen:'Lápiz fino · mantén quieto para línea recta',note:'Toca el PDF para añadir una nota',cover:'Arrastra para tapar · toca la tapa para destapar · mantén para eliminar · toca 2x para tapar de golpe',eraser:'Pasa por encima para borrar · toca 2x para ajustes'};
     showTip(tips[tool],2800);
   };
 });
