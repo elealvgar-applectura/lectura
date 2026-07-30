@@ -2283,7 +2283,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v159'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v160'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -3386,56 +3386,34 @@ function richIntroSaleDeBloque(ed){
    parecía que se cambiaba de caja solo. El navegador respeta las casillas de
    las tablas, pero los recuadros se los salta.
 
-   No hay forma de pedirle que no lo haga, así que se apunta en qué bloque
-   estaba el cursor ANTES y, si el punto ha acabado en otro sitio, se trae de
-   vuelta a una lista nueva en su bloque. Solo se MUEVE el punto que ya
-   existe: no se copia ni se borra nada de lo escrito. */
-function richListaAntes(ed){
-  const n=richNodoCursor(ed);
-  if(!n)return null;
-  const blo=richBloqueDe(n,ed)||ed;
-  /* el renglón (hijo directo del bloque) donde está el cursor: es la
-     referencia de DÓNDE hay que devolver la lista si se escapa */
-  let linea=n;
-  while(linea&&linea!==blo&&linea.parentNode!==blo)linea=linea.parentNode;
-  return {blo,
-    sig:(linea&&linea!==blo)?linea.nextSibling:null,
-    /* y dónde estaba el bloque entero: al llevarse su único renglón, el
-       navegador se lleva por delante el recuadro vacío que queda, así que a
-       veces hay que volver a ponerlo en su sitio */
-    padre:(blo!==ed)?blo.parentNode:null,
-    tras: (blo!==ed)?blo.nextSibling:null};
-}
-function richListaEnSuSitio(ed,antes){
-  if(!ed||!antes)return;
-  const s=window.getSelection();
-  const n=richNodoCursor(ed);
-  const li=(n&&n.closest)?n.closest('li'):null;
-  if(!li||!ed.contains(li))return;
-  const lista=li.parentNode;
-  if(!lista||(lista.tagName!=='UL'&&lista.tagName!=='OL'))return;
-  if((richBloqueDe(lista,ed)||ed)===antes.blo)return;      // está donde debe
-  /* ¿se ha llevado el recuadro por delante? se vuelve a poner donde estaba */
-  if(!ed.contains(antes.blo)){
-    if(!antes.padre||!ed.contains(antes.padre))return;     // ni idea de dónde: mejor no tocar
-    antes.padre.insertBefore(antes.blo,(antes.tras&&antes.tras.parentNode===antes.padre)?antes.tras:null);
-  }
-  /* lista NUEVA y limpia: la marca (guion, raya, número…) es la del bloque de
-     arriba, no la que se ha pedido aquí */
-  const nueva=document.createElement(lista.tagName);
-  nueva.appendChild(li);
-  const sig=(antes.sig&&antes.sig.parentNode===antes.blo)?antes.sig:null;
-  antes.blo.insertBefore(nueva,sig);
-  if(!lista.querySelector('li')&&lista.parentNode)lista.parentNode.removeChild(lista);
-  /* de donde salió el punto queda un renglón vacío del todo (un <div> sin
-     nada dentro, ni siquiera un <br>): pintaba una línea en blanco de más al
-     principio de la caja. Un renglón así no lo escribe nadie a propósito. */
-  [].slice.call(antes.blo.children).forEach(el=>{
-    if(el!==nueva&&!el.childNodes.length&&(el.tagName==='DIV'||el.tagName==='P')&&el.parentNode)
-      el.parentNode.removeChild(el);
-  });
-  const r=document.createRange();r.selectNodeContents(li);r.collapse(false);
-  s.removeAllRanges();s.addRange(r);
+   Y no se escapa solo un renglón: enumerando VARIOS de golpe se van todos,
+   que es lo que más se nota (media caja aparece de repente dentro de la de
+   arriba).
+
+   Arreglarlo DESPUÉS no vale: al fundir las listas el navegador no mueve lo
+   escrito, lo REHACE, y ya no hay manera de saber qué renglón era cuál.
+
+   Así que se impide antes de que pase. El navegador solo funde con listas que
+   se puedan EDITAR, de modo que, mientras dura el comando, se marcan como no
+   editables todas las listas que estén FUERA del recuadro donde se está
+   escribiendo. Al terminar se les quita la marca SIEMPRE (de ahí el finally):
+   si se quedara puesta, acabaría dentro de los apuntes guardados. No se toca
+   nada de lo escrito, solo un atributo, y durante un instante en el que nada
+   lee ni guarda la ficha.
+
+   Solo se marcan las de FUERA del bloque: dentro del mismo recuadro las
+   listas se siguen fundiendo, que es justo lo que hay que hacer, y fuera de
+   los recuadros todo sigue igual que siempre. */
+function richListaSinFundir(ed,fn){
+  const marcadas=[];
+  try{
+    const blo=richBloqueDe(richNodoCursor(ed),ed)||ed;
+    [].slice.call(ed.querySelectorAll('ul,ol')).forEach(l=>{
+      if((richBloqueDe(l,ed)||ed)!==blo){l.setAttribute('contenteditable','false');marcadas.push(l)}
+    });
+  }catch(e){}
+  try{fn()}
+  finally{marcadas.forEach(l=>{try{l.removeAttribute('contenteditable')}catch(e){}})}
 }
 function richInsertBloque(k,ed,restore){
   if(k==='salir'){richSalirAbajo(ed);return}
@@ -4497,13 +4475,13 @@ function wireRichToolbar(tb,ed){
         return;
       }
       ed.focus();
-      /* dónde estaba el cursor antes de hacer la lista, por si el navegador
-         se la lleva al recuadro de arriba (ver richListaEnSuSitio) */
-      const antesL=(cmd==='insertUnorderedList'||cmd==='insertOrderedList')?richListaAntes(ed):null;
-      richRun(cmd,val);
+      /* las listas se hacen "sin fundir" para que no se escapen del recuadro
+         donde se está escribiendo (ver richListaSinFundir) */
+      if(RICH_CMD_LISTA.indexOf(cmd)>=0)richListaSinFundir(ed,()=>richRun(cmd,val));
+      else richRun(cmd,val);
       /* toda operación de lista puede dejar la estructura mal (ver
          richFixLists): se repara en el momento, no al guardar */
-      if(RICH_CMD_LISTA.indexOf(cmd)>=0){richListaEnSuSitio(ed,antesL);richFixLists(ed)}
+      if(RICH_CMD_LISTA.indexOf(cmd)>=0)richFixLists(ed);
       richUpdateState(tb,ed);
     });
   });
@@ -4569,7 +4547,7 @@ function wireRichToolbar(tb,ed){
         return;
       }
     }
-    richRun(e.shiftKey?'outdent':'indent');
+    richListaSinFundir(ed,()=>richRun(e.shiftKey?'outdent':'indent'));
     richFixLists(ed);
   });
 
