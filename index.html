@@ -2283,7 +2283,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v157'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v158'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -8869,6 +8869,37 @@ document.querySelectorAll('#summary-panel .sp-tab').forEach(t=>t.addEventListene
 document.getElementById('summary-export').onclick=()=>exportSummaryText(summaryTab);
 addPanelSwipe('summary-panel');
 
+/* ══ PEGAR LOS TROCITOS DE TEXTO SIN INVENTAR ESPACIOS ══
+   Un PDF no guarda palabras: guarda trocitos colocados cada uno en su sitio, y
+   muy a menudo parte una palabra en dos ("¿H" + "ablan") por el ajuste fino
+   entre letras, por un cambio de fuente o por una ligadura. Antes se pegaban
+   SIEMPRE con un espacio, y por eso los títulos y subtítulos del índice salían
+   con letras sueltas: "¿H ablan más las mujeres?".
+   Ahora el espacio se pone solo si de verdad hay hueco entre un trocito y el
+   siguiente. El umbral (0,10 del alto de letra) es prudente a propósito: un
+   espacio de verdad mide como poco 0,15 del alto aunque el renglón esté muy
+   apretado, y un corte a mitad de palabra deja un hueco prácticamente cero.
+   Así no se pegan dos palabras por error.
+   Cada trocito necesita x0 (dónde empieza), x1 (dónde acaba), base y top. */
+function unirFragmentos(frs){
+  let out='';
+  for(let i=0;i<frs.length;i++){
+    const f=frs[i];
+    if(i===0){out=f.str;continue}
+    const p=frs[i-1];
+    let sep=' ';
+    if(/\s$/.test(out)||/^\s/.test(f.str))sep='';      // el espacio ya viene dentro del texto
+    else{
+      const fh=Math.max(1,p.base-p.top);               // alto de letra del trocito anterior
+      const mismaLinea=Math.abs(f.base-p.base)<=fh*.5; // renglones distintos: siempre separados
+      const hueco=(f.x0!=null&&p.x1!=null)?f.x0-p.x1:null;
+      if(mismaLinea&&hueco!==null&&hueco<=fh*0.10)sep='';
+    }
+    out+=sep+f.str;
+  }
+  return out.replace(/\s+/g,' ').trim();
+}
+
 /* Texto real que hay debajo de un subrayado.
    Antes esto buscaba un elemento `.text-layer` en el DOM… que esta app nunca
    llega a crear, así que SIEMPRE devolvía "(subrayado p.N)" y por eso ni el
@@ -8898,20 +8929,22 @@ function getHlText(pg,h){
        letra) y solo se cuela la palabra que la banda toca de verdad. */
     const words=it.str.split(/(\s+)/);
     if(words.length<=1){
-      if((ox/wFrag)>0.3)hit.push({str:it.str,x0:it.x0,base:it.base,top:it.top,bottom:it.bottom});
+      if((ox/wFrag)>0.3)hit.push({str:it.str,x0:it.x0,x1:it.x1,base:it.base,top:it.top,bottom:it.bottom});
       return;
     }
     const totalLen=it.str.length||1;
-    let pos=0;const kept=[];
+    /* kx0/kx1: dónde empieza y acaba de verdad lo que se ha quedado del bloque.
+       Hace falta para saber luego si pega con el trocito siguiente o no. */
+    let pos=0;const kept=[];let kx0=null,kx1=null;
     words.forEach(w=>{
       const len=w.length;
       if(!w.trim()){pos+=len;return}
       const wx0=it.x0+(pos/totalLen)*wFrag, wx1=it.x0+((pos+len)/totalLen)*wFrag;
       const wox=Math.min(wx1,x1)-Math.max(wx0,x0), wlen=Math.max(1,wx1-wx0);
-      if(wox>0&&(wox/wlen)>0.35)kept.push(w);
+      if(wox>0&&(wox/wlen)>0.35){kept.push(w);if(kx0===null)kx0=wx0;kx1=wx1}
       pos+=len;
     });
-    if(kept.length)hit.push({str:kept.join(' '),x0:it.x0,base:it.base,top:it.top,bottom:it.bottom});
+    if(kept.length)hit.push({str:kept.join(' '),x0:kx0,x1:kx1,base:it.base,top:it.top,bottom:it.bottom});
   });
   if(!hit.length)return'';
   /* orden de lectura: por líneas (de arriba abajo) y dentro de cada una, izq→der */
@@ -8920,7 +8953,7 @@ function getHlText(pg,h){
     if(Math.abs(dy)>Math.max(3,(a.bottom-a.top)*.5))return dy;
     return a.x0-b.x0;
   });
-  return hit.map(i=>i.str).join(' ').replace(/\s+/g,' ').trim();
+  return unirFragmentos(hit);
 }
 
 /* ══ RESUMEN — centrado en NOTAS ══
@@ -9092,7 +9125,7 @@ function resTextLines(pg){
   });
   lines.forEach(l=>{
     l.parts.sort((a,b)=>a.x0-b.x0);
-    l.text=l.parts.map(p=>p.str).join(' ').replace(/\s+/g,' ').trim();
+    l.text=unirFragmentos(l.parts);
   });
   lines.sort((a,b)=>a.top-b.top);
   return lines;
