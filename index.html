@@ -381,6 +381,67 @@ body.panel-dragging #reader-bottom{transition:none}
 /* nota con formato: se ve tal cual, pero se edita desde el panel de notas */
 .stnote-ro{font-size:13px;color:var(--ink);line-height:1.5;padding:2px 0;flex:1;min-height:0;overflow-y:auto;-webkit-user-select:text;user-select:text}
 
+/* ══ TEXTO ESCRITO SOBRE LA PÁGINA ══
+   Un cuadro de texto que se escribe ENCIMA del PDF, con el mismo editor con
+   formato que las fichas.
+
+   POR QUÉ EL FONDO ES TRANSPARENTE: el cuadro vive en la capa de notas, que va
+   por encima del lienzo donde se pintan los subrayados. Así el subrayador pasa
+   POR DEBAJO de las letras y el texto se sigue leyendo encima, igual que
+   cuando subrayas el texto del propio PDF. Con un fondo blanco, el color
+   quedaría tapado y no se vería nada.
+
+   POR QUÉ SE ESCALA CON transform: el cuadro forma parte de la página, no de
+   la interfaz. Con la escala, al hacer zoom crece TODO a la vez (la letra, las
+   viñetas, las imágenes), como el resto del documento. Si solo se escalara la
+   caja, el texto se quedaría del mismo tamaño y se saldría al ampliar.
+
+   POR QUÉ NO RECIBE TOQUES SIEMPRE: con el subrayador, el lápiz o el borrador
+   en la mano, el cuadro deja pasar el trazo (pointer-events:none) para poder
+   subrayar encima. Solo se puede tocar y escribir con la herramienta de texto
+   o con la de selección. */
+.txt-box{position:absolute;z-index:9;transform-origin:0 0;box-sizing:border-box;
+  padding:2px 5px;border:1px dashed transparent;border-radius:5px;min-height:26px}
+/* OJO CON LA FUERZA DE LAS REGLAS: más arriba, `.note-layer>*` obliga a que
+   todo hijo de la capa reciba toques. Para poder subrayar POR ENCIMA del texto
+   insertado hay que ganarle, y por eso estas dos reglas llevan el #pages-inner
+   delante. Si se quitara, el cuadro se tragaría el subrayador y el lápiz. */
+#pages-inner .txt-box{pointer-events:none}
+/* el texto de la página va alineado a la izquierda, no justificado como las
+   fichas (.rich-content): en un cuadro estrecho, justificar deja calles
+   blancas enormes. Va con dos clases para ganarle a .rich-content, que se
+   declara más abajo en la hoja. */
+/* el tamaño y el interlineado de partida son los de un texto normal de PDF, no
+   los de una ficha (que va más suelta). Si se cambian aquí hay que cambiarlos
+   IGUAL en TXT_CSS_EXP, que es lo que se usa para el PDF exportado: si no
+   coinciden, el texto se corta o baila al exportar. */
+.txt-box .txt-ed{outline:none;color:#1E1B26;font-size:14px;line-height:1.5;padding:0;margin:0;
+  text-align:left;touch-action:auto;
+  word-wrap:break-word;overflow-wrap:break-word;-webkit-user-select:text;user-select:text;min-height:20px}
+.txt-ed:empty:before{content:attr(data-ph);color:#8B8497}
+#pages-inner[data-tool="text"] .txt-box,#pages-inner[data-tool="select"] .txt-box{pointer-events:auto}
+/* con la herramienta de texto puesta se marcan con un borde de puntos, para
+   ver de un vistazo dónde hay cuadros escritos (aunque estén vacíos) */
+#pages-inner[data-tool="text"] .txt-box{border-color:rgba(120,100,140,.38)}
+/* el cuadro elegido, en rosa. Lleva el #pages-inner delante para ganarle a la
+   regla de arriba (la del borde de puntos con la herramienta de texto) */
+#pages-inner .txt-box.on{border-color:var(--rosa-fuerte);border-style:solid;box-shadow:0 0 0 3px rgba(201,139,172,.18)}
+.txt-hand{position:absolute;display:none;align-items:center;justify-content:center;
+  width:26px;height:26px;border-radius:50%;background:var(--card);border:1px solid var(--border);
+  box-shadow:0 2px 8px rgba(120,100,140,.28);color:var(--ink2);font-size:15px;line-height:1;
+  touch-action:none;cursor:pointer;z-index:3;user-select:none;-webkit-user-select:none}
+.txt-box.on .txt-hand{display:flex}
+.txt-move{left:-13px;top:-13px;cursor:grab}
+.txt-del{right:-13px;top:-13px;color:var(--danger);font-size:17px}
+.txt-resize{right:-13px;bottom:-13px;cursor:nwse-resize;
+  background:linear-gradient(135deg,var(--card) 50%,var(--rosa-fuerte) 50%)}
+/* barra de formato flotante del cuadro de texto: la misma de las fichas, pero
+   suelta sobre el documento (no cabe dentro del propio cuadro) */
+#txt-tb{position:fixed;z-index:640;background:var(--card);border:1px solid var(--border);
+  border-radius:14px;box-shadow:0 6px 24px rgba(120,100,140,.24);padding:7px 8px;
+  max-width:calc(100vw - 16px);margin:0;display:none}
+#txt-tb.open{display:flex}
+
 /* notes panel (barra rápida) — el tamaño y el deslizamiento los define la
    regla común de .side-panel, más abajo */
 #notes-panel-top{display:flex;align-items:center;gap:8px;padding:0 12px;height:54px;border-bottom:1px solid var(--border);flex-shrink:0}
@@ -1532,6 +1593,9 @@ body.fullscreen #gid-bar{bottom:20px}
     <button class="tool-btn" id="tb-note" title="Nota adhesiva">
       <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
     </button>
+    <button class="tool-btn" id="tb-text" title="Escribir texto sobre la página">
+      <svg viewBox="0 0 24 24"><path d="M4 7V5h16v2"/><path d="M12 5v14"/><path d="M9 19h6"/></svg>
+    </button>
     <button class="tool-btn" id="tb-cover" title="Tapa de estudio">
       <svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="12" rx="2.5"/><path d="M8 7V5.5A1.5 1.5 0 019.5 4h5A1.5 1.5 0 0116 5.5V7"/><circle cx="12" cy="13" r="1.2" fill="currentColor" stroke="none"/></svg>
     </button>
@@ -2283,7 +2347,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v160'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v161'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -3415,6 +3479,73 @@ function richListaSinFundir(ed,fn){
   try{fn()}
   finally{marcadas.forEach(l=>{try{l.removeAttribute('contenteditable')}catch(e){}})}
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   UN GUION AL EMPEZAR EL RENGLÓN → LISTA CON PUNTOS
+
+   Como en Word: escribes "-" y un espacio al principio de una línea, el guion
+   desaparece y ese renglón se convierte en un punto de lista. Sin tener que ir
+   a buscar el botón de la barra.
+
+   Solo salta si se cumple TODO:
+     · el cursor está justo detrás del guion, sin nada más escrito en ese
+       renglón (si no, "3 - 4" se convertiría en lista al escribir el espacio);
+     · no estamos ya dentro de una lista (ahí un guion es un guion normal).
+
+   La lista se hace "sin fundir" (ver richListaSinFundir) para que el punto no
+   se escape al recuadro de arriba, y se repasa la estructura después, igual
+   que cuando se pulsa el botón de la barra.
+   ══════════════════════════════════════════════════════════════════ */
+function richNadaAntesEnElRenglon(ed,nodo){
+  const BLOQUE=/^(DIV|P|LI|TD|TH|BLOCKQUOTE|H[1-6]|UL|OL)$/;
+  let n=nodo;
+  while(n&&n!==ed){
+    let p=n.previousSibling;
+    while(p){
+      /* un salto de línea justo antes: el renglón empieza aquí */
+      if(p.nodeType===1&&p.tagName==='BR')return true;
+      if(p.nodeType===3){
+        if((p.nodeValue||'').trim()!=='')return false;
+      }else if(p.nodeType===1){
+        if(p.querySelector&&p.querySelector('br'))return true;
+        if(p.tagName==='IMG')return false;
+        if((p.textContent||'').trim()!=='')return false;
+      }
+      p=p.previousSibling;
+    }
+    const padre=n.parentElement;
+    if(!padre||padre===ed)return true;          // principio del cuadro
+    if(BLOQUE.test(padre.tagName||''))return true;  // principio de párrafo o celda
+    n=padre;                                    // era negrita, color…: seguimos subiendo
+  }
+  return true;
+}
+function richGuionALista(ed){
+  const sel=window.getSelection();
+  if(!ed||!sel||!sel.rangeCount||!sel.isCollapsed)return false;
+  const r=sel.getRangeAt(0);
+  const nodo=r.startContainer;
+  if(!nodo||nodo.nodeType!==3||!ed.contains(nodo))return false;
+  const el=nodo.parentElement;
+  if(el&&el.closest('li'))return false;                       // ya es una lista
+  const antes=(nodo.nodeValue||'').slice(0,r.startOffset);
+  if(!/^\s*-$/.test(antes))return false;                      // hay más cosas escritas
+  if(!richNadaAntesEnElRenglon(ed,nodo))return false;
+  /* SE BORRA EL GUION MARCÁNDOLO Y DEJANDO QUE LO BORRE EL NAVEGADOR.
+     Antes se vaciaba el trozo de texto a mano, y ahí estaba el fallo: un trozo
+     de texto vacío no es un sitio válido donde poner el cursor, así que el
+     navegador lo subía al renglón de ARRIBA y la lista se hacía en la línea
+     equivocada (se llevaba por delante el párrafo anterior). Borrándolo con el
+     propio navegador, el cursor se queda donde debe. */
+  const rr=document.createRange();
+  rr.setStart(nodo,r.startOffset-antes.length);
+  rr.setEnd(nodo,r.startOffset);
+  sel.removeAllRanges();sel.addRange(rr);
+  document.execCommand('delete');
+  richListaSinFundir(ed,()=>richRun('insertUnorderedList'));
+  richFixLists(ed);
+  return true;
+}
 function richInsertBloque(k,ed,restore){
   if(k==='salir'){richSalirAbajo(ed);return}
   richSalirDeBloque(ed);
@@ -4428,7 +4559,11 @@ function wireRichToolbar(tb,ed){
   refreshRichSwatches();
   /* la edición dentro del panel crea una barra nueva cada vez que se abre: se
      tiran las que ya no están en pantalla para no acumularlas */
-  for(let i=richWired.length-1;i>=0;i--)if(!richWired[i].ed.isConnected)richWired.splice(i,1);
+  /* Se tiran las que ya no están en pantalla y también la anterior de ESTA
+     misma barra: la barra flotante de los cuadros de texto de la página es una
+     sola y va cambiando de cuadro, así que sin esto la lista crecería con una
+     entrada por cada toque, todas apuntando a la misma barra. */
+  for(let i=richWired.length-1;i>=0;i--)if(!richWired[i].ed.isConnected||richWired[i].tb===tb)richWired.splice(i,1);
   richWired.push({tb,ed});
 
   tb.querySelectorAll('[data-cmd]').forEach(btn=>{
@@ -4485,9 +4620,28 @@ function wireRichToolbar(tb,ed){
       richUpdateState(tb,ed);
     });
   });
+  /* ── LOS OYENTES DEL CUADRO, UNA SOLA VEZ ──
+     Los botones de arriba se enganchan siempre (la barra se rehace cada vez).
+     Lo de aquí abajo, no: son oyentes del CUADRO de escribir (teclas, pegado,
+     imágenes…). Los cuadros de texto de encima de la página comparten UNA sola
+     barra flotante y la reenganchan cada vez que tocas uno, así que sin esta
+     marca cada toque dejaba otra copia de todos los oyentes: al cabo de un
+     rato, un solo pegado se ejecutaba veinte veces. */
+  if(ed.dataset.rwired)return;
+  ed.dataset.rwired='1';
+
   ed.addEventListener('keyup',()=>richUpdateState(tb,ed));
   ed.addEventListener('mouseup',()=>richUpdateState(tb,ed));
   ed.addEventListener('input',()=>richUpdateState(tb,ed));
+
+  /* ── GUION AL EMPEZAR EL RENGLÓN → LISTA ──
+     "-" y un espacio al principio de una línea la convierten en un punto de
+     lista, como en Word (ver richGuionALista). Si no se cumplen las
+     condiciones, el espacio es un espacio normal y no pasa nada. */
+  ed.addEventListener('keydown',e=>{
+    if(e.key!==' '||e.shiftKey||e.ctrlKey||e.metaKey||e.altKey)return;
+    if(richGuionALista(ed))e.preventDefault();
+  });
 
   /* ── IMÁGENES ──
      Tocar una imagen la selecciona y saca el marco con los tiradores (ver el
@@ -6783,8 +6937,11 @@ function createPageShell(num){
   const aCv=document.createElement('canvas');aCv.className='annot-cv';
   const nl=document.createElement('div');nl.className='note-layer';
   wrap.append(pdfCv,aCv,nl);pagesInner.appendChild(wrap);
-  if(!annotations[num])annotations[num]={strokes:[],highlights:[],notes:[],covers:[]};
+  if(!annotations[num])annotations[num]={strokes:[],highlights:[],notes:[],covers:[],texts:[]};
   if(!annotations[num].covers)annotations[num].covers=[];
+  /* `texts` (el texto escrito sobre la página) llegó después: las páginas
+     guardadas antes no lo traen y hay que ponerlo al abrirlas */
+  if(!annotations[num].texts)annotations[num].texts=[];
   sizePageShell(wrap,num);setupPageEvents(wrap,aCv,nl,num);lazyObs.observe(wrap);
 }
 function sizePageShell(wrap,num){
@@ -6833,8 +6990,20 @@ async function renderPage(num){
 }
 function unrenderPage(num){
   const wrap=pagesInner.querySelector(`[data-page="${num}"]`);if(!wrap||!wrap.dataset.rscale)return;
+  /* si en esta página había un cuadro de texto abierto, se suelta antes de
+     vaciar la capa (así se guarda lo escrito y no queda la barra de formato
+     flotando sin dueño) */
+  if(txtAct&&txtAct.pid===num)txtDeselect();
   wrap.querySelector('.pdf-cv').width=0;wrap.querySelector('.annot-cv').width=0;
-  wrap.querySelector('.note-layer').innerHTML='';wrap.dataset.rscale='';
+  const nl=wrap.querySelector('.note-layer');
+  /* AL VACIAR LA CAPA HAY QUE BORRAR TAMBIÉN SU FIRMA. Aquí se tira el
+     contenido de la capa para ahorrar memoria en las páginas que quedan lejos,
+     pero la firma se quedaba puesta: al volver a esa página, redrawPage
+     comparaba, veía que "no ha cambiado nada" y NO volvía a pintar. Resultado:
+     las notas, las aclaraciones y los textos escritos desaparecían de la
+     página hasta que se tocaba algo. Lo guardado nunca se perdió (está en las
+     anotaciones), pero el susto era gordo. */
+  nl.innerHTML='';nl.dataset.sig='';wrap.dataset.rscale='';
 }
 const lazyObs=new IntersectionObserver(entries=>{entries.forEach(en=>{const num=parseInt(en.target.dataset.page);if(en.isIntersecting)queueRender(num);else unrenderPage(num)})},{root:canvasWrap,rootMargin:'150% 0px 150% 0px'});
 let scrollSettle=null;
@@ -7173,10 +7342,16 @@ function redrawPage(aCv,nl,num){
        capa NO se reconstruía, y las lupas de las aclaraciones (y las notas)
        se quedaban clavadas en los píxeles del zoom anterior, separándose de
        su palabra. */
+    const texts=ann?.texts||[];
     const sig=scale.toFixed(3)+'|'
       +notes.map(n=>n.id+':'+(n.mini?1:0)+':'+Math.round(n.x)+','+Math.round(n.y)).join('|')
-      +'#'+aclars.map(a=>a.id+':'+(a.mini?1:0)+':'+Math.round(a.ax)+','+Math.round(a.ay)+':'+(a.bx!=null?Math.round(a.bx):'')+','+(a.by!=null?Math.round(a.by):'')).join('|');
-    if(nl.dataset.sig!==sig){
+      +'#'+aclars.map(a=>a.id+':'+(a.mini?1:0)+':'+Math.round(a.ax)+','+Math.round(a.ay)+':'+(a.bx!=null?Math.round(a.bx):'')+','+(a.by!=null?Math.round(a.by):'')).join('|')
+      +'#'+texts.map(t=>t.id+':'+Math.round(t.x)+','+Math.round(t.y)+':'+Math.round(t.w||0)+','+Math.round(t.h||0)).join('|');
+    /* MIENTRAS SE ESCRIBE NO SE REHACE LA CAPA. Rehacerla tira el cuadro de
+       texto que se está usando y se corta lo que se estaba escribiendo (lo
+       escrito no se pierde: se guarda tecla a tecla). Se repone en cuanto se
+       suelta el cuadro, porque la firma seguirá sin coincidir. */
+    if(nl.dataset.sig!==sig&&!(txtAct&&txtAct.pid===num)){
       nl.dataset.sig=sig;
       /* conserva las anclas de esquina, que no dependen de las notas */
       const anchors=nl.querySelector('.pg-anchors');
@@ -7184,6 +7359,7 @@ function redrawPage(aCv,nl,num){
       if(anchors)nl.appendChild(anchors);
       notes.forEach(n=>renderNote(nl,n,num,false));
       aclars.forEach(a=>renderAclar(nl,a,num));
+      texts.forEach(t=>renderTextBox(nl,t,num,false));
     }
   }
 }
@@ -7362,6 +7538,7 @@ function setupPageEvents(wrap,aCv,nl,num){
   let snapStartIdx=-1;    // índice de la fila donde empezó el trazo
   let snapBands=[];       // bandas (renglones) que cubre el trazo actual
   let panning=false,panLast=null,panVX=0,panVY=0,panT=0; // pan con UN dedo
+  let txtTap=null;        // toque con el dedo pendiente de convertirse en cuadro de texto
 
   /* ══ POSICIÓN DE LA PUNTA, COMPENSANDO LA INCLINACIÓN ══
      Con el Apple Pencil tumbado, el punto que reporta el navegador no coincide
@@ -7517,7 +7694,7 @@ function setupPageEvents(wrap,aCv,nl,num){
 
   const cancelStroke=()=>{
     releasePen();stopPreview();snapLine=null;snapRows=null;snapStartIdx=-1;snapBands=[];lastRowIdx=-1;
-    panning=false;panLast=null;
+    panning=false;panLast=null;txtTap=null;
     if(isDown){isDown=false;curStroke=null;redrawPage(aCv,nl,num);popUndoIfUnchanged(num)}
     if(straightTimer){clearTimeout(straightTimer);straightTimer=null}straightMode=false;
   };
@@ -7569,6 +7746,11 @@ function setupPageEvents(wrap,aCv,nl,num){
        Rechazo de palma: contactos grandes (palma apoyada) se ignoran. */
     if(!isDrawingInput(e)){
       if(penActive)return;                       // el Pencil está escribiendo: la mano no mueve nada
+      /* CON LA HERRAMIENTA DE TEXTO, EL DEDO TAMBIÉN ESCRIBE. Se apunta dónde
+         ha tocado y el cuadro se crea al SOLTAR, y solo si el dedo no se ha
+         movido (ver onUp). Si se creara aquí, al arrastrar para desplazar la
+         hoja saldría un cuadro en cada roce. */
+      txtTap=(curTool==='text')?{x:e.clientX,y:e.clientY,t:Date.now()}:null;
       /* rechazo de palma: solo contactos MUY grandes (la palma apoyada mide
          bastante más que un dedo). Antes 38px rechazaba dedos normales apoyados
          de plano y el desplazamiento no arrancaba. */
@@ -7588,6 +7770,15 @@ function setupPageEvents(wrap,aCv,nl,num){
       if(!ann.notes)ann.notes=[];ann.notes.push(nd);
       nl.dataset.sig='';                 // fuerza reconstrucción en el próximo redraw
       renderNote(nl,nd,num,true);scheduleSave();scheduleAnchors();return;
+    }
+
+    /* texto sobre la página: igual que las notas, con el Pencil o el ratón
+       (el dedo sigue desplazando la hoja). Si el toque cae sobre un cuadro que
+       ya existe no llega hasta aquí: lo recoge el propio cuadro y se pone a
+       editarlo. */
+    if(curTool==='text'){
+      e.preventDefault();
+      addTextBox(num,p,nl);return;
     }
 
     /* select = no dibuja: con el raton o con el Pencil se SELECCIONA TEXTO.
@@ -7749,6 +7940,16 @@ function setupPageEvents(wrap,aCv,nl,num){
 
   const onUp=e=>{
     if(e.pointerType==='pen')releasePen();
+    /* toque con el DEDO y la herramienta de texto: si no se ha movido (no era
+       un arrastre para desplazar la hoja), nace el cuadro donde se ha tocado */
+    if(txtTap){
+      const t=txtTap;txtTap=null;
+      if(Math.hypot(e.clientX-t.x,e.clientY-t.y)<9&&Date.now()-t.t<900&&curTool==='text'){
+        panning=false;panLast=null;
+        addTextBox(num,basePos(e),nl);
+        return;
+      }
+    }
     /* fin del pan con un dedo → inercia */
     if(panning){
       panning=false;panLast=null;
@@ -8047,6 +8248,237 @@ function noteTitle(n){
   if(n.text&&n.text.trim())return firstWords(richToPlain(n.text),5)+'…';
   return 'Nota sin título';
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   TEXTO ESCRITO SOBRE LA PÁGINA   (herramienta "Texto")
+
+   No es una nota adhesiva: es texto que se añade AL DOCUMENTO, en el hueco
+   que quieras, con el mismo editor con formato de las fichas (negrita,
+   colores, listas, tamaños, tablas, imágenes…). Se toca y se vuelve a editar
+   cuantas veces haga falta, se arrastra y se estira.
+
+   CÓMO SE GUARDA: dentro de las anotaciones de la página, en `texts`, igual
+   que los subrayados o las notas:
+       {id, x, y, w, h, html}     (x, y, w, h en unidades base, sin zoom)
+   Al ir dentro de `annotations` viaja solo en las copias de seguridad y en la
+   sincronización, sin tocar nada de eso.
+
+   TRES COSAS QUE HAY QUE RESPETAR (y por qué):
+     · El cuadro NO tiene fondo. Va por encima del lienzo de los subrayados,
+       así que el subrayador pinta por debajo y la letra se sigue leyendo
+       encima. Con fondo blanco, el color quedaría tapado.
+     · Con el subrayador, el lápiz, el borrador o la tapa en la mano, el cuadro
+       no recibe toques (lo hace el CSS con pointer-events): así se puede
+       subrayar y dibujar ENCIMA del texto insertado. Solo se escribe con la
+       herramienta de texto o con la de selección.
+     · La barra de formato es UNA sola, flotante, y se engancha al cuadro que
+       estés tocando. Dentro del cuadro no cabe, y una barra por cuadro
+       llenaría la pantalla de botones.
+   ══════════════════════════════════════════════════════════════════ */
+const TXT_W=250, TXT_H=42;         // tamaño inicial del cuadro (unidades base)
+
+function textsOf(num){
+  const ann=annotations[num];if(!ann)return null;
+  if(!ann.texts)ann.texts=[];
+  return ann.texts;
+}
+/* el registro REAL guardado en annotations (no una copia): es lo que se guarda
+   y lo que se sincroniza, así que todo cambio tiene que ir aquí */
+function textRec(num,tid){const t=textsOf(num);return t?t.find(x=>x.id===tid):null}
+
+/* ── la barra de formato flotante ── */
+const txtTb=document.createElement('div');
+txtTb.id='txt-tb';txtTb.className='rich-tb';
+document.body.appendChild(txtTb);
+/* tocar la barra no debe robarle el foco al cuadro (se perdería lo que hay
+   seleccionado, que es justo lo que hay que poner en negrita o en color) */
+txtTb.addEventListener('pointerdown',e=>{if(e.target===txtTb)e.preventDefault()});
+let txtAct=null;                   // {box, ed, tid, pid}
+
+function txtPlaceTb(){
+  if(!txtAct||!txtAct.box.isConnected)return;
+  const r=txtAct.box.getBoundingClientRect();
+  const tw=txtTb.offsetWidth,th=txtTb.offsetHeight;
+  let x=Math.min(Math.max(8,r.left),Math.max(8,innerWidth-tw-8));
+  let y=r.top-th-12;
+  if(y<8)y=Math.min(r.bottom+12,Math.max(8,innerHeight-th-8));   // no cabe arriba: debajo
+  txtTb.style.left=Math.round(x)+'px';txtTb.style.top=Math.round(y)+'px';
+}
+function txtSelect(box){
+  if(txtAct&&txtAct.box===box){txtPlaceTb();return}
+  txtDeselect();
+  const ed=box.querySelector('.txt-ed');if(!ed)return;
+  txtAct={box,ed,tid:box.dataset.tid,pid:Number(box.dataset.pid)};
+  box.classList.add('on');
+  txtTb.classList.add('open');
+  wireRichToolbar(txtTb,ed);       // la barra de siempre, enganchada a este cuadro
+  txtPlaceTb();
+}
+/* guarda lo escrito en el registro de las anotaciones */
+function txtSaveHtml(pid,tid,ed){
+  const rec=textRec(pid,tid);if(!rec||!ed)return;
+  const h=ed.innerHTML.trim();
+  if(rec.html===h)return;
+  rec.html=h;scheduleSave();
+}
+function txtDeselect(){
+  if(!txtAct)return;
+  const a=txtAct;txtAct=null;
+  txtTb.classList.remove('open');
+  hideRichPop();
+  if(a.box&&a.box.isConnected)a.box.classList.remove('on');
+  if(a.ed&&a.ed.isConnected)txtSaveHtml(a.pid,a.tid,a.ed);
+  /* un cuadro que se queda vacío se tira: si no, la página se llenaría de
+     cuadros invisibles cada vez que se toca sin querer con la herramienta */
+  const rec=textRec(a.pid,a.tid);
+  if(rec&&!richToPlain(rec.html||'').trim()&&!/<(img|table|hr)\b/i.test(rec.html||'')){
+    const arr=textsOf(a.pid);
+    if(arr){
+      const i=arr.indexOf(rec);
+      if(i>=0){arr.splice(i,1);scheduleSave()}
+    }
+    if(a.box&&a.box.isConnected)a.box.remove();
+  }
+}
+/* coloca el cuadro según su registro y el zoom actual.
+   OJO: x/y van en píxeles de la capa (ya multiplicados por el zoom) y el ancho
+   y el alto NO, porque de eso se encarga la escala del transform: así el texto
+   de dentro crece con el zoom igual que el resto de la página. */
+function txtLayout(box,td){
+  box.style.left=((td.x||0)*scale)+'px';
+  box.style.top=((td.y||0)*scale)+'px';
+  box.style.width=(td.w||TXT_W)+'px';
+  box.style.minHeight=(td.h||TXT_H)+'px';
+  box.style.transform='scale('+scale+')';
+}
+function renderTextBox(nl,td,num,focus){
+  const box=document.createElement('div');box.className='txt-box';
+  box.dataset.tid=td.id;box.dataset.pid=num;
+  txtLayout(box,td);
+
+  const ed=document.createElement('div');
+  ed.className='txt-ed rich-content';
+  ed.contentEditable='true';
+  ed.setAttribute('data-ph','Escribe aquí…');
+  ed.setAttribute('spellcheck','false');
+  ed.innerHTML=richHTML(td.html||'');
+  box.appendChild(ed);
+
+  /* tiradores: mover, borrar y estirar. Solo se ven con el cuadro elegido */
+  const mv=document.createElement('span');mv.className='txt-hand txt-move';mv.title='Mover';mv.textContent='✥';
+  const dl=document.createElement('span');dl.className='txt-hand txt-del';dl.title='Eliminar este texto';dl.textContent='×';
+  const rz=document.createElement('span');rz.className='txt-hand txt-resize';rz.title='Estirar';
+  box.append(mv,dl,rz);
+
+  /* tocar el cuadro lo elige (y saca la barra de formato) */
+  box.addEventListener('pointerdown',e=>{
+    if(e.target===mv||e.target===dl||e.target===rz)return;
+    e.stopPropagation();              // que no lo lea el lienzo de debajo
+    txtSelect(box);
+  });
+  ed.addEventListener('focus',()=>txtSelect(box));
+  /* lo escrito se guarda en el acto en las anotaciones (con el retardo normal
+     de scheduleSave). Nunca se espera a cerrar nada: si la app se cerrara de
+     golpe, lo escrito ya estaría a salvo. */
+  ed.addEventListener('input',()=>{
+    txtSaveHtml(num,td.id,ed);
+    if(txtAct&&txtAct.box===box)txtPlaceTb();   // el cuadro crece: la barra le sigue
+  });
+  /* Escape suelta el cuadro (y deja de escribir) */
+  ed.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){e.preventDefault();e.stopPropagation();ed.blur();txtDeselect()}
+  });
+
+  /* ── mover ── */
+  let mvOn=false,mvX,mvY,mvBx,mvBy;
+  mv.addEventListener('pointerdown',e=>{
+    e.preventDefault();e.stopPropagation();
+    txtSelect(box);
+    mvOn=true;mv.setPointerCapture(e.pointerId);
+    mvX=e.clientX;mvY=e.clientY;mvBx=td.x||0;mvBy=td.y||0;
+  },{passive:false});
+  mv.addEventListener('pointermove',e=>{
+    if(!mvOn)return;e.preventDefault();e.stopPropagation();
+    /* el ratón se mueve en píxeles de pantalla; las coordenadas guardadas van
+       en unidades base, de ahí la división por el zoom */
+    const lw=nl.clientWidth/scale,lh=nl.clientHeight/scale;
+    const nx=mvBx+(e.clientX-mvX)/scale, ny=mvBy+(e.clientY-mvY)/scale;
+    td.x=Math.max(0,Math.min(nx,Math.max(0,lw-30)));
+    td.y=Math.max(0,Math.min(ny,Math.max(0,lh-20)));
+    txtLayout(box,td);txtPlaceTb();
+  },{passive:false});
+  const mvEnd=()=>{
+    if(!mvOn)return;mvOn=false;
+    const rec=textRec(num,td.id);if(rec){rec.x=td.x;rec.y=td.y}
+    scheduleSave();
+  };
+  mv.addEventListener('pointerup',mvEnd);
+  mv.addEventListener('pointercancel',mvEnd);
+
+  /* ── estirar (ancho y alto mínimo) ── */
+  let rzOn=false,rzX,rzY,rzW,rzH;
+  rz.addEventListener('pointerdown',e=>{
+    e.preventDefault();e.stopPropagation();
+    txtSelect(box);
+    rzOn=true;rz.setPointerCapture(e.pointerId);
+    rzX=e.clientX;rzY=e.clientY;rzW=td.w||TXT_W;rzH=td.h||TXT_H;
+  },{passive:false});
+  rz.addEventListener('pointermove',e=>{
+    if(!rzOn)return;e.preventDefault();e.stopPropagation();
+    td.w=Math.max(60,rzW+(e.clientX-rzX)/scale);
+    td.h=Math.max(24,rzH+(e.clientY-rzY)/scale);
+    txtLayout(box,td);txtPlaceTb();
+  },{passive:false});
+  const rzEnd=()=>{
+    if(!rzOn)return;rzOn=false;
+    const rec=textRec(num,td.id);if(rec){rec.w=td.w;rec.h=td.h}
+    scheduleSave();
+  };
+  rz.addEventListener('pointerup',rzEnd);
+  rz.addEventListener('pointercancel',rzEnd);
+
+  /* ── eliminar ── */
+  dl.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation()});
+  dl.addEventListener('click',async e=>{
+    e.preventDefault();e.stopPropagation();
+    const vacio=!richToPlain(td.html||'').trim();
+    if(!vacio){const ok=await askConfirm('¿Eliminar este texto de la página?');if(!ok)return}
+    pushUndo(num);clearRedo();
+    if(txtAct&&txtAct.box===box){txtAct=null;txtTb.classList.remove('open')}
+    const arr=textsOf(num);
+    if(arr){const i=arr.findIndex(x=>x.id===td.id);if(i>=0)arr.splice(i,1)}
+    box.remove();nl.dataset.sig='';scheduleSave();
+  });
+
+  nl.appendChild(box);
+  if(focus)setTimeout(()=>{if(!box.isConnected)return;ed.focus();txtSelect(box)},60);
+  return box;
+}
+/* nace un cuadro donde se ha tocado la página */
+function addTextBox(num,p,nl){
+  const arr=textsOf(num);if(!arr)return;
+  pushUndo(num);clearRedo();
+  const d=effDims(num)||{w:9999,h:9999};
+  const td={id:uid(),
+    x:Math.max(0,Math.min(p.x-6,Math.max(0,d.w-TXT_W))),
+    y:Math.max(0,Math.min(p.y-12,Math.max(0,d.h-TXT_H))),
+    w:TXT_W,h:TXT_H,html:''};
+  arr.push(td);
+  nl.dataset.sig='';                 // fuerza reconstrucción en el próximo redraw
+  renderTextBox(nl,td,num,true);
+  scheduleSave();
+}
+/* tocar fuera suelta el cuadro. No cuentan como "fuera" la barra de formato,
+   sus desplegables ni las ventanas: ahí se está usando el propio cuadro. */
+document.addEventListener('pointerdown',e=>{
+  if(!txtAct)return;
+  const t=e.target;
+  if(!t||!t.closest)return;
+  if(t.closest('#txt-tb,.rt-pop,.ctx-menu,.modal-bg,.txt-box'))return;
+  txtDeselect();
+},true);
+window.addEventListener('resize',()=>{if(txtAct)txtPlaceTb()});
+canvasWrap.addEventListener('scroll',()=>{if(txtAct)txtPlaceTb()},{passive:true});
 
 /* ══ NOTES PANEL (tabbed: notes + concept nodes) ══ */
 const notesPanel=document.getElementById('notes-panel');
@@ -13646,7 +14078,7 @@ async function saveAnn(){
 
 /* ══ UNDO / REDO ══ */
 const undoStack=[],redoStack=[],UNDO_MAX=80;
-const EMPTY_ANN={strokes:[],highlights:[],notes:[],covers:[]};
+const EMPTY_ANN={strokes:[],highlights:[],notes:[],covers:[],texts:[]};
 const cloneAnn=o=>JSON.parse(JSON.stringify(o||EMPTY_ANN));
 const btnUndo=document.getElementById('tb-undo'),btnRedo=document.getElementById('tb-redo');
 function updateUndoBtns(){btnUndo.disabled=!undoStack.length;btnRedo.disabled=!redoStack.length}
@@ -13659,6 +14091,10 @@ function popUndoIfUnchanged(num){
   updateUndoBtns();
 }
 function restorePage(num,state){
+  /* deshacer rehace la capa entera: si había un cuadro de texto abierto hay
+     que soltarlo antes (su hueco en pantalla desaparece, y además la capa no
+     se reconstruye mientras se está escribiendo) */
+  txtDeselect();
   annotations[num]=cloneAnn(state);
   const wrap=pagesInner.querySelector(`[data-page="${num}"]`);
   if(wrap){
@@ -14943,16 +15379,27 @@ function openCoverMenu(btn){
 }
 
 /* ══ TOOLS ══ */
-const toolMap={'tb-select':'select','tb-highlight':'highlight','tb-pen':'pen','tb-note':'note','tb-cover':'cover','tb-eraser':'eraser'};
+const toolMap={'tb-select':'select','tb-highlight':'highlight','tb-pen':'pen','tb-note':'note','tb-text':'text','tb-cover':'cover','tb-eraser':'eraser'};
 const CONFIGURABLE=['highlight','pen','eraser'];
+/* La herramienta puesta se apunta TAMBIÉN en el contenedor de las páginas: el
+   CSS lo mira para dejar que los cuadros de texto reciban toques (texto y
+   selección) o para que dejen pasar el trazo por encima (subrayador, lápiz,
+   borrador, tapa). Ver .txt-box. */
+function markToolOnPages(){try{pagesInner.dataset.tool=curTool}catch(e){}}
+markToolOnPages();
 Object.entries(toolMap).forEach(([id,tool])=>{
   document.getElementById(id).onclick=()=>{
     if(curTool===tool&&CONFIGURABLE.includes(tool)){openSettings(tool);return}
     /* la tapa no tiene grosor ni opacidad que ajustar: su "toca 2x" abre las
        acciones en bloque (tapar de golpe, cerrar todas, quitar las automáticas) */
     if(curTool===tool&&tool==='cover'){openCoverMenu(document.getElementById(id));return}
-    curTool=tool;Object.keys(toolMap).forEach(k=>document.getElementById(k).classList.remove('on'));document.getElementById(id).classList.add('on');
-    const tips={select:'Dedo = desplazar · Lápiz o ratón = seleccionar texto',highlight:'Sigue el texto · baja para subrayar varias líneas · toca 2x para el grosor',pen:'Lápiz fino · mantén quieto para línea recta',note:'Toca el PDF para añadir una nota',cover:'Arrastra para tapar · toca la tapa para destapar · mantén para eliminar · toca 2x para tapar de golpe',eraser:'Pasa por encima para borrar · toca 2x para ajustes'};
+    /* al cambiar de herramienta se suelta el cuadro de texto que estuviera
+       abierto: con el subrayador en la mano el cuadro ya no recibe toques y su
+       barra de formato se quedaría flotando sin dueño */
+    if(tool!=='text'&&tool!=='select')txtDeselect();
+    curTool=tool;markToolOnPages();
+    Object.keys(toolMap).forEach(k=>document.getElementById(k).classList.remove('on'));document.getElementById(id).classList.add('on');
+    const tips={select:'Dedo = desplazar · Lápiz o ratón = seleccionar texto',highlight:'Sigue el texto · baja para subrayar varias líneas · toca 2x para el grosor',pen:'Lápiz fino · mantén quieto para línea recta',note:'Toca el PDF para añadir una nota',text:'Toca la página para escribir · toca un texto para editarlo · estira la esquina para el tamaño',cover:'Arrastra para tapar · toca la tapa para destapar · mantén para eliminar · toca 2x para tapar de golpe',eraser:'Pasa por encima para borrar · toca 2x para ajustes'};
     showTip(tips[tool],2800);
   };
 });
@@ -14966,6 +15413,7 @@ async function setZoom(v){
   const nv=Math.max(.5,Math.min(3,+v.toFixed(2)));
   if(nv===scale||zoomBusy)return;
   const keepPos=curPage;            // conserva la página visible al reescalar
+  txtDeselect();                    // el cuadro de texto abierto cambia de tamaño: se suelta
   scale=nv;zoomBusy=true;
   /* rerenderAll() reescala las páginas pero NO reajusta el scroll: en píxeles la
      posición deja de apuntar a la misma página, así que volvemos a anclarla. */
@@ -15132,6 +15580,16 @@ async function runFind(q){
   for(let i=0;i<pageOrder.length;i++){
     if(token!==findToken)return;                    // hay una búsqueda más nueva
     const slot=pageOrder[i];
+    /* EL TEXTO ESCRITO POR ELLA TAMBIÉN SE BUSCA. Va antes que el del PDF para
+       que salga en el orden de la página, y vale para cualquier hoja (también
+       las insertadas en blanco, que no tienen texto de PDF). No se sabe dónde
+       cae cada palabra dentro del cuadro, así que se marca el cuadro entero. */
+    (annotations[slot.pid]?.texts||[]).forEach(t=>{
+      const plano=findNormQuery(richToPlain(t.html||''));
+      if(!plano||plano.indexOf(nq)<0)return;
+      findHits.push({pid:slot.pid,pos:i+1,
+        rects:[{x:t.x||0,y:t.y||0,w:Math.max(t.w||TXT_W,20),h:Math.max(t.h||TXT_H,16)}]});
+    });
     if(slot.type!=='pdf')continue;                  // hojas insertadas: sin texto
     const pid=slot.pid;
     if(!findIndex[pid]){
@@ -15664,6 +16122,117 @@ document.getElementById('reader-back').onclick=async()=>{
   pdfDoc=null;pagesInner.innerHTML='';showScreen('browser');renderBrowser();
 };
 
+/* ══════════════════════════════════════════════════════════════════
+   EL TEXTO ESCRITO SOBRE LA PÁGINA, DENTRO DEL PDF EXPORTADO
+
+   En pantalla ese texto es HTML de verdad (con su negrita, sus colores, sus
+   listas…). El PDF exportado, en cambio, se arma dibujando cada página en un
+   lienzo. Para no perder el formato se usa el truco de siempre: se mete el
+   HTML dentro de una imagen SVG y se dibuja esa imagen en el lienzo.
+
+   NO SIEMPRE SALE BIEN (el navegador puede negarse a dibujar la imagen, o
+   "manchar" el lienzo si dentro hay algo de fuera), así que hay PLAN B: se
+   escribe el texto en plano. Se prefiere perder la negrita a perder el texto
+   o, peor todavía, a que reviente la exportación entera y no salga el PDF.
+
+   La letra puede salir ligeramente distinta a la de la pantalla: dentro de la
+   imagen SVG no se puede cargar la tipografía de la app y el navegador usa la
+   del sistema. Por eso se deja un margen de alto de sobra: así, aunque el
+   texto ocupe algo más, no se corta la última línea.
+   ══════════════════════════════════════════════════════════════════ */
+const TXT_FONT_EXP="Inter,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif";
+/* la misma pinta que en pantalla (ver .txt-box .txt-ed): si esto se separa de
+   aquello, el texto exportado se corta o se descoloca */
+const TXT_CSS_EXP="box-sizing:border-box;padding:2px 5px;color:#1E1B26;font-size:14px;"
+  +"line-height:1.5;text-align:left;word-wrap:break-word;font-family:"+TXT_FONT_EXP;
+let txtMedidor=null;
+/* cuánto ocupa de alto ese texto con ese ancho, midiéndolo de verdad en un
+   cuadro escondido fuera de la pantalla */
+function txtAltoReal(html,w,minH){
+  if(!txtMedidor){
+    txtMedidor=document.createElement('div');
+    txtMedidor.className='rich-content';
+    document.body.appendChild(txtMedidor);
+  }
+  txtMedidor.style.cssText='position:fixed;left:-99999px;top:0;visibility:hidden;'+TXT_CSS_EXP;
+  txtMedidor.style.width=w+'px';
+  txtMedidor.innerHTML=html;
+  const h=txtMedidor.scrollHeight||0;
+  txtMedidor.innerHTML='';
+  return Math.max(minH||0,h);
+}
+async function txtHtmlACanvas(html,w,h,f){
+  /* El HTML del editor no es XML válido (<br> sin cerrar, &nbsp;…) y el SVG es
+     XML estricto: se pasa por el navegador y se vuelve a escribir bien cerrado.
+     Sin esto, la imagen no carga y siempre caeríamos en el plan B. */
+  const cont=document.createElement('div');
+  cont.style.cssText=TXT_CSS_EXP+';width:'+w+'px';
+  cont.innerHTML=html;
+  const xhtml=new XMLSerializer().serializeToString(cont);
+  const W=Math.max(1,Math.round(w*f)),H=Math.max(1,Math.round(h*f));
+  const svgStr='<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'">'
+    +'<foreignObject x="0" y="0" width="'+W+'" height="'+H+'">'
+    +'<div xmlns="http://www.w3.org/1999/xhtml" style="transform:scale('+f+');transform-origin:0 0">'
+    +xhtml+'</div></foreignObject></svg>';
+  const im=new Image();
+  const ok=await new Promise(res=>{
+    let listo=false;
+    const fin=v=>{if(!listo){listo=true;res(v)}};
+    im.onload=()=>fin(true);im.onerror=()=>fin(false);
+    setTimeout(()=>fin(false),5000);           // seguro: nunca se queda colgado
+    im.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svgStr);
+  });
+  if(!ok)return null;
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  const c=cv.getContext('2d');
+  c.drawImage(im,0,0);
+  /* ¿ha quedado el lienzo "manchado"? Si lo estuviera y lo pegásemos en la
+     página, al convertirla a imagen fallaría TODA la exportación. Se comprueba
+     en este lienzo aparte, que es de usar y tirar. */
+  try{c.getImageData(0,0,1,1)}catch(e){return null}
+  return cv;
+}
+/* parte un párrafo en renglones que quepan (sin recortar: aquí no se pierde
+   texto, a diferencia del wrapText de las notas) */
+function txtCortarLineas(ctx,texto,maxW){
+  const out=[];let linea='';
+  String(texto).split(/\s+/).forEach(p=>{
+    const t=linea?linea+' '+p:p;
+    if(ctx.measureText(t).width>maxW&&linea){out.push(linea);linea=p}else linea=t;
+  });
+  if(linea)out.push(linea);
+  return out;
+}
+async function drawTextsOnCanvas(ctx,texts,f){
+  for(const t of (texts||[])){
+    const html=(t.html||'').trim();
+    const vacio=!richToPlain(html).trim()&&!/<(img|table|hr)\b/i.test(html);
+    if(!html||vacio)continue;
+    const w=Math.max(20,t.w||TXT_W);
+    /* un 25% de alto de más, por si dentro del SVG la letra ocupa algo más que
+       en pantalla: sobra fondo transparente, que no se ve */
+    const alto=txtAltoReal(html,w,t.h||0)*1.25+14;
+    let pintado=null;
+    try{pintado=await txtHtmlACanvas(html,w,alto,f)}catch(e){pintado=null}
+    const x=Math.round((t.x||0)*f),y=Math.round((t.y||0)*f);
+    if(pintado){ctx.drawImage(pintado,x,y);continue}
+    /* PLAN B: en plano, pero no se pierde nada de lo escrito */
+    ctx.save();
+    ctx.fillStyle='#1E1B26';
+    ctx.font=(14*f)+'px '+TXT_FONT_EXP;
+    ctx.textBaseline='alphabetic';
+    const alto1=14*1.5*f;
+    let n=0;
+    richToPlain(html).split('\n').forEach(par=>{
+      if(!par.trim()){n++;return}
+      txtCortarLineas(ctx,par,(w-10)*f).forEach(l=>{
+        ctx.fillText(l,x+5*f,y+(++n)*alto1);
+      });
+    });
+    ctx.restore();
+  }
+}
+
 /* ══ EXPORT ANNOTATED PDF ══ */
 document.getElementById('tb-export').onclick=exportAnnotated;
 async function exportAnnotated(){
@@ -15697,6 +16266,9 @@ async function exportAnnotated(){
         });
         (ann.strokes||[]).forEach(s=>{if(!s.points||s.points.length<2)return;ctx.save();ctx.strokeStyle=s.color;ctx.lineWidth=s.size*f;ctx.lineCap='round';ctx.lineJoin='round';ctx.globalAlpha=(s.opacity??100)/100;ctx.beginPath();ctx.moveTo(s.points[0].x*f,s.points[0].y*f);s.points.forEach(p=>ctx.lineTo(p.x*f,p.y*f));ctx.stroke();ctx.restore()});
         (ann.covers||[]).forEach(c=>{if(!c.open){ctx.save();ctx.fillStyle=c.color;roundRect(ctx,c.x*f,c.y*f,c.w*f,c.h*f,8*f);ctx.fill();ctx.restore()}});
+        /* el texto escrito sobre la página: por encima de los subrayados y de
+           las tapas, igual que se ve en la pantalla (ver drawTextsOnCanvas) */
+        await drawTextsOnCanvas(ctx,ann.texts,f);
         (ann.notes||[]).forEach(n=>{if(!n.text)return;const nx=n.x*f,ny=n.y*f,nw=160*f,pad=8*f;ctx.font=(12*f)+'px sans-serif';const lines=wrapText(ctx,richToPlain(n.text),nw-pad*2);const nh=pad*2+lines.length*(15*f);ctx.save();ctx.fillStyle='#FFF0C9';ctx.shadowColor='rgba(0,0,0,.2)';ctx.shadowBlur=6*f;ctx.fillRect(nx,ny,nw,nh);ctx.restore();ctx.fillStyle='#4A4458';lines.forEach((ln,j)=>ctx.fillText(ln,nx+pad,ny+pad+(j+.8)*(15*f)))});
       }
       const wOut=cv.width*.75/ES,hOut=cv.height*.75/ES;
