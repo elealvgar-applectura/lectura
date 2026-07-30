@@ -2283,7 +2283,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v158'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v159'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -3248,6 +3248,9 @@ const RICH_CAJAS=[
   ['ej',  'Recuadro · ejemplo',   '#FDEFF4','#F5D6E1']
 ];
 function openRichBloque(btn,ed){
+  /* ¿el cursor está ya dentro de un recuadro? Se mira ANTES de guardar nada,
+     que es cuando la selección todavía está viva */
+  const dentro=!!richBloqueDe(richNodoCursor(ed),ed);
   const restore=richKeepSel(ed);
   let html='<div class="rt-pop-t">Insertar un bloque</div><div class="rt-blos">';
   RICH_CAJAS.forEach(([k,lab,bg,bd])=>{
@@ -3260,6 +3263,10 @@ function openRichBloque(btn,ed){
     '<button type="button" class="rt-blo" data-k="nota"><i>a</i>Nota pequeña</button>'+
     '<button type="button" class="rt-blo" data-k="sep"><i class="rt-blo-s"></i>Separador</button>'+
     '</div>';
+  /* estando dentro de una caja, la salida a mano (para el iPad, donde
+     acertarle con el dedo al renglón de debajo es una lotería) */
+  if(dentro)html+='<div class="rt-blos rt-blos2">'+
+    '<button type="button" class="rt-blo" data-k="salir"><i>↵</i>Seguir escribiendo fuera</button></div>';
   showRichPop(btn,html);
   richPop.querySelectorAll('.rt-blo').forEach(b=>{
     b.onclick=()=>{hideRichPop();restore();richInsertBloque(b.dataset.k,ed,restore)};
@@ -3278,22 +3285,160 @@ function richCursorEn(n){
    deshacerlo a mano desde la app, así que aquí, si el cursor está dentro de
    un bloque, el nuevo se coloca JUSTO DEBAJO del que lo contiene (del de más
    afuera, si hubiera varios). */
-function richSalirDeBloque(ed){
-  const s=window.getSelection();
-  if(!ed||!s||!s.rangeCount)return;
-  let n=s.getRangeAt(0).startContainer,blo=null;
-  if(n&&n.nodeType===3)n=n.parentNode;
+/* el bloque (recuadro, cita o nota) que contiene un nodo. Si hubiera varios
+   anidados devuelve el de MÁS AFUERA. null si el nodo no está en ninguno. */
+function richBloqueDe(n,ed){
+  let blo=null;
   while(n&&n!==ed){
     if(n.classList&&(n.classList.contains('lp-caja')||n.classList.contains('lp-cita')||
                      n.classList.contains('lp-nota')))blo=n;
     n=n.parentNode;
   }
-  if(!blo||!ed.contains(blo))return;
+  return (blo&&ed&&ed.contains(blo))?blo:null;
+}
+/* el nodo elemento donde está el cursor ahora mismo (null si no está dentro) */
+function richNodoCursor(ed){
+  const s=window.getSelection();
+  if(!ed||!s||!s.rangeCount)return null;
+  let n=s.getRangeAt(0).startContainer;
+  if(n&&n.nodeType===3)n=n.parentNode;
+  return (n&&ed.contains(n))?n:null;
+}
+function richSalirDeBloque(ed){
+  const s=window.getSelection();
+  if(!ed||!s||!s.rangeCount)return;
+  const blo=richBloqueDe(richNodoCursor(ed),ed);
+  if(!blo)return;
   const r=document.createRange();
   r.setStartAfter(blo);r.collapse(true);
   s.removeAllRanges();s.addRange(r);
 }
+/* ── SALIR DEL RECUADRO PARA SEGUIR ESCRIBIENDO NORMAL ──
+   Dentro de un recuadro el Intro solo hacía renglones nuevos DENTRO de la
+   caja: una vez dentro no había manera de volver al texto de fuera, el
+   cursor se quedaba atrapado. El párrafo vacío que se deja detrás al
+   insertar el bloque no bastaba, porque en el iPad hay que acertarle con el
+   dedo a un renglón de nada.
+
+   Ahora se sale de dos maneras, las dos hacen lo mismo:
+     · un INTRO en un renglón vacío al final del bloque (como en Word);
+     · la opción "Seguir escribiendo fuera" del menú de bloques.
+
+   Deja el cursor en un párrafo normal justo detrás del recuadro. Si detrás
+   ya hay uno vacío se aprovecha ese, para no ir acumulando renglones en
+   blanco cada vez que se entra y se sale. */
+function richSalirAbajo(ed,linea){
+  const s=window.getSelection();
+  if(!ed||!s||!s.rangeCount)return false;
+  const blo=richBloqueDe(richNodoCursor(ed),ed);
+  if(!blo||!blo.parentNode)return false;
+  const vacio=el=>el&&el.nodeType===1&&(el.tagName==='DIV'||el.tagName==='P')&&
+    !(el.textContent||'').trim()&&!el.querySelector('img,table,hr,ul,ol');
+  let sig=blo.nextElementSibling;
+  if(!vacio(sig)){
+    sig=document.createElement('div');
+    sig.appendChild(document.createElement('br'));
+    blo.parentNode.insertBefore(sig,blo.nextSibling);
+  }
+  /* el renglón vacío que se deja atrás dentro de la caja sobra; pero solo se
+     quita si la caja NO se queda sin nada dentro (una caja sin ningún hijo no
+     se puede volver a tocar para escribir) */
+  if(linea&&linea.parentNode===blo&&blo.children.length>1)blo.removeChild(linea);
+  const r=document.createRange();r.selectNodeContents(sig);r.collapse(true);
+  s.removeAllRanges();s.addRange(r);
+  /* el cambio es a mano, no lo ha hecho el navegador: hay que avisar de que
+     el contenido ha cambiado para que se guarde y se repinte la barra */
+  try{ed.dispatchEvent(new Event('input',{bubbles:true}))}catch(e){}
+  return true;
+}
+/* ¿este Intro es el de "salirse del bloque"? Solo si el cursor está en el
+   ÚLTIMO renglón del bloque y ese renglón está vacío: así no estorba nunca
+   mientras se escribe de verdad. */
+function richIntroSaleDeBloque(ed){
+  const s=window.getSelection();
+  if(!ed||!s||!s.rangeCount||!s.isCollapsed)return false;
+  let n=s.getRangeAt(0).startContainer;
+  if(n&&n.nodeType===3){
+    if((n.nodeValue||'').trim())return false;
+    n=n.parentNode;
+  }
+  if(!n||!ed.contains(n))return false;
+  const blo=richBloqueDe(n,ed);
+  if(!blo)return false;
+  let linea=n;
+  while(linea&&linea!==blo&&linea.parentNode!==blo)linea=linea.parentNode;
+  if(!linea||linea===blo)return false;
+  /* si el renglón es una lista, el Intro de siempre ya saca de la lista: que
+     lo haga él primero, y el siguiente Intro ya saca del recuadro */
+  if(/^(UL|OL|TABLE)$/.test(linea.tagName||''))return false;
+  let sg=linea.nextSibling;
+  while(sg&&sg.nodeType===3&&!(sg.nodeValue||'').trim())sg=sg.nextSibling;
+  if(sg)return false;                                   // no es el último
+  if((linea.textContent||'').trim())return false;       // tiene texto
+  if(linea.querySelector&&linea.querySelector('img,table,hr'))return false;
+  return richSalirAbajo(ed,linea);
+}
+/* ── UNA LISTA NO SE ESCAPA DE SU RECUADRO ──
+   Al convertir un párrafo en lista, el navegador mira si justo antes hay
+   otra lista y las FUNDE en una sola. El problema es que "justo antes"
+   puede estar en OTRO recuadro: al poner el primer guion de un recuadro
+   recién hecho, el punto se colaba en la lista del recuadro de arriba y
+   parecía que se cambiaba de caja solo. El navegador respeta las casillas de
+   las tablas, pero los recuadros se los salta.
+
+   No hay forma de pedirle que no lo haga, así que se apunta en qué bloque
+   estaba el cursor ANTES y, si el punto ha acabado en otro sitio, se trae de
+   vuelta a una lista nueva en su bloque. Solo se MUEVE el punto que ya
+   existe: no se copia ni se borra nada de lo escrito. */
+function richListaAntes(ed){
+  const n=richNodoCursor(ed);
+  if(!n)return null;
+  const blo=richBloqueDe(n,ed)||ed;
+  /* el renglón (hijo directo del bloque) donde está el cursor: es la
+     referencia de DÓNDE hay que devolver la lista si se escapa */
+  let linea=n;
+  while(linea&&linea!==blo&&linea.parentNode!==blo)linea=linea.parentNode;
+  return {blo,
+    sig:(linea&&linea!==blo)?linea.nextSibling:null,
+    /* y dónde estaba el bloque entero: al llevarse su único renglón, el
+       navegador se lleva por delante el recuadro vacío que queda, así que a
+       veces hay que volver a ponerlo en su sitio */
+    padre:(blo!==ed)?blo.parentNode:null,
+    tras: (blo!==ed)?blo.nextSibling:null};
+}
+function richListaEnSuSitio(ed,antes){
+  if(!ed||!antes)return;
+  const s=window.getSelection();
+  const n=richNodoCursor(ed);
+  const li=(n&&n.closest)?n.closest('li'):null;
+  if(!li||!ed.contains(li))return;
+  const lista=li.parentNode;
+  if(!lista||(lista.tagName!=='UL'&&lista.tagName!=='OL'))return;
+  if((richBloqueDe(lista,ed)||ed)===antes.blo)return;      // está donde debe
+  /* ¿se ha llevado el recuadro por delante? se vuelve a poner donde estaba */
+  if(!ed.contains(antes.blo)){
+    if(!antes.padre||!ed.contains(antes.padre))return;     // ni idea de dónde: mejor no tocar
+    antes.padre.insertBefore(antes.blo,(antes.tras&&antes.tras.parentNode===antes.padre)?antes.tras:null);
+  }
+  /* lista NUEVA y limpia: la marca (guion, raya, número…) es la del bloque de
+     arriba, no la que se ha pedido aquí */
+  const nueva=document.createElement(lista.tagName);
+  nueva.appendChild(li);
+  const sig=(antes.sig&&antes.sig.parentNode===antes.blo)?antes.sig:null;
+  antes.blo.insertBefore(nueva,sig);
+  if(!lista.querySelector('li')&&lista.parentNode)lista.parentNode.removeChild(lista);
+  /* de donde salió el punto queda un renglón vacío del todo (un <div> sin
+     nada dentro, ni siquiera un <br>): pintaba una línea en blanco de más al
+     principio de la caja. Un renglón así no lo escribe nadie a propósito. */
+  [].slice.call(antes.blo.children).forEach(el=>{
+    if(el!==nueva&&!el.childNodes.length&&(el.tagName==='DIV'||el.tagName==='P')&&el.parentNode)
+      el.parentNode.removeChild(el);
+  });
+  const r=document.createRange();r.selectNodeContents(li);r.collapse(false);
+  s.removeAllRanges();s.addRange(r);
+}
 function richInsertBloque(k,ed,restore){
+  if(k==='salir'){richSalirAbajo(ed);return}
   richSalirDeBloque(ed);
   if(k==='sep'){document.execCommand('insertHTML',false,'<hr class="lp-sep"><div><br></div>');return}
   if(k==='pegar'){richPegarEnCaja(ed,restore);return}
@@ -4351,10 +4496,14 @@ function wireRichToolbar(tb,ed){
         ]);
         return;
       }
-      ed.focus();richRun(cmd,val);
+      ed.focus();
+      /* dónde estaba el cursor antes de hacer la lista, por si el navegador
+         se la lleva al recuadro de arriba (ver richListaEnSuSitio) */
+      const antesL=(cmd==='insertUnorderedList'||cmd==='insertOrderedList')?richListaAntes(ed):null;
+      richRun(cmd,val);
       /* toda operación de lista puede dejar la estructura mal (ver
          richFixLists): se repara en el momento, no al guardar */
-      if(RICH_CMD_LISTA.indexOf(cmd)>=0)richFixLists(ed);
+      if(RICH_CMD_LISTA.indexOf(cmd)>=0){richListaEnSuSitio(ed,antesL);richFixLists(ed)}
       richUpdateState(tb,ed);
     });
   });
@@ -4391,6 +4540,15 @@ function wireRichToolbar(tb,ed){
   /* al escribir, la imagen puede cambiar de sitio o desaparecer: el marco se
      recoloca solo (y se suelta si ya no existe) */
   ed.addEventListener('input',()=>{if(imgSel&&imgSel.ed===ed)imgSyncBox()});
+
+  /* ── INTRO PARA SALIRSE DE UN RECUADRO ──
+     Un Intro en el renglón vacío del final de la caja saca el cursor fuera y
+     sigue escribiendo debajo, como en Word (ver richIntroSaleDeBloque). En
+     cualquier otro sitio el Intro es el de siempre. */
+  ed.addEventListener('keydown',e=>{
+    if(e.key!=='Enter'||e.shiftKey||e.ctrlKey||e.metaKey||e.altKey)return;
+    if(richIntroSaleDeBloque(ed))e.preventDefault();
+  });
 
   /* ── TABULADOR ──
      Dentro de una tabla salta a la celda siguiente (como en Word). Fuera,
