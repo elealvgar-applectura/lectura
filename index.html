@@ -2347,7 +2347,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v161'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v162'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -7418,6 +7418,77 @@ async function getPageLines(num){
   lineBusy[num]=false;
   return lineCache[num];
 }
+/* ══════════════════════════════════════════════════════════════════
+   RENGLONES DEL TEXTO ESCRITO ENCIMA (para poder subrayarlo)
+
+   El subrayador no pinta donde le da la gana: se engancha a los renglones del
+   PDF y los sigue. El texto que ella escribe encima no está en el PDF, así que
+   no había ningún renglón donde engancharse: el subrayado no salía, o se iba a
+   la línea del PDF más cercana. Por eso "no dejaba subrayar el texto insertado".
+
+   Aquí se miden los renglones DE VERDAD de cada cuadro de texto de la página
+   —tal y como se ven en pantalla, línea a línea, con getClientRects()— y se
+   suman a los del PDF. A partir de ahí el subrayador los trata igual que a
+   cualquier renglón: engancha, sigue varias líneas y recorta al ancho real.
+
+   Se mide en el momento (no se guarda en la caché de renglones del PDF) porque
+   el texto cambia cada vez que ella escribe: una caché quedaría vieja enseguida.
+   ══════════════════════════════════════════════════════════════════ */
+function txtRowsOf(num){
+  const wrap=pagesInner.querySelector(`[data-page="${num}"]`);
+  if(!wrap)return [];
+  const nl=wrap.querySelector('.note-layer');
+  if(!nl)return [];
+  const lr=nl.getBoundingClientRect();
+  const cajas=nl.querySelectorAll('.txt-box');
+  if(!cajas.length)return [];
+  const out=[];
+  cajas.forEach(box=>{
+    const ed=box.querySelector('.txt-ed');if(!ed)return;
+    const trozos=[];
+    const walk=document.createTreeWalker(ed,NodeFilter.SHOW_TEXT);
+    let n;
+    while(n=walk.nextNode()){
+      if(!(n.nodeValue||'').trim())continue;
+      const r=document.createRange();r.selectNodeContents(n);
+      [].slice.call(r.getClientRects()).forEach(q=>{if(q.width>1&&q.height>1)trozos.push(q)});
+    }
+    /* un cuadro con solo una imagen o una tabla no tiene renglones de letras:
+       se toma el cuadro entero, para poder subrayarlo igualmente */
+    if(!trozos.length){
+      const q=ed.getBoundingClientRect();
+      if(q.width>1&&q.height>1)trozos.push(q);
+    }
+    trozos.forEach(q=>{
+      /* de píxeles de pantalla a unidades base (las mismas en las que se
+         guardan los subrayados): dividir por el zoom */
+      const x0=(q.left-lr.left)/scale, x1=(q.right-lr.left)/scale;
+      const top=(q.top-lr.top)/scale,  bottom=(q.bottom-lr.top)/scale;
+      const h=Math.max(1,bottom-top);
+      const cy=top+h/2;
+      /* los trozos de un mismo renglón (una palabra en negrita, otra en color)
+         llegan por separado: se funden en un solo renglón */
+      const row=out.find(r=>Math.abs(r.mid-cy)<Math.max(h,r.h)*.45);
+      if(row){
+        row.x0=Math.min(row.x0,x0);row.x1=Math.max(row.x1,x1);
+        row.top=Math.min(row.top,top);row.bottom=Math.max(row.bottom,bottom);
+        row.h=row.bottom-row.top;row.mid=row.top+row.h/2;row.fh=row.h;row.base=row.bottom;
+      }else{
+        out.push({x0,x1,top,bottom,h,fh:h,base:bottom,mid:cy,txt:true});
+      }
+    });
+  });
+  return out;
+}
+/* los renglones a los que puede engancharse el subrayador en una página:
+   los del PDF más los del texto escrito encima, ordenados de arriba abajo */
+function rowsParaSubrayar(num){
+  const pdfRows=lineCache[num]||[];
+  const mios=txtRowsOf(num);
+  if(!mios.length)return pdfRows;
+  return pdfRows.concat(mios).sort((a,b)=>a.top-b.top);
+}
+
 /* asegura que el texto de una página está extraído (para glosario/conclusiones) */
 async function ensurePageText(num){
   if(textCache[num])return textCache[num];
@@ -7805,7 +7876,10 @@ function setupPageEvents(wrap,aCv,nl,num){
         /* Engancha por ÍNDICE (nunca por identidad de objeto: ese era el bug
            que impedía el multi-línea). Si la página tiene texto, siempre hay
            guía: si el punto no cae justo en un renglón, se toma el más cercano. */
-        const cached=lineCache[num];
+        /* los renglones del PDF Y los del texto escrito encima (ver
+           rowsParaSubrayar): así el subrayador se engancha también a lo que
+           ella ha escrito, renglón a renglón */
+        const cached=rowsParaSubrayar(num);
         if(cached&&cached.length){
           snapRows=cached;
           let i=rowIndexAt(cached,p);
@@ -7815,8 +7889,10 @@ function setupPageEvents(wrap,aCv,nl,num){
         /* PDF escaneado (sin capa de texto) → detección por píxeles: una banda */
         if(!snapLine)snapLine=detectLinePixels(aCv.parentElement.querySelector('.pdf-cv'),p.x,p.y);
         /* si las filas aún no estaban listas, engancha en cuanto lleguen */
-        if(!snapRows)getPageLines(num).then(rows=>{
-          if(!isDown||curTool!=='highlight'||!rows||!rows.length)return;
+        if(!snapRows)getPageLines(num).then(()=>{
+          if(!isDown||curTool!=='highlight')return;
+          const rows=rowsParaSubrayar(num);
+          if(!rows||!rows.length)return;
           snapRows=rows;
           let i=rowIndexAt(rows,{x:startX,y:startY});
           if(i<0)i=nearestRowIndex(rows,startY);
