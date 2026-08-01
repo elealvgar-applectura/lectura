@@ -2368,7 +2368,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v164'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v165'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2752,7 +2752,10 @@ const esc=s=>{const d=document.createElement('div');d.textContent=s;return d.inn
 function isRich(s){return /<(\/?)(b|i|u|s|strike|strong|em|span|ul|ol|li|br|div|p|font|a|img|hr|table|thead|tbody|tr|td|th|blockquote|h[1-6])\b[^>]*>/i.test(s||'')}
 function richHTML(s){s=s==null?'':String(s);return isRich(s)?s:esc(s).replace(/\n/g,'<br>')}
 /* área editable → HTML limpio (vacío si solo hay espacios/<br>) */
-function getRich(el){const plain=el.textContent.replace(/ /g,'').trim();const h=el.innerHTML.trim();
+/* Al vincular una palabra se deja detrás un carácter invisible para poder
+   sacar el cursor fuera del vínculo (ver insertRichLink). Aquí se limpia: no
+   debe llegar nunca a lo guardado. */
+function getRich(el){const plain=el.textContent.replace(/​/g,'').replace(/ /g,'').trim();const h=el.innerHTML.trim().replace(/​/g,'');
   /* una tabla vacía NO es "texto vacío": si no se nombra aquí, se tira al
      guardar y parece que no se ha guardado nada */
   if(!plain && !/<(img|li|ul|ol|table|hr)\b/i.test(h))return '';return h}
@@ -14194,14 +14197,40 @@ async function insertRichLink(ed){
     showTip('Selecciona primero el texto que quieres vincular');return;
   }
   const savedRange=sel.getRangeAt(0).cloneRange();
+  const textoSel=sel.toString();          // se guarda AHORA, antes de perder la marca
   const target=await askCmapLink();
   if(!target)return;
-  /* el selector pudo robar el foco/la selección: se restaura antes de insertar */
+  /* ── EL ORDEN AQUÍ IMPORTA ──
+     Primero se devuelve el foco al editor y DESPUÉS se vuelve a marcar el
+     texto. Al revés (como estaba), si habías escrito en el buscador del
+     selector el foco se había ido a ese campo, y el focus() posterior
+     deshacía la selección que se acababa de poner: elegías la ficha y no se
+     vinculaba nada. Sin usar el buscador no se notaba, porque el editor no
+     había llegado a perder su propia selección. */
+  try{ed.focus({preventScroll:true})}catch(_){ed.focus()}
+  if(!ed.contains(savedRange.startContainer)||!ed.contains(savedRange.endContainer)){
+    showTip('Vuelve a seleccionar la palabra y repite el vínculo');return;
+  }
   sel.removeAllRanges();sel.addRange(savedRange);
-  ed.focus();
-  const text=sel.toString()||target.title;
+  const text=textoSel||sel.toString()||target.title;
   document.execCommand('insertHTML',false,
-    `<span class="cmap-link" data-kind="${target.kind}" data-ref="${esc(target.ref)}">${esc(text)}</span>`);
+    `<span class="cmap-link" data-tmp="1" data-kind="${target.kind}" data-ref="${esc(target.ref)}">${esc(text)}</span>`);
+  /* ── SALIR DEL VÍNCULO ──
+     Tras insertar, el cursor se quedaba DENTRO del span: lo que escribieras a
+     continuación entraba en el vínculo (alargando la parte vinculada) y salía
+     también en azul con puntitos. Aquí se saca el cursor fuera, justo detrás
+     de la palabra vinculada. El carácter invisible es el ancla que necesita
+     el navegador para escribir FUERA del span; se limpia al guardar (ver
+     getRich), así que no queda nada raro en el apunte. */
+  const nuevo=ed.querySelector('.cmap-link[data-tmp]');
+  if(nuevo){
+    nuevo.removeAttribute('data-tmp');
+    const fuera=document.createTextNode('​');
+    nuevo.parentNode.insertBefore(fuera,nuevo.nextSibling);
+    const r=document.createRange();
+    r.setStart(fuera,1);r.collapse(true);
+    sel.removeAllRanges();sel.addRange(r);
+  }
 }
 /* ══ FULLSCREEN ══ */
 let fullscreenOn=false;
