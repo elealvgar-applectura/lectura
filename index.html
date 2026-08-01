@@ -2347,7 +2347,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v162'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v163'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -5797,6 +5797,106 @@ function endReview(){
 }
 
 /* ══════════════════════════════════════════════════════════════════
+   IR AL SITIO EXACTO
+
+   Lo usan "Buscar en mis apuntes" y los vínculos del texto. Antes, pulsar un
+   resultado de nodos, mapa conceptual o procesos solo ABRÍA el panel: aparecía
+   por donde te hubieras quedado la última vez y había que buscar la ficha a
+   mano. Definiciones y aclaraciones sí saltaban (openEntInPanel /
+   openAclarInPanel); aquí se hace lo mismo para el resto.
+
+   Para que el elemento exista en la lista hay que: vaciar el buscador del
+   panel, desplegar su grupo de tema (y en el mapa, toda la rama de padres) y
+   solo entonces desplazarse hasta él. Ninguna de estas funciones cambia
+   contenido: solo abre, despliega y desplaza.
+   ══════════════════════════════════════════════════════════════════ */
+/* destello breve para que el ojo encuentre lo que se acaba de abrir */
+function faFlash(el){
+  if(!el)return;
+  el.style.outline='2.5px solid var(--acento)';
+  el.style.outlineOffset='2px';
+  setTimeout(()=>{el.style.outline='';el.style.outlineOffset=''},1600);
+}
+/* espera a que el panel termine de pintarse y desplaza la lista hasta él */
+function faReveal(sel,then){
+  setTimeout(()=>{
+    const el=document.querySelector(sel);
+    if(!el){showTip('Ábrelo desde la lista');return}
+    try{el.scrollIntoView({block:'center',behavior:'smooth'})}catch(_){}
+    faFlash(el);
+    if(then)then(el);
+  },160);
+}
+function openNodeInPanel(nodeId,subId){
+  const nd=loadNodes().find(n=>n.id===nodeId);
+  if(!nd){showTip('Ese nodo ya no existe (puede que se haya borrado)');return}
+  panelSearch.node='';
+  themeGroupOpen['node:'+(nd.themeId||'')]=true;
+  openPanel('notes-panel');refreshNodesPanel();
+  const inp=document.querySelector('#nodes-ent-static .panel-search input');
+  if(inp)inp.value='';                  // el buscador es fijo: hay que vaciarlo a mano
+  faReveal('#nodes-ent-list .node-card[data-nid="'+nodeId+'"]',card=>{
+    const bd=card.querySelector('.node-body');
+    if(bd&&!bd.classList.contains('open')){const hd=card.querySelector('.node-header');if(hd)hd.click()}
+    /* los subniveles solo existen en el DOM con el nodo desplegado */
+    if(subId)faReveal('#nodes-ent-list .node-sub-item[data-sid="'+subId+'"]');
+  });
+}
+/* ruta de padres hasta un apartado del mapa: sin desplegarla, la tarjeta ni
+   siquiera está pintada y no habría nada a lo que saltar */
+function cmapPathTo(list,id,acc){
+  for(const nd of (list||[])){
+    const ruta=(acc||[]).concat([nd]);
+    if(nd.id===id)return ruta;
+    const hit=cmapPathTo(nd.children,id,ruta);
+    if(hit)return hit;
+  }
+  return null;
+}
+function openCmapInPanel(id){
+  const maps=loadCmap();
+  const ruta=cmapPathTo(maps,id,[]);
+  if(!ruta){showTip('Ese apartado del mapa ya no existe');return}
+  ruta.forEach(n=>n.fold=false);
+  saveCmap(maps);                       // queda desplegado, como si lo abrieras tú
+  openPanel('cmap-panel');refreshCmapPanel();
+  faReveal('#cmap-body .cmap-card[data-cid="'+id+'"]');
+}
+function openProcInPanel(procId,stepId){
+  const procs=loadProc();
+  const p=procs.find(x=>x.id===procId);
+  if(!p){showTip('Ese proceso ya no existe');return}
+  themeGroupOpen['proc:'+(p.themeId||'')]=true;
+  p.open=true;saveProc(procs);
+  openPanel('proc-panel');refreshProcPanel();
+  if(stepId)faReveal('#proc-body .proc-step-row[data-stepid="'+stepId+'"]');
+  else faReveal('#proc-body .cmap-card[data-procid="'+procId+'"]');
+}
+/* Las notas viven SOBRE la página, no en un panel: hay que ir a la página y
+   destacar la nota. La página tarda en dibujarse, así que se reintenta un
+   poco en vez de mirar una sola vez y rendirse. */
+function openNoteInPage(pid,noteId){
+  closeAllPanels();
+  goPage(posOfPid(pid));
+  let intentos=0;
+  const busca=()=>{
+    const n=pagesInner.querySelector('.stnote[data-nid="'+noteId+'"]');
+    if(n){try{n.scrollIntoView({block:'center',behavior:'smooth'})}catch(_){}faFlash(n);return}
+    if(++intentos<14)setTimeout(busca,180);
+  };
+  setTimeout(busca,420);
+}
+/* ir a una página y marcarla un momento (marcadores) */
+function goPageFlash(pid){
+  closeAllPanels();
+  goPage(posOfPid(pid));
+  setTimeout(()=>{
+    const w=pagesInner.querySelector('[data-page="'+pid+'"]');
+    if(w){w.style.outline='3px solid var(--acento)';setTimeout(()=>w.style.outline='',1400)}
+  },420);
+}
+
+/* ══════════════════════════════════════════════════════════════════
    BUSCAR EN MIS APUNTES (atraviesa todas las herramientas)
 
    El problema real: cada panel tiene ya su propio buscador, pero cuando no
@@ -5861,17 +5961,17 @@ function faCollect(q){
   loadNodes().forEach(nd=>{
     if(!M(nd.title,nd.body))return;
     add('node',{titulo:nd.title,texto:nd.body,page:(nd.pages&&nd.pages[0])||null,
-                themeId:nd.themeId||null,ir:()=>openNodesTab()});
+                themeId:nd.themeId||null,ir:()=>openNodeInPanel(nd.id)});
   });
 
   loadProc().forEach(p=>{
-    const abrir=()=>{openPanel('proc-panel');refreshProcPanel()};
-    if(M(p.title))add('proc',{titulo:p.title,texto:'',page:null,themeId:p.themeId||null,ir:abrir});
+    if(M(p.title))add('proc',{titulo:p.title,texto:'',page:null,themeId:p.themeId||null,
+                             ir:()=>openProcInPanel(p.id)});
     (p.steps||[]).forEach(s=>{
       const cuerpo=s.text||s.desc||'';
       if(!M(s.title,cuerpo))return;
       add('proc',{titulo:s.title,texto:cuerpo,page:null,themeId:p.themeId||null,
-                  sub:p.title,ir:abrir});
+                  sub:p.title,ir:()=>openProcInPanel(p.id,s.id)});
     });
   });
 
@@ -5881,7 +5981,7 @@ function faCollect(q){
     (arr||[]).forEach(nd=>{
       if(M(nd.title,nd.desc))
         add('cmap',{titulo:nd.title,texto:nd.desc,page:nd.page,themeId:null,sub:ruta||'',
-                    ir:()=>{openPanel('cmap-panel');refreshCmapPanel()}});
+                    ir:()=>openCmapInPanel(nd.id)});
       walkCmap(nd.children,(ruta?ruta+' › ':'')+(nd.title||''));
     });
   };
@@ -5895,14 +5995,14 @@ function faCollect(q){
     ann.notes.forEach(nt=>{
       if(!M(nt.title,nt.text))return;
       add('note',{titulo:noteTitle(nt),texto:nt.text,page:slot.pid,themeId:null,
-                  ir:()=>{closePanel('findall-panel');goPage(posOfPid(slot.pid))}});
+                  ir:()=>openNoteInPage(slot.pid,nt.id)});
     });
   });
 
   loadBms().forEach(b=>{
     if(!M(b.name))return;
     add('bm',{titulo:b.name,texto:'',page:b.page,themeId:null,
-              ir:()=>{closePanel('findall-panel');goPage(posOfPid(b.page))}});
+              ir:()=>goPageFlash(b.page)});
   });
 
   return res;
@@ -8999,6 +9099,10 @@ function renderNodesList(){
 
 function buildNodeEl(node,nodes){
   const card=document.createElement('div');card.className='node-card';
+  /* el id en el DOM es lo que permite que "Buscar en mis apuntes" y los
+     vínculos abran el panel JUSTO en este nodo (ver openNodeInPanel), igual
+     que las fichas con data-eid y las aclaraciones con data-aid */
+  card.dataset.nid=node.id;
   const hd=document.createElement('div');hd.className='node-header';
   const arrow=document.createElement('span');arrow.className='node-arrow';arrow.textContent='›';
   const dot=document.createElement('div');dot.className='node-dot';dot.style.background=node.color||'#E3D0F5';
@@ -9110,6 +9214,7 @@ function buildNodeEl(node,nodes){
 function buildSubTree(item,siblings,nodes){
   if(!item.children)item.children=[];
   const el=document.createElement('div');el.className='node-sub-item';
+  el.dataset.sid=item.id;      // para poder saltar a un subnivel concreto
 
   /* título + acciones en la MISMA línea (iconos pequeños), igual que en el
      mapa conceptual: antes eran tres botones con texto debajo de cada
@@ -10285,6 +10390,7 @@ function refreshProcPanel(){
    cambios de las demás. */
 function buildProcCard(proc,procs){
   const card=document.createElement('div');card.className='cmap-card';
+  card.dataset.procid=proc.id;   // para saltar a este proceso desde fuera
   const hd=document.createElement('div');hd.className='cmap-hd';
   const arrow=document.createElement('span');arrow.className='cmap-arrow'+(proc.open?' open':'');arrow.textContent='›';
   const title=document.createElement('span');title.className='cmap-title';title.textContent=proc.title;
@@ -10382,6 +10488,7 @@ function buildProcCard(proc,procs){
    diagrama visual (piezas siguientes) sea pequeño para tocar con precisión */
 function buildProcStepRow(step,proc,procs){
   const row=document.createElement('div');row.className='proc-step-row';
+  row.dataset.stepid=step.id;    // para saltar a este paso concreto
   /* título y acciones en la misma línea, como el resto de herramientas */
   const titleRow=document.createElement('div');titleRow.className='node-sub-row';
   const title=document.createElement('div');title.className='proc-step-title';title.textContent=step.title;
@@ -12356,6 +12463,7 @@ function cmapWalk(node,fn){fn(node);(node.children||[]).forEach(ch=>cmapWalk(ch,
 function buildCmapEl(node,siblings,maps){
   if(!node.children)node.children=[];
   const card=document.createElement('div');card.className='cmap-card';
+  card.dataset.cid=node.id;    // para saltar a este apartado desde fuera
 
   const hd=document.createElement('div');hd.className='cmap-hd';
   const arrow=document.createElement('span');arrow.className='cmap-arrow'+(node.fold?'':' open');arrow.innerHTML=svg('chevRight','ico cmap-chev');
