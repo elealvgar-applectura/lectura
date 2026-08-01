@@ -1140,26 +1140,44 @@ body.dark .rich-content .lp-caja-ej {--lpc-bg:#32202A;--lpc-bd:#4A2E3C}
 .cmap-link{color:#3a7afe;text-decoration:underline;text-decoration-style:dotted;cursor:pointer}
 .cmap-link:active{opacity:.6}
 #cmap-link-btn{font-size:12.5px}
-/* viñeta de cómic con la ficha entera: se abre justo encima de la palabra
+/* viñeta de cómic con lo vinculado entero: se abre justo encima de la palabra
    enlazada, sin tapar la pantalla como hacía el cuadro centrado de antes.
-   Aquí solo se LEE; para editar está el ojo, que lleva a la ficha en su panel.
+   Aquí solo se LEE; para ir al sitio está el botón del pie.
    Por encima de los paneles (600) y de los cuadros (900), porque los enlaces
    viven dentro del panel del mapa y de las tarjetas de la página. */
-#cmap-bubble{position:fixed;z-index:958;width:min(330px,calc(100vw - 24px));
+#cmap-bubble{position:fixed;z-index:958;width:min(360px,calc(100vw - 24px));
   background:var(--card);border:1px solid var(--border);border-radius:14px;
   padding:11px 13px 12px;box-shadow:0 10px 30px rgba(120,100,140,.30)}
 #cmap-bubble.hidden{display:none}
-#cmap-bubble-hd{display:flex;align-items:center;gap:7px;margin-bottom:7px}
-#cmap-bubble-kind{flex:0 0 auto;display:inline-flex;color:var(--ink3)}
-#cmap-bubble-title{flex:1;min-width:0;font-size:13.5px;font-weight:600;
+#cmap-bubble-hd{display:flex;align-items:flex-start;gap:7px;margin-bottom:7px}
+#cmap-bubble-kind{flex:0 0 auto;display:inline-flex;color:var(--ink3);margin-top:1px}
+#cmap-bubble-tt{flex:1;min-width:0}
+#cmap-bubble-title{display:block;font-size:13.5px;font-weight:600;
   color:var(--ink);line-height:1.3;overflow-wrap:anywhere}
-#cmap-bubble-eye{flex:0 0 auto;width:31px;height:29px;border:none;
-  background:var(--bg2);border-radius:9px;color:var(--ink2);display:inline-flex;
-  align-items:center;justify-content:center;padding:0;cursor:pointer;
-  touch-action:manipulation}
-#cmap-bubble-eye:active{background:var(--acento);transform:scale(.9)}
+/* de qué es el vínculo (y por dónde cuelga): "Nodo · en Memoria" */
+#cmap-bubble-sub{display:block;font-size:11px;color:var(--ink3);
+  line-height:1.35;margin-top:2px;overflow-wrap:anywhere}
+#cmap-bubble-sub:empty{display:none}
+/* El texto entero cabe aquí: si es largo se lee desplazando DENTRO del
+   diálogo (overscroll-behavior evita que el desplazamiento se escape a la
+   hoja de debajo y la viñeta se cierre a media lectura). */
 #cmap-bubble-body{font-size:13.5px;color:var(--ink2);line-height:1.55;
-  max-height:42vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  max-height:52vh;overflow-y:auto;overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch}
+#cmap-bubble-body:empty{display:none}
+/* botón de pie: la vista previa es solo para leer; esto es lo que lleva
+   hasta el sitio de verdad, y dice a dónde va */
+#cmap-bubble-go{width:100%;margin-top:9px;border:none;background:var(--bg2);
+  color:var(--ink2);border-radius:9px;padding:9px 8px;font-family:inherit;
+  font-size:12.5px;display:flex;align-items:center;justify-content:center;
+  gap:6px;cursor:pointer;touch-action:manipulation}
+#cmap-bubble-go:active{background:var(--acento);color:var(--ink)}
+#cmap-bubble-go svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+/* lo que cuelga de lo vinculado (subniveles, apartados hijos, pasos): se ve
+   en la propia vista previa, para no tener que ir al panel a leerlo */
+.lnk-sub{margin-top:8px;padding-left:9px;border-left:2px solid var(--border)}
+.lnk-sub-t{font-size:12.5px;font-weight:600;color:var(--ink);line-height:1.35}
+.lnk-sub-b{font-size:12.5px;color:var(--ink2);line-height:1.5;margin-top:2px}
 /* el pico de la viñeta: un cuadrado girado 45°, tapado a medias por la caja */
 #cmap-bubble-tail{position:absolute;width:12px;height:12px;background:var(--card);
   border-right:1px solid var(--border);border-bottom:1px solid var(--border);
@@ -2045,8 +2063,8 @@ body.fullscreen #gid-bar{bottom:20px}
 <!-- selector de ficha para vincular (mapa conceptual) -->
 <div class="modal-bg hidden" id="modal-cmap-link">
   <div class="modal">
-    <h3>Vincular con una ficha</h3>
-    <input id="cmap-link-search" type="search" placeholder="Buscar ficha…" autocorrect="off" style="width:100%;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);font-size:15px;padding:10px 12px;outline:none;margin-bottom:10px">
+    <h3>Vincular con…</h3>
+    <input id="cmap-link-search" type="search" placeholder="Buscar en todo lo que has creado…" autocorrect="off" style="width:100%;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);font-size:15px;padding:10px 12px;outline:none;margin-bottom:10px">
     <div id="cmap-link-list" style="max-height:50vh;overflow-y:auto;display:flex;flex-direction:column;gap:2px"></div>
     <div class="modal-btns">
       <button class="mbtn cancel" id="modal-cmap-link-cancel">Cancelar</button>
@@ -2054,16 +2072,19 @@ body.fullscreen #gid-bar{bottom:20px}
   </div>
 </div>
 
-<!-- vista rápida de la ficha vinculada (clic en un enlace del mapa):
-     viñeta de cómic encima de la palabra, solo lectura, con un ojo que lleva
-     a la ficha de verdad dentro de su panel -->
+<!-- vista previa de lo vinculado (clic en una palabra enlazada): diálogo de
+     cómic que sale de la propia palabra, solo lectura y desplazable si el
+     texto es largo, con un botón al pie que lleva al sitio de verdad -->
 <div id="cmap-bubble" class="hidden">
   <div id="cmap-bubble-hd">
     <span id="cmap-bubble-kind"></span>
-    <span id="cmap-bubble-title"></span>
-    <button id="cmap-bubble-eye" title="Ver la ficha en su panel"></button>
+    <span id="cmap-bubble-tt">
+      <span id="cmap-bubble-title"></span>
+      <span id="cmap-bubble-sub"></span>
+    </span>
   </div>
   <div id="cmap-bubble-body" class="rich-content"></div>
+  <button id="cmap-bubble-go"></button>
   <span id="cmap-bubble-tail"></span>
 </div>
 
@@ -2347,7 +2368,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v163'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v164'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -13826,28 +13847,128 @@ document.getElementById('tb-stats').onclick=async()=>{
 };
 addPanelSwipe('cmap-panel');
 
-/* ══ MAPA CONCEPTUAL: hipervínculos a definición/conclusión/aclaración ══
-   Busca la ficha real a partir de {kind,ref} guardado en el span. Cada tipo
-   de ficha guarda el texto en un campo distinto (glos/conc → .body,
-   aclar → .text con .ref como título): mismos campos que usa el resto de
-   la app para esas fichas. */
-function cmapLinkTarget(kind,ref){
-  if(kind==='aclar'){
-    const a=loadAclars().find(x=>x.id===ref);
-    return a?{title:a.ref||'Aclaración',body:a.text||'',id:a.id}:null;
+/* ══ HIPERVÍNCULOS DEL TEXTO ══
+   Un vínculo puede apuntar a CUALQUIER cosa creada en este documento: una
+   definición, una conclusión, una aclaración, un nodo (o uno de sus
+   subniveles), un apartado del mapa conceptual, un proceso (o uno de sus
+   pasos), una nota de la página o un marcador.
+
+   Todo eso viaja en el span como {kind,ref}. Cuando lo enlazado está DENTRO
+   de otra cosa (un subnivel dentro de su nodo, un paso dentro de su proceso,
+   una nota dentro de su página), el ref lleva las dos partes separadas por
+   una barra: "padre/hijo". Los ids son letras y números (uid), nunca llevan
+   barra, así que partir por "/" es seguro.
+
+   Los vínculos antiguos (glos/conc/aclar con un id suelto) siguen valiendo
+   tal cual: el mismo kind y el mismo ref de siempre. */
+const LINK_KIND_ICON={glos:'file',conc:'heartMind',aclar:'eye',
+  node:'synapse',cmap:'group',proc:'flask',note:'quill',bm:'bookmark'};
+const LINK_KIND_NAME={glos:'Definición',conc:'Conclusión',aclar:'Aclaración',
+  node:'Nodo conceptual',cmap:'Apartado del mapa',proc:'Proceso',
+  note:'Nota de la página',bm:'Marcador'};
+const LINK_KIND_PLURAL={glos:'Definiciones',conc:'Conclusiones',aclar:'Aclaraciones',
+  node:'Nodos conceptuales',cmap:'Mapa conceptual',proc:'Procesos y teorías',
+  note:'Notas de las páginas',bm:'Marcadores'};
+const LINK_ORDEN=['glos','conc','aclar','node','cmap','proc','note','bm'];
+const LINK_GO_LABEL={glos:'Ir a la definición',conc:'Ir a la conclusión',
+  aclar:'Ir a la aclaración',node:'Ir al nodo',cmap:'Ir al apartado del mapa',
+  proc:'Ir al proceso',note:'Ir a la nota',bm:'Ir a la página marcada'};
+
+/* busca un subnivel dentro del árbol de hijos de un nodo */
+function nodeFindSub(list,id){
+  for(const it of (list||[])){
+    if(it.id===id)return it;
+    const hit=nodeFindSub(it.children,id);
+    if(hit)return hit;
   }
-  /* el enlace puede guardar el gid (ficha automática) o el id; se devuelve
-     SIEMPRE el id, que es lo que necesita openEntInPanel para encontrarla */
-  const it=loadEnts(kind).find(x=>x.gid===ref||x.id===ref);
-  return it?{title:it.title||'(sin título)',body:it.body||'',id:it.id}:null;
+  return null;
 }
-/* El ojo de la viñeta: abre la ficha CONCRETA dentro de su panel, desplegada
-   y con la lista desplazada hasta ella. Antes solo se abría el panel y había
-   que buscarla a mano. La aclaración se abre SIN entrar a editar (el false):
-   allí ya está su lápiz para quien quiera cambiarla. */
-function cmapOpenLinkedCard(kind,id){
-  if(kind==='aclar')openAclarInPanel(id,false);
-  else openEntInPanel(kind,id);          // el mismo camino que "Buscar en mis apuntes"
+/* Lo que CUELGA de lo vinculado, para que la vista previa se lea entera sin
+   ir al panel: subniveles de un nodo, apartados hijos del mapa, pasos de un
+   proceso. Se indenta hasta 4 niveles; más abajo se sigue mostrando pero sin
+   seguir metiendo margen, para que no acabe en una columna de una letra. */
+function linkSubHTML(items,prof){
+  if(!items||!items.length)return '';
+  const p=prof||1;
+  return items.map(it=>{
+    const cuerpo=it.body||it.desc||'';
+    return `<div class="lnk-sub" style="margin-left:${Math.min(p,4)*4}px">`
+      +`<div class="lnk-sub-t">${esc(it.title||'')}</div>`
+      +(String(cuerpo).trim()?`<div class="lnk-sub-b">${richHTML(cuerpo)}</div>`:'')
+      +linkSubHTML(it.children,p+1)
+      +`</div>`;
+  }).join('');
+}
+/* Resuelve {kind,ref} → lo que hay que enseñar: título ORIGINAL de lo
+   vinculado, su texto entero (más lo que cuelgue) y por dónde queda. Devuelve
+   null si eso ya no existe (se borró). */
+function cmapLinkTarget(kind,ref){
+  const par=String(ref==null?'':ref).split('/');
+  const a=par[0],b=par[1];
+  if(kind==='aclar'){
+    const x=loadAclars().find(z=>z.id===a);
+    return x?{title:x.ref||'Aclaración',html:richHTML(x.text||''),ref:x.id}:null;
+  }
+  if(kind==='glos'||kind==='conc'){
+    /* el enlace puede guardar el gid (ficha automática) o el id; se devuelve
+       SIEMPRE el id, que es lo que necesita openEntInPanel para encontrarla */
+    const x=loadEnts(kind).find(z=>z.gid===a||z.id===a);
+    return x?{title:x.title||'(sin título)',html:richHTML(x.body||''),ref:x.id}:null;
+  }
+  if(kind==='node'){
+    const nd=loadNodes().find(z=>z.id===a);if(!nd)return null;
+    if(b){
+      const s=nodeFindSub(nd.children,b);if(!s)return null;
+      return {title:s.title||'(sin título)',html:richHTML(s.body||'')+linkSubHTML(s.children,1),
+              ref:a+'/'+b,sub:'en '+(nd.title||'un nodo')};
+    }
+    return {title:nd.title||'(sin título)',html:richHTML(nd.body||'')+linkSubHTML(nd.children,1),ref:nd.id};
+  }
+  if(kind==='cmap'){
+    const ruta=cmapPathTo(loadCmap(),a,[]);if(!ruta)return null;
+    const nd=ruta[ruta.length-1];
+    const padres=ruta.slice(0,-1).map(x=>x.title||'').filter(Boolean).join(' › ');
+    return {title:nd.title||'(sin título)',html:richHTML(nd.desc||'')+linkSubHTML(nd.children,1),
+            ref:nd.id,sub:padres?'en '+padres:''};
+  }
+  if(kind==='proc'){
+    const p=loadProc().find(z=>z.id===a);if(!p)return null;
+    if(b){
+      const s=(p.steps||[]).find(z=>z.id===b);if(!s)return null;
+      return {title:s.title||'(sin título)',html:richHTML(s.desc||''),
+              ref:a+'/'+b,sub:'paso de '+(p.title||'un proceso')};
+    }
+    return {title:p.title||'(sin título)',
+            html:linkSubHTML((p.steps||[]).map(s=>({title:s.title,body:s.desc})),1),ref:p.id};
+  }
+  if(kind==='note'){
+    const pid=Number(a);
+    const ann=annotations[pid];
+    const nt=ann&&ann.notes&&ann.notes.find(z=>z.id===b);
+    if(!nt)return null;
+    return {title:noteTitle(nt),html:richHTML(nt.text||''),ref:a+'/'+b,
+            sub:'en la página '+pageLabel(pid)};
+  }
+  if(kind==='bm'){
+    const bm=loadBms().find(z=>z.id===a);if(!bm)return null;
+    return {title:bm.name||'Marcador',html:'',ref:bm.id,sub:'página '+pageLabel(bm.page)};
+  }
+  return null;
+}
+/* El botón del diálogo: lleva a lo vinculado allí donde vive de verdad,
+   desplegado y con la lista desplazada hasta ello. La aclaración se abre SIN
+   entrar a editar (el false): allí ya está su lápiz para quien quiera
+   cambiarla. */
+function cmapOpenLinkedCard(kind,ref){
+  const par=String(ref==null?'':ref).split('/');
+  const a=par[0],b=par[1];
+  if(kind==='aclar')openAclarInPanel(a,false);
+  else if(kind==='glos'||kind==='conc')openEntInPanel(kind,a);
+  else if(kind==='node')openNodeInPanel(a,b);
+  else if(kind==='cmap')openCmapInPanel(a);
+  else if(kind==='proc')openProcInPanel(a,b);
+  else if(kind==='note')openNoteInPage(Number(a),b);
+  else if(kind==='bm'){const bm=loadBms().find(z=>z.id===a);if(bm)goPageFlash(bm.page)}
 }
 
 /* ── viñeta de vista rápida ──
@@ -13875,12 +13996,11 @@ function placeCmapBubble(rect){
   cmapBubbleTail.style.top=below?'-7px':(bh-7)+'px';
   cmapBubbleTail.style.transform=below?'rotate(225deg)':'rotate(45deg)';
 }
-const cmapBubbleEye=document.getElementById('cmap-bubble-eye');
-cmapBubbleEye.innerHTML=svg('eye');
-cmapBubbleEye.onclick=e=>{
+const cmapBubbleGo=document.getElementById('cmap-bubble-go');
+cmapBubbleGo.onclick=e=>{
   e.stopPropagation();
   const t=cmapBubbleTarget;hideCmapBubble();
-  if(t)cmapOpenLinkedCard(t.kind,t.id);
+  if(t)cmapOpenLinkedCard(t.kind,t.ref);
 };
 /* delegado a nivel de documento: funciona tanto en el panel como en la
    tarjeta plasmada en la página (mismo span, mismo click) */
@@ -13896,11 +14016,18 @@ document.addEventListener('click',e=>{
   const kind=link.dataset.kind,ref=link.dataset.ref;
   const t=cmapLinkTarget(kind,ref);
   if(!t){hideCmapBubble();showTip('Esa ficha ya no existe (puede que se haya borrado)');return}
-  cmapBubbleTarget={kind,id:t.id};
+  cmapBubbleTarget={kind,ref:t.ref};
   document.getElementById('cmap-bubble-kind').innerHTML=svg(LINK_KIND_ICON[kind]||'file');
+  /* el título es SIEMPRE el original de lo vinculado; el texto de la palabra
+     enlazada se queda como está en tu apunte, no se toca */
   document.getElementById('cmap-bubble-title').textContent=t.title;
-  document.getElementById('cmap-bubble-body').innerHTML=t.body?richHTML(t.body):'(vacío)';
+  document.getElementById('cmap-bubble-sub').textContent=
+    (LINK_KIND_NAME[kind]||'')+(t.sub?' · '+t.sub:'');
+  const cuerpo=(t.html||'').trim();
+  document.getElementById('cmap-bubble-body').innerHTML=cuerpo||'';
+  cmapBubbleGo.innerHTML=svg('jump')+'<span>'+(LINK_GO_LABEL[kind]||'Ir')+'</span>';
   cmapBubble.classList.remove('hidden');   // hay que mostrarla para poder medirla
+  cmapBubble.querySelector('#cmap-bubble-body').scrollTop=0;
   placeCmapBubble(link.getBoundingClientRect());
 });
 /* si se mueve lo de debajo, la viñeta ya no apunta a nada: se cierra */
@@ -13916,22 +14043,70 @@ window.addEventListener('resize',()=>{if(!cmapBubble.classList.contains('hidden'
 let cmapLinkRes=null;
 const mCmapLink=document.getElementById('modal-cmap-link');
 document.getElementById('modal-cmap-link-cancel').onclick=()=>{mCmapLink.classList.add('hidden');cmapLinkRes&&cmapLinkRes(null)};
-/* icono pequeño según el tipo de ficha, dentro de la lista agrupada por tema */
-const LINK_KIND_ICON={glos:'file',conc:'heartMind',aclar:'eye'};
+/* TODO lo que se puede vincular en este documento. No lee ninguna clave
+   nueva: son las mismas listas que ya usan los paneles. Lo que vive dentro de
+   otra cosa (subnivel, paso, nota) lleva el ref compuesto "padre/hijo". */
+function linkCandidates(){
+  const out=[];
+  loadEnts('glos').forEach(it=>out.push({kind:'glos',ref:it.gid||it.id,title:it.title,body:it.body,themeId:it.themeId||null}));
+  loadEnts('conc').forEach(it=>out.push({kind:'conc',ref:it.gid||it.id,title:it.title,body:it.body,themeId:it.themeId||null}));
+  loadAclars().forEach(it=>out.push({kind:'aclar',ref:it.id,title:it.ref||'Aclaración',body:it.text,themeId:it.themeId||null}));
+
+  /* nodos y TODA su profundidad: un subnivel también se puede vincular */
+  loadNodes().forEach(nd=>{
+    out.push({kind:'node',ref:nd.id,title:nd.title,body:nd.body,themeId:nd.themeId||null});
+    const hijos=(lista,ruta)=>{
+      (lista||[]).forEach(s=>{
+        out.push({kind:'node',ref:nd.id+'/'+s.id,title:s.title,body:s.body,
+                  themeId:nd.themeId||null,sub:ruta});
+        hijos(s.children,ruta+' › '+(s.title||''));
+      });
+    };
+    hijos(nd.children,nd.title||'nodo');
+  });
+
+  /* el mapa conceptual entero, apartado por apartado */
+  const walk=(arr,ruta)=>{
+    (arr||[]).forEach(nd=>{
+      out.push({kind:'cmap',ref:nd.id,title:nd.title,body:nd.desc,themeId:null,sub:ruta});
+      walk(nd.children,(ruta?ruta+' › ':'')+(nd.title||''));
+    });
+  };
+  walk(loadCmap(),'');
+
+  loadProc().forEach(p=>{
+    out.push({kind:'proc',ref:p.id,title:p.title,body:'',themeId:p.themeId||null});
+    (p.steps||[]).forEach(s=>out.push({kind:'proc',ref:p.id+'/'+s.id,title:s.title,
+      body:s.desc||'',themeId:p.themeId||null,sub:p.title}));
+  });
+
+  /* notas adhesivas de todas las páginas (viven en `annotations`) */
+  pageOrder.forEach(slot=>{
+    const ann=annotations[slot.pid];
+    if(!ann||!ann.notes)return;
+    ann.notes.forEach(nt=>out.push({kind:'note',ref:slot.pid+'/'+nt.id,title:noteTitle(nt),
+      body:nt.text,themeId:null,sub:'página '+pageLabel(slot.pid)}));
+  });
+
+  loadBms().forEach(b=>out.push({kind:'bm',ref:b.id,title:b.name,body:'',themeId:null,
+    sub:'página '+pageLabel(b.page)}));
+
+  return out;
+}
 function askCmapLink(){
   return new Promise(res=>{
     cmapLinkRes=res;
-    /* AGRUPADO POR TEMA (antes era por tipo de ficha): "Tema 3" reúne sus
-       definiciones, conclusiones y aclaraciones juntas; se toca para
-       desplegar. Sin tema, al final. Plegado por defecto. */
-    const all=[
-      ...loadEnts('glos').map(it=>({kind:'glos',id:it.gid||it.id,title:it.title,body:it.body,themeId:it.themeId||null})),
-      ...loadEnts('conc').map(it=>({kind:'conc',id:it.gid||it.id,title:it.title,body:it.body,themeId:it.themeId||null})),
-      ...loadAclars().map(it=>({kind:'aclar',id:it.id,title:it.ref||'Aclaración',body:it.text,themeId:it.themeId||null}))
-    ];
+    /* AGRUPADO POR TEMA: "Tema 3" reúne todo lo suyo junto (definiciones,
+       conclusiones, aclaraciones, nodos y procesos). Lo que no lleva tema
+       —mapa conceptual, notas y marcadores— va después, cada uno en su
+       grupo por tipo, para que no se amontone todo en un "Sin tema" enorme.
+       Plegado por defecto; al buscar se despliega solo. */
+    const all=linkCandidates();
     const hayAlgo=all.length>0;
     const inp=document.getElementById('cmap-link-search');
     const list=document.getElementById('cmap-link-list');
+    const orden=(a,b)=>(LINK_ORDEN.indexOf(a.kind)-LINK_ORDEN.indexOf(b.kind))
+      ||String(a.title||'').localeCompare(String(b.title||''),'es',{sensitivity:'base'});
 
     const pinta=()=>{
       list.innerHTML='';
@@ -13941,51 +14116,66 @@ function askCmapLink(){
         const em=document.createElement('div');
         em.style.cssText='text-align:center;color:var(--ink3);font-size:13px;padding:20px 10px';
         em.textContent=hayAlgo?('Nada coincide con "'+q.trim()+'".')
-          :'Aún no tienes definiciones, conclusiones ni aclaraciones en este documento.';
+          :'Aún no has creado nada en este documento que se pueda vincular.';
         list.appendChild(em);
         return;
       }
       const themes=loadThemes().sort((a,b)=>(a.num||0)-(b.num||0));
       const byTheme=new Map();themes.forEach(t=>byTheme.set(t.id,[]));
-      const noTheme=[];
-      items.forEach(it=>{if(it.themeId&&byTheme.has(it.themeId))byTheme.get(it.themeId).push(it);else noTheme.push(it)});
+      const sinTema=[];
+      items.forEach(it=>{if(it.themeId&&byTheme.has(it.themeId))byTheme.get(it.themeId).push(it);else sinTema.push(it)});
 
       const searching=!!q.trim();
-      const renderGroup=(arr,theme)=>{
+      /* `cab` = {key, label, num, color}: sirve igual para un tema que para un
+         grupo por tipo, así hay una sola forma de pintar grupos */
+      const renderGroup=(arr,cab)=>{
         if(!arr.length)return;
-        const key='link:'+(theme?theme.id:'');
-        const isOpen=searching||!!themeGroupOpen[key];
+        const isOpen=searching||!!themeGroupOpen[cab.key];
         const hd=document.createElement('div');hd.className='theme-hd theme-hd-toggle';
         hd.style.cssText+=';flex:0 0 auto';
-        hd.style.background=theme?theme.color:'var(--bg2)';
+        hd.style.background=cab.color;
         const arrow=document.createElement('span');arrow.className='theme-grp-arrow'+(isOpen?' open':'');arrow.innerHTML=svg('chevRight');
         hd.appendChild(arrow);
-        if(theme)hd.insertAdjacentHTML('beforeend',`<span class="theme-hd-num">${theme.num}</span><span class="theme-hd-name">${esc(theme.name)}</span>`);
-        else hd.insertAdjacentHTML('beforeend',`<span class="theme-hd-name" style="color:var(--ink3)">Sin tema</span>`);
+        if(cab.num)hd.insertAdjacentHTML('beforeend',`<span class="theme-hd-num">${cab.num}</span>`);
+        hd.insertAdjacentHTML('beforeend',`<span class="theme-hd-name"${cab.gris?' style="color:var(--ink3)"':''}>${esc(cab.label)}</span>`);
         hd.insertAdjacentHTML('beforeend',`<span class="theme-hd-cnt">${arr.length}</span>`);
         list.appendChild(hd);
 
         const grp=document.createElement('div');grp.className='theme-grp-body'+(isOpen?' open':'');grp.style.flex='0 0 auto';
-        arr.forEach(it=>{
+        [...arr].sort(orden).forEach(it=>{
           const b=document.createElement('button');
           b.style.cssText='flex:0 0 auto;display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:9px 10px;border:none;border-radius:9px;background:var(--bg2);color:var(--ink);font-family:inherit;font-size:13.5px;line-height:1.35;cursor:pointer;margin-bottom:2px;overflow:hidden';
-          const ic=document.createElement('span');ic.style.cssText='flex-shrink:0;display:inline-flex;color:var(--ink3)';ic.innerHTML=svg(LINK_KIND_ICON[it.kind]);
-          const tx=document.createElement('span');tx.style.cssText='overflow:hidden;text-overflow:ellipsis;white-space:nowrap';tx.textContent=it.title||'(sin título)';
+          const ic=document.createElement('span');ic.style.cssText='flex-shrink:0;display:inline-flex;color:var(--ink3)';ic.innerHTML=svg(LINK_KIND_ICON[it.kind]||'file');
+          const tx=document.createElement('span');tx.style.cssText='flex:1;min-width:0;overflow:hidden';
+          const t1=document.createElement('span');t1.style.cssText='display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+          t1.textContent=it.title||'(sin título)';
+          tx.appendChild(t1);
+          /* de dónde cuelga: sin esto, tres pasos llamados "Fase 1" de tres
+             procesos distintos serían indistinguibles en la lista */
+          if(it.sub){
+            const t2=document.createElement('span');
+            t2.style.cssText='display:block;font-size:11px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+            t2.textContent=it.sub;
+            tx.appendChild(t2);
+          }
           b.append(ic,tx);
-          b.onclick=()=>{mCmapLink.classList.add('hidden');cmapLinkRes&&cmapLinkRes({kind:it.kind,id:it.id,title:it.title||''})};
+          b.onclick=()=>{mCmapLink.classList.add('hidden');cmapLinkRes&&cmapLinkRes({kind:it.kind,ref:it.ref,title:it.title||''})};
           grp.appendChild(b);
         });
         list.appendChild(grp);
 
         hd.onclick=()=>{
           if(searching)return;
-          themeGroupOpen[key]=!themeGroupOpen[key];
-          arrow.classList.toggle('open',themeGroupOpen[key]);
-          grp.classList.toggle('open',themeGroupOpen[key]);
+          themeGroupOpen[cab.key]=!themeGroupOpen[cab.key];
+          arrow.classList.toggle('open',themeGroupOpen[cab.key]);
+          grp.classList.toggle('open',themeGroupOpen[cab.key]);
         };
       };
-      themes.forEach(t=>renderGroup(byTheme.get(t.id),t));
-      renderGroup(noTheme,null);
+      themes.forEach(t=>renderGroup(byTheme.get(t.id),
+        {key:'link:'+t.id,label:t.name||'Tema',num:t.num,color:t.color}));
+      LINK_ORDEN.forEach(kind=>renderGroup(sinTema.filter(x=>x.kind===kind),
+        {key:'link:sin:'+kind,label:LINK_KIND_PLURAL[kind]||'Otros',
+         color:'var(--bg2)',gris:true}));
     };
     inp.value='';inp.oninput=pinta;
     inp.style.display=hayAlgo?'':'none';
@@ -14011,7 +14201,7 @@ async function insertRichLink(ed){
   ed.focus();
   const text=sel.toString()||target.title;
   document.execCommand('insertHTML',false,
-    `<span class="cmap-link" data-kind="${target.kind}" data-ref="${esc(target.id)}">${esc(text)}</span>`);
+    `<span class="cmap-link" data-kind="${target.kind}" data-ref="${esc(target.ref)}">${esc(text)}</span>`);
 }
 /* ══ FULLSCREEN ══ */
 let fullscreenOn=false;
