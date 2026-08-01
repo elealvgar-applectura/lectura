@@ -2368,7 +2368,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v165'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v166'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -12822,6 +12822,19 @@ function richToRuns(html){
         });
         cur=null;return;
       }
+      /* ── UNA PALABRA VINCULADA ──
+         En el papel el texto se escribe igual que el resto (un vínculo azul y
+         subrayado en un folio no sirve de nada: no se puede pulsar), pero su
+         último trozo queda MARCADO. El dibujante le pone un asterisco con
+         número y copia al pie de esa hoja todo lo que guarda el vínculo.
+         Antes, en el PDF la palabra salía suelta y lo que había dentro del
+         vínculo no aparecía por ninguna parte. */
+      if(cls&&cls.contains('cmap-link')){
+        walk(ch,st,prof);
+        const kind=ch.getAttribute('data-kind'),ref=ch.getAttribute('data-ref');
+        if(kind&&ref&&cur&&cur.runs.length)cur.runs[cur.runs.length-1].nota={kind,ref};
+        return;
+      }
       if(tag==='div'||tag==='p'){cur=null;walk(ch,st,prof);cur=null;return}
       const st2=Object.assign({},st);
       if(tag==='b'||tag==='strong')st2.b=true;
@@ -12937,8 +12950,115 @@ function pdfExport(){
 
   const tinta=c=>doc.setTextColor(c[0],c[1],c[2]);
   const fuente=(b,i)=>doc.setFont('helvetica',b&&i?'bolditalic':b?'bold':i?'italic':'normal');
-  /* si lo siguiente no cabe en lo que queda de hoja, hoja nueva */
-  const sitio=h=>{if(y+h>PH-MB){doc.addPage();y=MT}};
+
+  /* ══════════════════════════════════════════════════════════════════
+     NOTAS AL PIE DE LOS VÍNCULOS
+
+     Una palabra vinculada sale en el texto con un asterisco y un número
+     (*1), y al pie de ESA hoja se copia entero lo que guarda el vínculo:
+     su título y todo su texto, ocupe lo que ocupe.
+
+     Cómo se evita que las notas pisen el texto: mientras hay notas
+     esperando, la hoja "termina" más arriba (altoZona), y `sitio` lo tiene
+     en cuenta antes de escribir cada renglón. Al pasar de hoja se dibujan
+     primero las notas de la que se cierra (cerrarHoja).
+
+     Dos topes por seguridad, porque una nota puede ser más larga que la
+     hoja: la zona de notas nunca se come más de media hoja, y lo que no
+     quepa continúa al pie de la hoja siguiente marcado con "(sigue)". Sin
+     esos topes, una nota gigante dejaría a `sitio` sin sitio nunca y el
+     PDF se quedaría dando vueltas.
+
+     Las notas van en texto llano (sin negritas ni colores): son letra
+     pequeña al pie, y así se pueden medir renglón a renglón, que es lo que
+     permite cortarlas por donde toca.
+     ══════════════════════════════════════════════════════════════════ */
+  const NOTA_SIZE=8.2, NOTA_LH=10.4;
+  const NOTA_MAX=()=>(PH-MT-MB)*.5;      // la zona nunca pasa de media hoja
+  let notaN=0;                           // numeración correlativa de todo el PDF
+  let notasPend=[];                      // las de la hoja en curso, aún sin dibujar
+  let notasHoja={};                       // el mismo vínculo dos veces en la hoja → un número
+
+  /* el contenido del vínculo, aplanado a renglones que ya sabemos medir */
+  const notaLineas=(t,marca)=>{
+    const anchoTxt=RIGHT-ML-16;
+    const out=[];
+    doc.setFont('helvetica','bold');doc.setFontSize(NOTA_SIZE);
+    doc.splitTextToSize(marca+'  '+(t.title||'(sin título)')+(t.sub?'   ('+t.sub+')':''),RIGHT-ML)
+       .forEach(l=>out.push({t:l,b:true,ind:0}));
+    doc.setFont('helvetica','normal');
+    richToRuns(t.html).forEach(p=>{
+      let txt='';
+      if(p.img)txt='(imagen)';
+      else if(p.tabla)txt=p.tabla.filas.map(f=>f.map(c=>(c.runs||[]).map(r=>r.t).join('')).join(' · ')).join('  /  ');
+      else txt=(p.runs||[]).map(r=>r.t).join('');
+      txt=String(txt).replace(/\s+/g,' ').trim();
+      if(!txt)return;
+      const ind=16+((p.sangria||0)>1?((p.sangria-1)*7):0);
+      doc.splitTextToSize((p.bullet?p.bullet+' ':'')+txt,anchoTxt-(ind-16))
+         .forEach(l=>out.push({t:l,b:false,ind}));
+    });
+    return out;
+  };
+  /* Prepara la nota de un vínculo: le da número y deja lista su copia. null si
+     lo vinculado ya no existe (se borró): entonces no se pone ni asterisco. */
+  const notaPreparar=info=>{
+    const clave=info.kind+'|'+info.ref;
+    if(notasHoja[clave])return{marca:notasHoja[clave],nota:null};   // ya está al pie de esta hoja
+    let t=null;
+    try{t=cmapLinkTarget(info.kind,info.ref)}catch(e){t=null}
+    if(!t)return null;
+    const marca='*'+(++notaN);
+    notasHoja[clave]=marca;
+    return{marca,nota:{lineas:notaLineas(t,marca)}};
+  };
+  const altoZona=extra=>{
+    const arr=extra&&extra.length?notasPend.concat(extra):notasPend;
+    if(!arr.length)return 0;
+    let n=0;arr.forEach(x=>n+=x.lineas.length);
+    return Math.min(n*NOTA_LH+10,NOTA_MAX());
+  };
+  /* dibuja al pie de la hoja actual lo que haya esperando; lo que no quepa se
+     queda en la cola y sigue al pie de la hoja siguiente */
+  const cerrarHoja=()=>{
+    notasHoja={};
+    if(!notasPend.length)return;
+    const tope=PH-MB;
+    /* Si la hoja está vacía es una hoja de continuación (una nota larguísima
+       que sigue): entonces las notas la ocupan ENTERA. Dejarle media hoja en
+       blanco sería tirar papel y partir la nota en más trozos de la cuenta.
+       La raya separadora solo se pinta cuando hay texto encima. */
+    const vacia=y<=MT+.5;
+    let ty=vacia?MT+NOTA_LH:tope-altoZona()+2;
+    if(!vacia){
+      doc.setDrawColor(214,208,226);doc.setLineWidth(.6);
+      doc.line(ML,ty,ML+150,ty);
+      ty+=NOTA_LH+1;
+    }
+    const sobran=[];
+    notasPend.forEach(n=>{
+      const resto=[];let puestas=0;
+      n.lineas.forEach(l=>{
+        if(resto.length||ty>tope){resto.push(l);return}
+        doc.setFont('helvetica',l.b?'bold':'normal');doc.setFontSize(NOTA_SIZE);
+        tinta(l.b?INK:INK2);
+        doc.text(l.t,ML+(l.ind||0),ty);
+        ty+=NOTA_LH;puestas++;
+      });
+      if(!resto.length)return;
+      /* Si no cupo NI UN renglón, la nota pasa entera a la hoja siguiente tal
+         como está. Si se le añadiera un "(sigue)" cada vez que cambia de hoja,
+         se apilarían varios encima de la misma nota (pasaba antes). */
+      if(!puestas){sobran.push(n);return}
+      const cab=n.lineas[0];
+      sobran.push({lineas:[{t:(String(cab.t).split('  ')[0]||'*')+'  (sigue)',b:true,ind:0}].concat(resto)});
+    });
+    notasPend=sobran;
+  };
+  /* si lo siguiente no cabe en lo que queda de hoja, hoja nueva.
+     `extra` son las notas que ese renglón va a añadir al pie: hay que contarlas
+     ANTES, o el renglón se escribiría encima de su propia nota. */
+  const sitio=(h,extra)=>{if(y+h>PH-MB-altoZona(extra)){cerrarHoja();doc.addPage();y=MT}};
   const nivel=p=>PDF_LV[Math.min(p||0,PDF_LV.length-1)];
   const xDe=p=>ML+nivel(p).ind+(p>4?(p-4)*12:0);
 
@@ -13102,9 +13222,23 @@ function pdfExport(){
       const bx=x+(p.sangria>0?(p.sangria-1)*11:0);
       const sangraViñeta=p.bullet?13:0;
       const maxW=RIGHT-bx-sangraViñeta;
-      /* trocear en palabras SIN perder el estilo de cada trozo */
+      /* trocear en palabras SIN perder el estilo de cada trozo.
+         Si el trozo venía de una palabra vinculada, su ÚLTIMA palabra se lleva
+         el asterisco (*1) y se prepara la copia que irá al pie. */
       const pal=[];
-      p.runs.forEach(r=>r.t.split(/(\s+)/).forEach(w=>{if(w!=='')pal.push({t:w,st:r})}));
+      p.runs.forEach(r=>{
+        const trozos=r.t.split(/(\s+)/).filter(w=>w!=='');
+        let ultima=-1;
+        trozos.forEach((w,i)=>{if(w.trim())ultima=i});
+        trozos.forEach((w,i)=>{
+          const o={t:w,st:r};
+          if(r.nota&&i===ultima){
+            const np=notaPreparar(r.nota);
+            if(np){o.marca=np.marca;o.nota=np.nota}
+          }
+          pal.push(o);
+        });
+      });
       let linea=[],ancho=0,primera=true;
       /* `ultima` = es el último renglón del párrafo (no se justifica). */
       const soltar=(ultima)=>{
@@ -13132,7 +13266,12 @@ function pdfExport(){
           const sobra=maxW-usado;
           if(huecos>0&&sobra>0&&sobra<maxW*.32)extra=sobra/huecos;
         }
-        sitio(lh);
+        /* las notas de ESTE renglón se cuentan antes de decidir si cabe, y se
+           ponen en la cola ya con la hoja definitiva (si hubo salto, la de
+           después): así la marca y su nota acaban siempre en la misma hoja */
+        const notasLinea=linea.filter(s=>s.nota).map(s=>s.nota);
+        sitio(lh,notasLinea);
+        notasLinea.forEach(n=>notasPend.push(n));
         if(pendiente){                                // número de página al margen
           doc.setFont('helvetica','normal');doc.setFontSize(7.6);tinta(INK3);
           doc.text(pendiente,Math.max(16,bx-30),y);
@@ -13152,12 +13291,20 @@ function pdfExport(){
           if(seg.st.u){doc.setDrawColor(col[0],col[1],col[2]);doc.setLineWidth(.5);doc.line(cx,y+1.6,cx+w,y+1.6)}
           /* el reparto del justificado se suma DESPUÉS de cada espacio */
           cx+=w+(extra&&!seg.t.trim()?extra:0);
+          /* el asterisco de la nota, volado y pegado a la palabra */
+          if(seg.marca){
+            doc.setFont('helvetica','bold');doc.setFontSize(size*.72);tinta(INK3);
+            doc.text(seg.marca,cx,y-size*.30);
+            cx+=doc.getTextWidth(seg.marca);
+          }
         });
         y+=lh;linea=[];ancho=0;primera=false;
       };
       pal.forEach(w=>{
         fuente(w.st.b,w.st.i);doc.setFontSize(size);
-        const ww=doc.getTextWidth(w.t);
+        /* el asterisco ocupa: si no se contara aquí, el último renglón se
+           saldría por la derecha justo en las palabras vinculadas */
+        const ww=doc.getTextWidth(w.t)+(w.marca?doc.getTextWidth(w.marca)*.72:0);
         if(ancho+ww>maxW&&linea.length&&w.t.trim())soltar(false);
         if(!linea.length&&!w.t.trim())return;      // ninguna línea empieza por un espacio
         linea.push(w);ancho+=ww;
@@ -13372,6 +13519,14 @@ function pdfExport(){
     },
     /* pies de página y descarga */
     guardar(nombre,aviso){
+      /* las notas de la última hoja aún no están dibujadas; y si no caben,
+         siguen en hojas nuevas hasta que no quede ninguna. El tope de vueltas
+         es una red de seguridad para que un caso raro no cuelgue la app. */
+      let vueltas=0;
+      while(notasPend.length&&vueltas++<60){
+        cerrarHoja();
+        if(notasPend.length){doc.addPage();y=MT}
+      }
       const total=doc.getNumberOfPages();
       for(let p=1;p<=total;p++){
         doc.setPage(p);
