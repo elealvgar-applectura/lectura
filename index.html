@@ -740,6 +740,14 @@ body.fullscreen #rd-bottom-show{display:none}
 .tm-new-add-p{background:var(--menta);border:none;border-radius:10px;padding:0 14px;height:40px;
   flex-shrink:0;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer;font-family:inherit}
 .tm-new-add-p:active{opacity:.8}
+/* copiar los temas del mapa conceptual: va debajo de la fila de crear a mano,
+   a lo ancho, porque es una acción de una sola vez y no un campo que rellenar */
+.tm-copiar-cmap{display:flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;margin-top:10px;padding:11px;border:1px solid var(--border);
+  border-radius:11px;background:var(--bg2);color:var(--ink);font-family:inherit;
+  font-size:13.5px;font-weight:600;cursor:pointer;box-sizing:border-box}
+.tm-copiar-cmap:active{background:var(--acento)}
+.tm-copiar-cmap .ico{width:17px;height:17px;flex-shrink:0;color:var(--ink2)}
 /* buscador de panel (nodos, glosario, conclusiones, aclaraciones) */
 .panel-search{margin-bottom:8px}
 .panel-search input{width:100%;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);
@@ -2080,6 +2088,7 @@ body.fullscreen #gid-bar{bottom:20px}
       <input id="tm-new-name" type="text" placeholder="Nuevo tema…" style="flex:1;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);font-size:15px;padding:10px;outline:none">
       <button id="tm-new-add" style="background:var(--menta);border:none;border-radius:10px;padding:0 14px;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer">Crear</button>
     </div>
+    <button id="tm-copiar-cmap" class="tm-copiar-cmap">Copiar los temas del mapa conceptual</button>
     <div class="modal-btns">
       <button class="mbtn ok" id="tm-close" style="background:var(--acento)">Listo</button>
     </div>
@@ -2508,7 +2517,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v180'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v181'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -12462,6 +12471,17 @@ function openThemesInPanel(panelId){
   nueva.append(num,nom,crear);
   host.appendChild(nueva);
 
+  /* …o copiarlos del mapa conceptual de una vez, sin escribir nada */
+  const copiar=document.createElement('button');
+  copiar.className='tm-copiar-cmap';
+  setIconLabel(copiar,'brain','Copiar los temas del mapa conceptual');
+  copiar.onclick=()=>{
+    const r=temasDesdeCmap();
+    avisoTemasDesdeCmap(r);
+    if(r.creados){num.value=nextThemeNum();repinta();refreshEntPanels()}
+  };
+  host.appendChild(copiar);
+
   body.appendChild(host);
   repinta();
 }
@@ -12550,6 +12570,49 @@ function createTheme(num,name){
      automático: eso lo decide el chip de la barra de colores. */
   saveActiveTheme(t.id);
   return t;
+}
+
+/* ══ COPIAR LOS TEMAS DEL MAPA CONCEPTUAL ══
+   Los temas y los "Título general" del mapa son la misma cosa dicha dos veces:
+   el tema 7 del mapa es el tema 7 de las fichas. Escribirlos otra vez a mano,
+   uno a uno y con su número, es trabajo repetido y encima se cuelan erratas que
+   luego no cuadran ("Tema 7. Comprension" y "Tema 7. Comprensión" serían dos).
+
+   Se crean SOLO LOS QUE FALTAN. Se compara por nombre sin distinguir mayúsculas
+   ni acentos, y si ya tienes uno con ese nombre se respeta EXACTAMENTE como
+   está: no se renumera, no se recolorea y no se toca. Sus fichas ya cuelgan de
+   él y renumerarlo las descolocaría todas.
+
+   Los números siguen el orden del mapa, continuando por donde iban los tuyos.
+   Nunca borra ni cambia nada: solo añade. */
+function temasDesdeCmap(){
+  const maps=loadCmap();
+  if(!maps.length)return{creados:0,existian:0,sinMapa:true};
+  const norm=s=>String(s||'').replace(/\s+/g,' ').trim().toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'');
+  const yaHay=new Set(loadThemes().map(t=>norm(t.name)));
+  /* createTheme deja activo el tema que crea (es lo que tiene sentido al crear
+     uno a mano). En una copia masiva eso dejaría activo el último del mapa por
+     casualidad, así que se devuelve el que estaba. */
+  const activoAntes=loadActiveTheme();
+  let creados=0,existian=0;
+  maps.forEach(root=>{
+    const nombre=String(root.title||'').trim();
+    if(!nombre)return;
+    if(yaHay.has(norm(nombre))){existian++;return}
+    createTheme(nextThemeNum(),nombre);
+    yaHay.add(norm(nombre));
+    creados++;
+  });
+  saveActiveTheme(activoAntes);
+  return{creados,existian};
+}
+/* el aviso, que es lo único que cuenta lo que ha pasado */
+function avisoTemasDesdeCmap(r){
+  if(r.sinMapa){showTip('Todavía no hay ningún mapa conceptual del que copiar',2600);return}
+  if(!r.creados){showTip('Ya tenías todos los temas del mapa ('+r.existian+')',2600);return}
+  showTip('Creados '+r.creados+(r.creados===1?' tema':' temas')+' desde el mapa'+
+          (r.existian?(' · '+r.existian+' ya estaban'):''),2800);
 }
 
 /* Sincroniza las entradas automáticas a partir de los subrayados.
@@ -15518,6 +15581,15 @@ document.getElementById('tm-new-add').onclick=()=>{
   if(!name){showTip('Ponle nombre al tema');return}
   createTheme(num,name);
   renderThemesMgr();refreshEntPanels();
+};
+setIconLabel(document.getElementById('tm-copiar-cmap'),'brain','Copiar los temas del mapa conceptual');
+document.getElementById('tm-copiar-cmap').onclick=()=>{
+  const r=temasDesdeCmap();
+  avisoTemasDesdeCmap(r);
+  if(r.creados){
+    document.getElementById('tm-new-num').value=nextThemeNum();
+    renderThemesMgr();refreshEntPanels();
+  }
 };
 document.getElementById('tm-new-name').addEventListener('keydown',e=>{
   if(e.key==='Enter'){e.preventDefault();e.stopPropagation();document.getElementById('tm-new-add').click()}
