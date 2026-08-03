@@ -812,11 +812,17 @@ body.fullscreen #rd-bottom-show{display:none}
    estrecho deja calles blancas enormes entre palabras. */
 .rich-content{line-height:1.75;text-align:justify;hyphens:auto;-webkit-hyphens:auto}
 /* ══ TAMAÑO Y INTERLINEADO DE PARTIDA DE TODO LO ESCRITO ══
-   Letra 12 e interlineado 1,5 en TODAS las herramientas (glosario,
+   Letra 16 e interlineado 1,5 en TODAS las herramientas (glosario,
    conclusiones, aclaraciones, nodos y sus subniveles, mapa conceptual,
    procesos y las tarjetas plasmadas en la página). Antes cada panel ponía lo
    suyo —13px con 1,45 aquí, 12,5px con 1,5 allá— y el mismo texto se veía
    distinto según dónde lo miraras.
+
+   POR QUÉ 16 Y NO 12: se probó con 12 (que es lo que ofrece el menú de
+   tamaños) y era ilegible para estudiar horas seguidas. 16 es el tamaño con el
+   que ya se ESCRIBE en los cuadros de texto, así que ahora el texto se ve
+   igual mientras lo escribes que una vez guardado. Si algún día hay que
+   moverlo, es este número y el de la escala de <font size> de aquí abajo.
 
    ES RETROACTIVO SIN TOCAR NI UN BYTE DE LOS APUNTES: esto es el punto de
    partida que se HEREDA, así que lo escrito hace años se ve ya con el tamaño
@@ -828,31 +834,30 @@ body.fullscreen #rd-bottom-show{display:none}
    aquí: el texto daría un salto al tocar "1,5" en el menú.
 
    POR QUÉ LAS DOS EXCEPCIONES:
-     · .rich-ed  = el cuadro donde se ESCRIBE. Se queda en 16px a propósito:
-       por debajo de 16, Safari del iPad hace zoom solo cada vez que tocas
-       para escribir, y además se escribe mejor con la letra grande.
+     · .rich-ed  = el cuadro donde se ESCRIBE. Tiene su propio 16px (y no puede
+       bajar de ahí: por debajo de 16, el Safari del iPad hace zoom solo cada
+       vez que tocas para escribir).
      · .txt-ed   = el texto escrito ENCIMA de la página. Su tamaño está atado
        al del PDF exportado (ver TXT_CSS_EXP): si se cambia aquí y no allí, al
        exportar el texto se corta o baila.
    El :not() doble, además de excluirlas, le da fuerza suficiente para ganar a
    .ent-text, .node-desc, .cmap-desc y .emb-text sin depender del orden. */
-.rich-content:not(.rich-ed):not(.txt-ed){font-size:12px;line-height:1.75}
+.rich-content:not(.rich-ed):not(.txt-ed){font-size:16px;line-height:1.75}
 /* LOS BOTONES A− Y A+ TIENEN QUE SEGUIR SIENDO "MÁS PEQUEÑA" Y "MÁS GRANDE".
    Guardan la talla como <font size="2"> / <font size="5">, y esas tallas del
    navegador son FIJAS (2 = 13px, 5 = 24px), no relativas al texto de alrededor.
-   Con la base en 12, "más pequeña" salía en 13px, o sea MÁS GRANDE que el
-   resto: justo lo contrario de lo que dice el botón. (Con la base anterior de
-   13px, A− no hacía nada en absoluto.)
-   Aquí se les da su talla relativa a la base de 12, con la escala de siempre.
+   Con la base en 13px, A− no hacía absolutamente nada (13 sobre 13).
+   Aquí se les da su talla relativa a la base de 16, con la escala de siempre:
+   la 3 es el tamaño normal, y a partir de ahí se baja y se sube.
    Un tamaño elegido en el menú de tamaños no pasa por aquí: ese se guarda como
    medida exacta dentro del propio texto y manda sobre esto. */
-.rich-content font[size="1"]{font-size:9px}
-.rich-content font[size="2"]{font-size:10.5px}
-.rich-content font[size="3"]{font-size:12px}
-.rich-content font[size="4"]{font-size:13.5px}
-.rich-content font[size="5"]{font-size:16px}
-.rich-content font[size="6"]{font-size:21px}
-.rich-content font[size="7"]{font-size:28px}
+.rich-content font[size="1"]{font-size:11px}
+.rich-content font[size="2"]{font-size:13px}
+.rich-content font[size="3"]{font-size:16px}
+.rich-content font[size="4"]{font-size:18px}
+.rich-content font[size="5"]{font-size:22px}
+.rich-content font[size="6"]{font-size:28px}
+.rich-content font[size="7"]{font-size:36px}
 .rich-content ul{list-style:disc;padding-left:20px;margin:4px 0}
 .rich-content ol{list-style:decimal;padding-left:22px;margin:4px 0}
 .rich-content li{margin:2px 0}
@@ -2465,7 +2470,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v170'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v171'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
