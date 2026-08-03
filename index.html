@@ -942,6 +942,27 @@ body.dark .rich-content .lp-caja-ej {--lpc-bg:#32202A;--lpc-bd:#4A2E3C}
 .rich-content .lp-cita{border-left:3px solid var(--rosa-fuerte);
   padding:1px 0 1px 13px;margin:10px 0;font-style:italic;text-align:left}
 .rich-content .lp-nota{font-size:.86em;color:var(--ink2);margin:7px 0}
+/* ── NOTAS CON TIPO: RECUERDA · OJO · DUDA ──
+   La nota de siempre (gris, sin rótulo) se queda como está: los apuntes que ya
+   existen no cambian. Estas tres son la misma nota pequeña con una barrita de
+   color a la izquierda y su rótulo delante, para que al repasar se distinga de
+   un vistazo un "no lo olvides" de una duda pendiente.
+   EL RÓTULO NO ES TEXTO DE VERDAD (va en ::before): así no se puede borrar sin
+   querer mientras escribes, no se cuenta al buscar y no ensucia lo guardado.
+   El PDF lo escribe por su cuenta a partir de la clase (ver RICH_NOTAS). */
+.rich-content .lp-nota-rec,.rich-content .lp-nota-ojo,.rich-content .lp-nota-dud{
+  border-left:3px solid;padding-left:9px;margin:9px 0}
+.rich-content .lp-nota-rec::before,.rich-content .lp-nota-ojo::before,
+.rich-content .lp-nota-dud::before{font-weight:700;letter-spacing:.04em;font-size:.92em}
+.rich-content .lp-nota-rec{border-color:#E8A0BF}
+.rich-content .lp-nota-rec::before{content:'RECUERDA · ';color:#B0416F}
+.rich-content .lp-nota-ojo{border-color:#EFB463}
+.rich-content .lp-nota-ojo::before{content:'OJO · ';color:#9C6318}
+.rich-content .lp-nota-dud{border-color:#84BAD6}
+.rich-content .lp-nota-dud::before{content:'DUDA · ';color:#2C6A88}
+body.dark .rich-content .lp-nota-rec::before{color:#E8A0BF}
+body.dark .rich-content .lp-nota-ojo::before{color:#EFB463}
+body.dark .rich-content .lp-nota-dud::before{color:#84BAD6}
 .rich-content hr.lp-sep{border:none;border-top:1px solid var(--border);
   height:0;margin:14px 0}
 /* Los contenedores de texto llevan white-space:pre-wrap para respetar los saltos
@@ -2470,7 +2491,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v175'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v176'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -3436,6 +3457,17 @@ function richInsertTable(filas,cols,ed){
 /* La clave (gris/ojo/res/ej) es la que se guarda en la clase del recuadro y
    la que lee el exportador a PDF. NO cambiar las claves ya usadas: los
    apuntes viejos se quedarían sin color. */
+/* ══ TIPOS DE NOTA PEQUEÑA ══
+   [clave, rótulo, color de la barrita, color del rótulo]
+   La clave se guarda en la clase del div (lp-nota-rec…) y es la que leen tanto
+   el CSS de la pantalla como el exportador a PDF. NO cambiar las claves ya
+   usadas: los apuntes viejos se quedarían sin rótulo ni color.
+   Una nota SIN clave de tipo es la nota gris de siempre, que sigue existiendo. */
+const RICH_NOTAS=[
+  ['rec','RECUERDA','#E8A0BF','#B0416F'],
+  ['ojo','OJO',      '#EFB463','#9C6318'],
+  ['dud','DUDA',     '#84BAD6','#2C6A88']
+];
 const RICH_CAJAS=[
   ['gris','Recuadro · aclaración','#F3F1F6','#E4DFEB'],
   ['ojo', 'Recuadro · ojo',       '#FFF6DF','#F0DEAB'],
@@ -3458,6 +3490,13 @@ function openRichBloque(btn,ed){
     '<button type="button" class="rt-blo" data-k="nota"><i>a</i>Nota pequeña</button>'+
     '<button type="button" class="rt-blo" data-k="sep"><i class="rt-blo-s"></i>Separador</button>'+
     '</div>';
+  /* las notas con rótulo, cada una con su color, en su propia fila */
+  html+='<div class="rt-pop-t" style="margin-top:9px">Aclaración con aviso</div><div class="rt-blos rt-blos2">';
+  RICH_NOTAS.forEach(([k,rot,col])=>{
+    html+='<button type="button" class="rt-blo" data-k="nota-'+k+'">'+
+          '<i style="background:'+col+';border-color:'+col+'"></i>'+rot+'</button>';
+  });
+  html+='</div>';
   /* estando dentro de una caja, la salida a mano (para el iPad, donde
      acertarle con el dedo al renglón de debajo es una lotería) */
   if(dentro)html+='<div class="rt-blos rt-blos2">'+
@@ -3687,10 +3726,11 @@ function richInsertBloque(k,ed,restore){
      Lo que se sigue evitando es meter un recuadro DENTRO de otro: el PDF no
      sabe dibujar eso (una caja se exporta como una tabla de una casilla, y la
      de dentro se perdería sin avisar). */
+  const esNota=k.indexOf('nota')===0;          // 'nota' y 'nota-rec', 'nota-ojo'…
   const bloAct=richBloqueDe(richNodoCursor(ed),ed);
   const enCaja=!!(bloAct&&bloAct.classList&&
     (bloAct.classList.contains('lp-caja')||bloAct.classList.contains('lp-cita')));
-  if(!(k==='nota'&&enCaja))richSalirDeBloque(ed);
+  if(!(esNota&&enCaja))richSalirDeBloque(ed);
   if(k==='sep'){document.execCommand('insertHTML',false,'<hr class="lp-sep"><div><br></div>');return}
   if(k==='pegar'){richPegarEnCaja(ed,restore);return}
   /* id de usar y tirar para encontrar el bloque después (insertHTML no
@@ -3699,7 +3739,11 @@ function richInsertBloque(k,ed,restore){
   const marca='lpblo'+Date.now();
   let html;
   if(k==='cita')     html='<div class="lp-cita" id="'+marca+'"><div><br></div></div><div><br></div>';
-  else if(k==='nota')html='<div class="lp-nota" id="'+marca+'"><br></div><div><br></div>';
+  else if(esNota){
+    /* 'nota' = la gris de siempre; 'nota-rec' = con rótulo RECUERDA, etc. */
+    const t=k.slice(5);
+    html='<div class="lp-nota'+(t?' lp-nota-'+t:'')+'" id="'+marca+'"><br></div><div><br></div>';
+  }
   else               html='<div class="lp-caja lp-caja-'+k+'" id="'+marca+'"><div><br></div></div><div><br></div>';
   document.execCommand('insertHTML',false,html);
   const n=document.getElementById(marca);
@@ -13296,8 +13340,19 @@ function richToRuns(html){
       if(cls&&cls.contains('lp-cita')){cur=null;cajaPara(ch,prof,'cita');cur=null;return}
       if(cls&&cls.contains('lp-nota')){
         cur=null;
-        richToRuns(ch.innerHTML).forEach(p=>{
-          p.chico=true;if(!p.sangria)p.sangria=prof;paras.push(p);
+        /* El rótulo (RECUERDA, OJO, DUDA) no es texto de verdad: en pantalla lo
+           pone el CSS con ::before, así que aquí hay que escribirlo a mano a
+           partir de la clase, o en el papel la nota saldría sin su aviso.
+           Se pone solo en el PRIMER párrafo de la nota, y el color de la
+           barrita viaja en `notaCol` para que el dibujante la pinte. */
+        const tipo=RICH_NOTAS.find(n=>cls.contains('lp-nota-'+n[0]));
+        richToRuns(ch.innerHTML).forEach((p,i)=>{
+          p.chico=true;if(!p.sangria)p.sangria=prof;
+          if(tipo){
+            p.notaCol=tipo[2];
+            if(i===0)p.runs.unshift({t:tipo[1]+' · ',b:true,i:false,u:false,color:tipo[3]});
+          }
+          paras.push(p);
         });
         cur=null;return;
       }
@@ -13685,7 +13740,10 @@ function pdfExport(){
         catch(e){console.error('[pdf] no se pudo dibujar una tabla:',e)}
         return;
       }
-      const bx=x+(p.sangria>0?(p.sangria-1)*11:0);
+      /* una nota con tipo se mete 10 pt hacia dentro para dejar sitio a su
+         barrita de color, igual que se ve en la app */
+      const barra=p.notaCol?(parseColorRGB(p.notaCol)||null):null;
+      const bx=x+(p.sangria>0?(p.sangria-1)*11:0)+(barra?10:0);
       const sangraViñeta=p.bullet?13:0;
       const maxW=RIGHT-bx-sangraViñeta;
       /* trocear en palabras SIN perder el estilo de cada trozo.
@@ -13761,6 +13819,12 @@ function pdfExport(){
           doc.rect(bloque.x0,by,bloque.x1-bloque.x0,bh,'F');
           doc.setFillColor(bloque.barra[0],bloque.barra[1],bloque.barra[2]);
           doc.rect(bloque.x0,by,2.6,bh,'F');
+        }
+        /* la barrita de una nota con tipo, renglón a renglón: así acompaña a
+           la nota entera aunque ocupe varias líneas o cambie de hoja */
+        if(barra){
+          doc.setFillColor(barra[0],barra[1],barra[2]);
+          doc.rect(bx-10,y-size*.92,2.4,lh,'F');
         }
         if(pendiente){                                // número de página al margen
           doc.setFont('helvetica','normal');doc.setFontSize(7.6);tinta(INK3);
