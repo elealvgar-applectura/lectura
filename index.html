@@ -2508,7 +2508,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v179'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v180'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -13546,7 +13546,11 @@ function richToRuns(html){
       if(t!=='li')return;
       k++;cur=null;
       abrir(richMarcaLista(tipo,esOl,k),prof+1);
-      walk(hijo,st,prof+1);
+      /* la alineación de un punto de lista va en el propio <li>, no en un
+         <div> de dentro: sin mirarla aquí, un punto centrado salía a la
+         izquierda en el papel */
+      const alLi=(hijo.style&&hijo.style.textAlign)||'';
+      walk(hijo,alLi?Object.assign({},st,{align:alLi}):st,prof+1);
       cur=null;
     });
   };
@@ -13567,14 +13571,18 @@ function richToRuns(html){
      marca de salto ({br:true}) y el dibujante corta el renglón ahí. Los
      puntos de una lista dentro de una celda tampoco salían: se les pone
      delante su marca (•, 1., …), que si no desaparecían sin avisar. */
-  const celdaRuns=html=>{
+  /* `alinCelda` es la alineación puesta en la PROPIA casilla (<td style=…>).
+     Hace falta porque el texto de una celda suele ir suelto, sin <div> que lo
+     envuelva, así que esa alineación no está dentro del innerHTML que se
+     analiza aquí: se perdía y la celda salía siempre a la izquierda. */
+  const celdaRuns=(html,alinCelda)=>{
     const runs=[];
     richToRuns(html).forEach(p=>{
       /* las fotos y las tablas dentro de una celda no se dibujan: si se
          colara su párrafo vacío, dejaría un renglón en blanco suelto */
       if(!p.runs.length)return;
       if(runs.length)runs.push({br:true,t:''});
-      if(p.bullet)runs.push({t:p.bullet+' ',b:false,i:false,u:false,color:null,chico:p.chico});
+      if(p.bullet)runs.push({t:p.bullet+' ',b:false,i:false,u:false,color:null,chico:p.chico,align:p.align||alinCelda});
       /* UNA NOTA PEQUEÑA DENTRO DE UN RECUADRO. Fuera de una caja, "pequeño"
          es cosa del párrafo (p.chico) y el dibujante ya lo respeta; pero al
          entrar en una celda los párrafos se aplanan en trozos sueltos y esa
@@ -13582,7 +13590,13 @@ function richToRuns(html){
          el PDF salía del mismo tamaño que el resto de la caja. Aquí la marca
          viaja con cada trozo. Se copia el trozo (no se toca el original) para
          no ensuciar lo que hay guardado. */
-      p.runs.forEach(r=>runs.push(p.chico?Object.assign({},r,{chico:true}):r));
+      /* Y LA ALINEACIÓN, por lo mismo: se pierde al aplanar los párrafos, así
+         que un título centrado dentro de un recuadro salía pegado a la
+         izquierda en el papel aunque en la app estuviera centrado. */
+      const extra=(p.chico?{chico:true}:{});
+      const al=p.align||alinCelda||'';
+      if(al)extra.align=al;
+      p.runs.forEach(r=>runs.push(Object.keys(extra).length?Object.assign({},r,extra):r));
     });
     return runs;
   };
@@ -13593,7 +13607,9 @@ function richToRuns(html){
      propio es el color del fondo (`caja`), que el dibujante mira para
      pintarla redondeada y sin las rayas de las casillas. */
   const cajaPara=(node,prof,tipo)=>{
-    const runs=celdaRuns(node.innerHTML);
+    /* igual que en una celda: si el recuadro entero está centrado, ese estilo
+       vive en el propio recuadro y no en su contenido */
+    const runs=celdaRuns(node.innerHTML,(node.style&&node.style.textAlign)||'');
     if(!runs.length)return;
     paras.push({tabla:{filas:[[{runs,cab:false}]],anchos:[100],n:1,caja:tipo},
                 sangria:prof,runs:[]});
@@ -13604,7 +13620,7 @@ function richToRuns(html){
       const celdas=[];
       [...tr.children].forEach(c=>{
         if(c.tagName!=='TD'&&c.tagName!=='TH')return;
-        celdas.push({runs:celdaRuns(c.innerHTML),cab:c.tagName==='TH'});
+        celdas.push({runs:celdaRuns(c.innerHTML,(c.style&&c.style.textAlign)||''),cab:c.tagName==='TH'});
       });
       if(celdas.length)filas.push(celdas);
     });
@@ -13819,7 +13835,13 @@ function pdfExport(){
   doc.getTextWidth=function(t){return _ancho(pdfTexto(t))};
   doc.splitTextToSize=function(t,...a){return _partir(pdfTexto(t),...a)};
   const PH=doc.internal.pageSize.getHeight();
-  const ML=54,MT=58,MB=62,RIGHT=doc.internal.pageSize.getWidth()-54;
+  /* MÁRGENES. Estaban en 54/58/62 puntos (casi 2 cm por todos lados, como un
+     folio de Word). Con el cuerpo a 12 y el interlineado 1,5 eso dejaba una
+     columna estrecha y el documento se iba a muchas hojas. Aquí van más
+     ceñidos: ~1,3 cm a los lados y algo menos arriba y abajo. Es un solo sitio
+     y lo usan LAS SIETE exportaciones, así que todas cambian a la vez.
+     No bajar mucho más: por debajo de ~30 pt hay impresoras que recortan. */
+  const ML=38,MT=42,MB=46,RIGHT=doc.internal.pageSize.getWidth()-38;
   const INK=[74,68,88],INK2=[104,98,120],INK3=[152,146,168];
   const nom=(currentFileName||'Documento').replace(/\.[^.]+$/,'');
   let y=MT;
@@ -13919,7 +13941,10 @@ function pdfExport(){
         String(r.t||'').split(/(\s+)/).forEach(w=>{if(w!=='')pal.push({t:w,st:r})});
       });
       const lineas=[];let linea=[],ancho=0,nuevo=false;
-      const cerrar=()=>{lineas.push({segs:linea,aire:nuevo});linea=[];ancho=0;nuevo=false};
+      /* `ancho` se guarda con el renglón para poder centrarlo o pegarlo a la
+         derecha al pintarlo: allí ya no se puede volver a medir sin repetir
+         todo el trabajo de elegir la fuente y el tamaño de cada trozo */
+      const cerrar=()=>{lineas.push({segs:linea,aire:nuevo,ancho});linea=[];ancho=0;nuevo=false};
       pal.forEach(w=>{
         if(w.br){if(linea.length)cerrar();nuevo=true;return}
         /* medir con el MISMO tamaño con el que luego se escribe, o el renglón
@@ -13962,6 +13987,14 @@ function pdfExport(){
         t.lineas.forEach(ln=>{
           if(ln.aire)ty+=lh*.45;               // respiro antes de un párrafo nuevo
           let tx=cx+padL;
+          /* CENTRADO Y DERECHA DENTRO DE LA CELDA. La alineación la trae cada
+             trozo desde celdaRuns; basta mirar la del primero del renglón,
+             porque es una propiedad del párrafo entero. */
+          const alinC=(ln.segs[0]&&ln.segs[0].st&&ln.segs[0].st.align)||'';
+          if(alinC==='center'||alinC==='right'){
+            const hueco=Math.max(0,((cols[i]||anchoTotal)-padL-pad)-(ln.ancho||0));
+            tx+=(alinC==='center'?hueco/2:hueco);
+          }
           ln.segs.forEach(seg=>{
             fuente(seg.st.b||t.cab,seg.st.i||esCita);
             const sz=seg.st.chico?size*.86:size;
