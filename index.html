@@ -2470,7 +2470,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v171'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v172'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -3679,7 +3679,18 @@ function richGuionALista(ed){
 }
 function richInsertBloque(k,ed,restore){
   if(k==='salir'){richSalirAbajo(ed);return}
-  richSalirDeBloque(ed);
+  /* ══ UNA NOTA SÍ PUEDE IR DENTRO DE UN RECUADRO ══
+     Antes se salía SIEMPRE del bloque antes de insertar, así que poner una
+     aclaración dentro de un recuadro era imposible: la nota se colocaba
+     debajo, fuera de la caja, y parecía que el botón no funcionaba. Y un
+     recuadro con su "recuerda" dentro es justo para lo que se usa esto.
+     Lo que se sigue evitando es meter un recuadro DENTRO de otro: el PDF no
+     sabe dibujar eso (una caja se exporta como una tabla de una casilla, y la
+     de dentro se perdería sin avisar). */
+  const bloAct=richBloqueDe(richNodoCursor(ed),ed);
+  const enCaja=!!(bloAct&&bloAct.classList&&
+    (bloAct.classList.contains('lp-caja')||bloAct.classList.contains('lp-cita')));
+  if(!(k==='nota'&&enCaja))richSalirDeBloque(ed);
   if(k==='sep'){document.execCommand('insertHTML',false,'<hr class="lp-sep"><div><br></div>');return}
   if(k==='pegar'){richPegarEnCaja(ed,restore);return}
   /* id de usar y tirar para encontrar el bloque después (insertHTML no
@@ -13193,8 +13204,15 @@ function richToRuns(html){
          colara su párrafo vacío, dejaría un renglón en blanco suelto */
       if(!p.runs.length)return;
       if(runs.length)runs.push({br:true,t:''});
-      if(p.bullet)runs.push({t:p.bullet+' ',b:false,i:false,u:false,color:null});
-      p.runs.forEach(r=>runs.push(r));
+      if(p.bullet)runs.push({t:p.bullet+' ',b:false,i:false,u:false,color:null,chico:p.chico});
+      /* UNA NOTA PEQUEÑA DENTRO DE UN RECUADRO. Fuera de una caja, "pequeño"
+         es cosa del párrafo (p.chico) y el dibujante ya lo respeta; pero al
+         entrar en una celda los párrafos se aplanan en trozos sueltos y esa
+         marca se perdía: en la app la aclaración se veía pequeña y gris, y en
+         el PDF salía del mismo tamaño que el resto de la caja. Aquí la marca
+         viaja con cada trozo. Se copia el trozo (no se toca el original) para
+         no ensuciar lo que hay guardado. */
+      p.runs.forEach(r=>runs.push(p.chico?Object.assign({},r,{chico:true}):r));
     });
     return runs;
   };
@@ -13504,7 +13522,9 @@ function pdfExport(){
       const cerrar=()=>{lineas.push({segs:linea,aire:nuevo});linea=[];ancho=0;nuevo=false};
       pal.forEach(w=>{
         if(w.br){if(linea.length)cerrar();nuevo=true;return}
-        fuente(w.st.b||c.cab,w.st.i||esCita);doc.setFontSize(size);
+        /* medir con el MISMO tamaño con el que luego se escribe, o el renglón
+           se cortaría donde no toca (ver `chico` en celdaRuns) */
+        fuente(w.st.b||c.cab,w.st.i||esCita);doc.setFontSize(w.st.chico?size*.86:size);
         const ww=doc.getTextWidth(w.t);
         if(ancho+ww>maxW&&linea.length&&w.t.trim())cerrar();
         if(!linea.length&&!w.t.trim())return;   // ningún renglón empieza por espacio
@@ -13543,8 +13563,12 @@ function pdfExport(){
           if(ln.aire)ty+=lh*.45;               // respiro antes de un párrafo nuevo
           let tx=cx+padL;
           ln.segs.forEach(seg=>{
-            fuente(seg.st.b||t.cab,seg.st.i||esCita);doc.setFontSize(size);
-            const col=parseColorRGB(seg.st.color)||colorBase;
+            fuente(seg.st.b||t.cab,seg.st.i||esCita);
+            doc.setFontSize(seg.st.chico?size*.86:size);
+            /* la nota va en gris, como en la app, salvo que lleve color propio.
+               El renglón NO cambia de alto: al ser más pequeña cabe de sobra
+               dentro del que ya hay, así que nada se mueve de sitio. */
+            const col=parseColorRGB(seg.st.color)||(seg.st.chico?INK2:colorBase);
             tinta(col);
             doc.text(seg.t,tx,ty);
             const sw=doc.getTextWidth(seg.t);
