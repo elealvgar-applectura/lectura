@@ -2529,7 +2529,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v183'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v184'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -5536,7 +5536,10 @@ function showCtx(x,y,items){
     const el=document.createElement('div');
     el.className='ctx-item'+(it.danger?' danger':'');
     /* icono SVG + etiqueta (antes el icono era un emoji dentro del texto) */
-    el.innerHTML = (it.icon?svg(it.icon):'')+'<span></span>';
+    /* `iconHTML` = un icono ya dibujado, tal cual. Lo usan los menús de la
+       barra de herramientas para enseñar EL MISMO icono que tiene el botón,
+       copiado de él, en vez de uno parecido escrito aparte. */
+    el.innerHTML = (it.iconHTML||(it.icon?svg(it.icon):''))+'<span></span>';
     el.querySelector('span').textContent=it.label;
     el.onclick=()=>{ctxMenu.classList.add('hidden');it.action()};
     ctxMenu.appendChild(el);
@@ -18747,6 +18750,97 @@ if(SYNC_READY){
   window.addEventListener('online',()=>{if(fbUser)syncNow(true)});
 }
 updateSyncUI();
+
+/* ══════════════════════════════════════════════════════════════════
+   ORDEN Y GRUPOS DE LA BARRA DE HERRAMIENTAS
+   ──────────────────────────────────────────────────────────────────
+   La barra tenía 29 botones en una sola fila: no cabía en el iPad (había que
+   usar las flechitas justo para llegar a exportar) y diez iconos parecidos
+   seguidos —glosario, conclusiones, aclaraciones, nodos…— eran imposibles de
+   distinguir de un vistazo.
+
+   Ahora lo que se usa cada minuto se queda a la vista y el resto va en cuatro
+   menús, con el nombre escrito al lado del icono, que es mucho más fácil de
+   leer que un icono suelto.
+
+   CÓMO ESTÁ HECHO, que es lo importante: los botones que pasan a un menú NO se
+   borran ni se recablean. Se quedan donde estaban, ocultos, y la fila del menú
+   lo único que hace es pulsarlos. Así el comportamiento de cada herramienta es
+   exactamente el mismo de antes —no se ha tocado una sola línea de lo que
+   hacen— y volver atrás sería solo dejar de ocultarlos.
+
+   Los iconos de los menús se COPIAN del propio botón en el momento de abrirlo.
+   Dos motivos: no hay que mantener dos dibujos del mismo icono, y los que la
+   app rellena por JS (el sol/luna del modo oscuro) ya están puestos para
+   entonces. Se les añade la clase `ico` para que hereden el trazo del resto de
+   menús de la app.
+   ══════════════════════════════════════════════════════════════════ */
+const TB_GRUPOS=[
+  {id:'tb-g-apuntes',icon:'book',nombre:'Apuntes',items:[
+    ['tb-glossary','Glosario'],['tb-conclusions','Conclusiones'],['tb-aclar','Aclaraciones'],
+    ['tb-notes-panel','Nodos'],['tb-proc','Procesos y teorías'],
+    /* "Resumen de anotaciones" se llamaba igual que "Resumen de subrayados" y
+       no había forma de saber cuál era cuál */
+    ['tb-summary','Todas las notas'],['tb-resumen','Resumen de subrayados']]},
+  {id:'tb-g-progreso',icon:'stats',nombre:'Progreso',items:[
+    ['tb-stats','Progreso del documento'],['tb-review','Repasar con tarjetas']]},
+  {id:'tb-g-vista',icon:'eye',nombre:'Vista',items:[
+    ['tb-zi','Acercar'],['tb-zo','Alejar'],['tb-dark','Modo oscuro'],
+    ['tb-warm','Luz y papel'],['tb-margin','Ampliar márgenes para escribir'],
+    ['tb-gest','Gestos y escritura'],['tb-fullscreen','Pantalla completa']]},
+  {id:'tb-g-buscar',copiaDe:'tb-find',nombre:'Buscar',items:[
+    ['tb-find','Buscar en el documento'],['tb-findall','Buscar en mis apuntes']]}
+];
+/* '|' = separador vertical */
+const TB_ORDEN=['reader-back','|','tb-select','tb-highlight','tb-pen','tb-eraser',
+  'tb-note','tb-text','tb-cover','|','tb-undo','tb-redo',
+  '|','tb-bookmarks','tb-temas','tb-cmap','tb-g-apuntes','tb-g-progreso',
+  '|','tb-export','tb-g-vista','tb-g-buscar','tb-thumbs'];
+
+function tbIconoDe(id){
+  const b=document.getElementById(id);
+  if(!b)return '';
+  const d=document.createElement('div');d.innerHTML=b.innerHTML;
+  const s=d.querySelector('svg');
+  if(s)s.setAttribute('class','ico');
+  return d.innerHTML;
+}
+function tbMontarBarra(){
+  const bar=document.getElementById('reader-toolbar');
+  if(!bar)return;
+  /* 1) esconder los que ahora viven en un menú (siguen cableados) */
+  TB_GRUPOS.forEach(g=>g.items.forEach(([id])=>{
+    const b=document.getElementById(id);
+    if(b)b.style.display='none';
+  }));
+  /* 2) un botón por grupo, que abre el mismo recuadro que el resto de la app */
+  TB_GRUPOS.forEach(g=>{
+    if(document.getElementById(g.id))return;
+    const b=document.createElement('button');
+    b.className='tool-btn';b.id=g.id;b.title=g.nombre;
+    b.innerHTML=g.copiaDe?(document.getElementById(g.copiaDe)||{}).innerHTML||'':svg(g.icon);
+    b.onclick=e=>{
+      const r=e.currentTarget.getBoundingClientRect();
+      showCtx(r.left,r.bottom+6,g.items.map(([id,label])=>({
+        iconHTML:tbIconoDe(id),label,
+        action:()=>{const t=document.getElementById(id);if(t)t.click()}
+      })));
+    };
+    bar.appendChild(b);
+  });
+  /* 3) colocarlo todo en su orden. appendChild MUEVE el elemento que ya
+        existe, así que no se recrea nada ni se pierde ningún cableado. Los
+        ocultos se quedan donde estén: no se ven. */
+  bar.querySelectorAll('.tsep').forEach(s=>s.remove());
+  TB_ORDEN.forEach(id=>{
+    if(id==='|'){const s=document.createElement('div');s.className='tsep';bar.appendChild(s);return}
+    const el=document.getElementById(id);
+    if(el)bar.appendChild(el);
+  });
+  const info=document.getElementById('rd-page-info');
+  if(info)bar.appendChild(info);
+}
+tbMontarBarra();
 
 /* ══ INIT ══ */
 (async()=>{
