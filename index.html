@@ -2470,7 +2470,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v173'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v174'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -13152,7 +13152,10 @@ function richToRuns(html){
   const meter=(t,st,sangria)=>{
     if(!t)return;
     if(!cur)abrir(null,sangria);
-    cur.runs.push({t,b:!!st.b,i:!!st.i,u:!!st.u,color:st.color||null});
+    /* la alineación es del PÁRRAFO, no del trozo: la trae el <div> de arriba y
+       se queda con el primer trozo que llega */
+    if(st.align&&!cur.align)cur.align=st.align;
+    cur.runs.push({t,b:!!st.b,i:!!st.i,u:!!st.u,color:st.color||null,hl:st.hl||null});
   };
   /* ══ UNA LISTA ══
      Se recorren TODOS los hijos, no solo los <li>. El editor deja a veces la
@@ -13311,7 +13314,13 @@ function richToRuns(html){
         if(kind&&ref&&cur&&cur.runs.length)cur.runs[cur.runs.length-1].nota={kind,ref};
         return;
       }
-      if(tag==='div'||tag==='p'){cur=null;walk(ch,st,prof);cur=null;return}
+      if(tag==='div'||tag==='p'){
+        /* CENTRADO / DERECHA / IZQUIERDA. Va en el style del propio <div>, que
+           es donde lo deja la barra de alineación. Sin esto, el PDF justificaba
+           SIEMPRE y un título que habías centrado salía pegado al margen. */
+        const al=(ch.style&&ch.style.textAlign)||'';
+        cur=null;walk(ch,al?Object.assign({},st,{align:al}):st,prof);cur=null;return;
+      }
       const st2=Object.assign({},st);
       if(tag==='b'||tag==='strong')st2.b=true;
       if(tag==='i'||tag==='em')st2.i=true;
@@ -13319,6 +13328,11 @@ function richToRuns(html){
       if(tag==='a'){st2.u=true;if(!st2.color)st2.color='#5B63A6'}
       const col=(ch.style&&ch.style.color)||ch.getAttribute('color');
       if(col)st2.color=col;
+      /* RESALTADO (el botón R). El editor lo guarda como color de fondo del
+         <span>. En el papel se pinta un rectángulo de ese color DEBAJO de las
+         letras, igual que se ve en la app. */
+      const bg=(ch.style&&ch.style.backgroundColor)||'';
+      if(bg&&!/^(transparent|rgba\(0,\s*0,\s*0,\s*0\))$/i.test(bg.trim()))st2.hl=bg;
       walk(ch,st2,prof);
     });
   };
@@ -13572,14 +13586,20 @@ function pdfExport(){
           let tx=cx+padL;
           ln.segs.forEach(seg=>{
             fuente(seg.st.b||t.cab,seg.st.i||esCita);
-            doc.setFontSize(seg.st.chico?size*.86:size);
+            const sz=seg.st.chico?size*.86:size;
+            doc.setFontSize(sz);
             /* la nota va en gris, como en la app, salvo que lleve color propio.
                El renglón NO cambia de alto: al ser más pequeña cabe de sobra
                dentro del que ya hay, así que nada se mueve de sitio. */
             const col=parseColorRGB(seg.st.color)||(seg.st.chico?INK2:colorBase);
+            const sw=doc.getTextWidth(seg.t);
+            /* el resaltado también dentro de un recuadro o de una tabla */
+            if(seg.st.hl){
+              const hc=parseColorRGB(seg.st.hl);
+              if(hc){doc.setFillColor(hc[0],hc[1],hc[2]);doc.rect(tx,ty-sz*.78,sw,sz*1.10,'F')}
+            }
             tinta(col);
             doc.text(seg.t,tx,ty);
-            const sw=doc.getTextWidth(seg.t);
             if(seg.st.u){doc.setDrawColor(col[0],col[1],col[2]);doc.line(tx,ty+1.4,tx+sw,ty+1.4)}
             tx+=sw;
           });
@@ -13702,16 +13722,30 @@ function pdfExport(){
              quedarían separadas por medio folio);
            · los renglones que van muy cortos porque la palabra siguiente era
              larguísima y no cabía. */
+        /* Tercera excepción: el párrafo que TÚ has alineado a mano. Si lo
+           centraste o lo pegaste a un lado, justificar sería deshacerlo. */
+        const alin=p.align||'';
         let extra=0;
-        if(!ultima){
+        const medirLinea=()=>{
           let usado=0,huecos=0;
           linea.forEach(seg=>{
             fuente(seg.st.b,seg.st.i);doc.setFontSize(size);
             usado+=doc.getTextWidth(seg.t);
             if(!seg.t.trim())huecos++;
           });
+          return{usado,huecos};
+        };
+        if(!ultima&&(!alin||alin==='justify')){
+          const{usado,huecos}=medirLinea();
           const sobra=maxW-usado;
           if(huecos>0&&sobra>0&&sobra<maxW*.32)extra=sobra/huecos;
+        }
+        /* CENTRAR / PEGAR A LA DERECHA: el renglón entero empieza más adentro,
+           tanto como sobre a su derecha (la mitad si va centrado). */
+        let bxL=bx;
+        if(alin==='center'||alin==='right'){
+          const sobra=Math.max(0,maxW-medirLinea().usado);
+          bxL=bx+(alin==='center'?sobra/2:sobra);
         }
         sitio(lh);
         /* fondo y barra del bloque de un vínculo, renglón a renglón: se pintan
@@ -13737,13 +13771,24 @@ function pdfExport(){
           fuente(false,false);doc.setFontSize(size);tinta(INK3);
           doc.text(p.bullet,bx,y);
         }
-        let cx=bx+sangraViñeta;
+        let cx=bxL+sangraViñeta;
         linea.forEach(seg=>{
           fuente(seg.st.b,seg.st.i);doc.setFontSize(size);
           const col=parseColorRGB(seg.st.color)||colBase;
+          const w=doc.getTextWidth(seg.t);
+          /* el resaltado se pinta ANTES que la letra, o la taparía. El alto
+             cubre el cuerpo de la letra más un poco por arriba y por abajo,
+             como el rotulador de la app. Los espacios entre dos palabras
+             resaltadas llevan el mismo fondo, así la banda sale continua. */
+          if(seg.st.hl){
+            const hc=parseColorRGB(seg.st.hl);
+            if(hc){
+              doc.setFillColor(hc[0],hc[1],hc[2]);
+              doc.rect(cx,y-size*.78,w+(extra&&!seg.t.trim()?extra:0),size*1.10,'F');
+            }
+          }
           tinta(col);
           doc.text(seg.t,cx,y);
-          const w=doc.getTextWidth(seg.t);
           if(seg.st.u){doc.setDrawColor(col[0],col[1],col[2]);doc.setLineWidth(.5);doc.line(cx,y+1.6,cx+w,y+1.6)}
           /* el reparto del justificado se suma DESPUÉS de cada espacio */
           cx+=w+(extra&&!seg.t.trim()?extra:0);
