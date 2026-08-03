@@ -1066,6 +1066,39 @@ body.dark .rich-content .lp-nota-dud::before{color:#84BAD6}
 .rt-size:active{transform:scale(.94)}
 /* tipo de letra: en columna y cada nombre escrito con SU propia letra, para
    verla antes de elegirla (como en Word) */
+/* ── CHULETA DEL DICTADO ──
+   La tabla de "qué digo → qué sale", a la vista mientras dictas, para no
+   tener que acordarse de las palabras. Sale sola al entrar en un cuadro de
+   texto con formato y se cierra con la X (y entonces ya no vuelve a salir
+   sola: se recuerda en lp_chuleta).
+   Va en 950, por debajo de la barra flotante (955) y de los desplegables
+   (960), para no taparlos. */
+#chuleta{position:fixed;z-index:950;right:10px;top:64px;
+  width:clamp(230px,30vw,330px);max-width:calc(100vw - 20px);
+  max-height:min(62vh,520px);display:flex;flex-direction:column;overflow:hidden;
+  background:var(--card);border:1px solid var(--border);border-radius:14px;
+  box-shadow:0 10px 32px rgba(120,100,140,.28)}
+#chuleta.hidden{display:none}
+/* tocando la cabecera se pliega: así deja de estorbar sin perderla */
+#chuleta-h{display:flex;align-items:center;gap:6px;padding:9px 8px 9px 12px;flex:none;
+  background:var(--bg2);border-bottom:1px solid var(--border);cursor:pointer;
+  touch-action:manipulation}
+#chuleta-h b{flex:1;color:var(--ink);font-size:13px;font-weight:600}
+#chuleta-h i{color:var(--ink2);font-size:11px;font-style:normal}
+#chuleta-x{border:none;background:transparent;color:var(--ink2);font-size:17px;
+  line-height:1;padding:3px 6px;border-radius:7px;cursor:pointer;touch-action:manipulation}
+#chuleta-x:active{background:var(--border)}
+#chuleta-b{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px 12px 12px}
+#chuleta.plegada{max-height:none}
+#chuleta.plegada #chuleta-b{display:none}
+.ch-t{font-size:10.5px;color:var(--ink2);letter-spacing:.05em;text-transform:uppercase;
+  margin:11px 0 5px}
+.ch-t:first-child{margin-top:1px}
+.ch-f{display:flex;gap:8px;align-items:baseline;margin-bottom:6px;font-size:12.5px;
+  line-height:1.35}
+.ch-d{flex:none;width:46%;color:var(--ink);font-weight:600}
+.ch-s{flex:1;color:var(--ink2)}
+
 /* barra flotante sobre el texto seleccionado: tres botones y nada más. Por
    debajo de .rt-pop (960) para que los desplegables de la barra de arriba no
    queden tapados. */
@@ -2539,7 +2572,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v186'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v187'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -4626,8 +4659,13 @@ function ordMonta(frases){
    puede estropear apuntes de otros días que estuvieran en la misma ficha. */
 function richOrdenarDictado(ed){
   const sel=window.getSelection();
+  /* Sin nada marcado no se toca el cuadro. Y ya que estamos, se saca la
+     chuleta: pulsar aquí es justo lo que haces cuando no te acuerdas de
+     cómo se decía algo, y así es también la forma de recuperarla si la
+     habías cerrado. */
   if(!sel||sel.isCollapsed||!ed.contains(sel.anchorNode)){
-    showTip('Marca antes el texto dictado que quieras ordenar');return;
+    chuletaAbre();
+    showTip('Marca el texto dictado y vuelve a pulsar');return;
   }
   const bruto=sel.toString();
   if(!bruto||!bruto.trim()){showTip('No hay texto que ordenar');return}
@@ -4638,6 +4676,104 @@ function richOrdenarDictado(ed){
   richFixLists(ed);
   showTip('Ordenado · Ctrl+Z lo deja como estaba');
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   LA CHULETA DEL DICTADO
+   ──────────────────────────────────────────────────────────────────
+   Dictando no se puede estar mirando un manual: o te acuerdas de las
+   palabras o no las usas. Así que la tabla se pone a la vista sola en
+   cuanto entras en un cuadro de texto con formato.
+
+   Tres formas de quitársela de encima, de menos a más definitiva:
+     · tocando la cabecera se pliega y queda solo el título (vuelve igual);
+     · con la X se cierra y YA NO VUELVE A SALIR SOLA (se recuerda);
+     · y para recuperarla, el botón de ordenar sin nada marcado la abre.
+
+   La lista de abajo tiene que decir lo MISMO que las reglas de arriba. Si
+   se toca un disparador, hay que tocarlo aquí también: una chuleta que
+   miente es peor que no tener chuleta. */
+const CHULETA=[
+  ['Hablando normal',[
+    ['"Vale, [tema]"','Título'],
+    ['"vamos con X" · "en cuanto a X"','Guion con X en negrita'],
+    ['"dos/tres [cosas]"','Cabecera con el recuento'],
+    ['"un experimento" · "otro experimento" · "según…" · "el estudio de"','Abre recuadro'],
+    ['"Y…" · "Y además…"','Guion nuevo'],
+    ['"por un lado… por otro"','Guiones'],
+    ['"a diferencia de" · "en cambio" · "mientras que" · "frente a"','Corta y contrapone'],
+    ['"por ejemplo" · "es decir" · "o sea"','Entre paréntesis'],
+    ['"en resumen" · "en definitiva"','Recuadro verde'],
+    ['"ojo" · "cuidado" · "no confundir"','Aviso OJO'],
+    ['"no me queda claro" · "esto lo tengo que mirar"','Aviso DUDA'],
+    ['"que lleva a" · "y de ahí" · "y eso da"','Flecha →'],
+    ['"por lo tanto" · "entonces"','Cierra la idea'],
+    ['"etcétera"','etc.']
+  ]],
+  ['Órdenes que mandan',[
+    ['"nuevo guion"','Punto de lista'],
+    ['"nuevo título"','Título'],
+    ['"abre recuadro" … "cierra recuadro"','Recuadro'],
+    ['"abro cita" … "cierro cita"','Cita del libro'],
+    ['"negrita" … "fin negrita"','Negrita'],
+    ['"cursiva" … "fin cursiva"','Cursiva'],
+    ['"subrayado" … "fin subrayado"','Subrayado'],
+    ['"aviso ojo" · "aviso duda" · "aviso recuerda"','Aviso de color']
+  ]]
+];
+
+let chuletaEl=null;
+function chuletaMonta(){
+  /* isConnected: si el panel se quedara fuera de la página por lo que sea,
+     sin esto se devolvería el de antes (suelto, invisible) y la chuleta no
+     volvería a aparecer nunca más. */
+  if(chuletaEl&&chuletaEl.isConnected)return chuletaEl;
+  if(chuletaEl){document.body.appendChild(chuletaEl);return chuletaEl}
+  const c=document.createElement('div');
+  c.id='chuleta';c.className='hidden';
+  let b='';
+  CHULETA.forEach(([tit,filas])=>{
+    b+='<div class="ch-t">'+esc(tit)+'</div>';
+    filas.forEach(([d,s])=>{
+      b+='<div class="ch-f"><span class="ch-d">'+esc(d)+'</span><span class="ch-s">'+esc(s)+'</span></div>';
+    });
+  });
+  c.innerHTML='<div id="chuleta-h"><b>Chuleta del dictado</b><i>plegar</i>'+
+    '<button type="button" id="chuleta-x" title="Cerrar: no volverá a salir sola">✕</button></div>'+
+    '<div id="chuleta-b">'+b+'</div>';
+  document.body.appendChild(c);
+  /* NO robarle el foco al cuadro de texto: si se lo robara se perdería el
+     cursor (y la selección) justo cuando estás dictando dentro. */
+  c.addEventListener('pointerdown',e=>{if(e.target.id!=='chuleta-x')e.preventDefault()});
+  c.querySelector('#chuleta-h').addEventListener('click',e=>{
+    if(e.target.id==='chuleta-x')return;
+    c.classList.toggle('plegada');
+    c.querySelector('#chuleta-h i').textContent=c.classList.contains('plegada')?'abrir':'plegar';
+  });
+  c.querySelector('#chuleta-x').addEventListener('click',()=>{
+    c.classList.add('hidden');
+    try{localStorage.setItem('lp_chuleta','0')}catch(e){}
+    showTip('Chuleta cerrada · vuelve con el botón de ordenar sin marcar nada');
+  });
+  chuletaEl=c;
+  return c;
+}
+/* la abre porque tú lo has pedido: sale siempre, aunque la hubieras cerrado */
+function chuletaAbre(){
+  const c=chuletaMonta();
+  c.classList.remove('hidden','plegada');
+  c.querySelector('#chuleta-h i').textContent='plegar';
+  try{localStorage.setItem('lp_chuleta','1')}catch(e){}
+}
+/* la abre sola al ponerte a escribir, salvo que la hayas cerrado con la X */
+function chuletaAuto(){
+  let v=null;try{v=localStorage.getItem('lp_chuleta')}catch(e){}
+  if(v==='0')return;
+  chuletaMonta().classList.remove('hidden');
+}
+document.addEventListener('focusin',e=>{
+  const t=e.target;
+  if(t&&t.classList&&t.classList.contains('rich-ed'))chuletaAuto();
+});
 
 /* ── insertar una imagen ──
    OJO CON EL TAMAÑO: la imagen se guarda DENTRO de la ficha, y las fichas del
@@ -5250,6 +5386,10 @@ function wireRichToolbar(tb,ed){
      entrada por cada toque, todas apuntando a la misma barra. */
   for(let i=richWired.length-1;i>=0;i--)if(!richWired[i].ed.isConnected||richWired[i].tb===tb)richWired.splice(i,1);
   richWired.push({tb,ed});
+  /* la chuleta del dictado, si no la has cerrado. Se saca también aquí y no
+     solo al enfocar el cuadro: hay cuadros que se abren ya con el cursor
+     dentro y entonces el 'focusin' no llega a saltar. */
+  chuletaAuto();
 
   tb.querySelectorAll('[data-cmd]').forEach(btn=>{
     const cmd=btn.getAttribute('data-cmd'),val=btn.getAttribute('data-val');
@@ -12974,7 +13114,8 @@ const DOC_KEY_PREFIXES=['lp_order_','lp_margin_','lp_nodes_','lp_embeds_','lp_bm
    las paletas que te habias creado desaparecian sin decir nada. */
 const GLOBAL_KEYS=['lp_custompals','lp_toolcfg','lp_color','lp_boldstrength',
   'lp_boldbycolor','lp_bartab','lp_panelwin','lp_panelw','lp_dark','lp_warm','lp_paper','lp_gest',
-  'lp_bottommin','lp_lastbackup','lp_autocorr','lp_dicc','lp_diccno','lp_richcols'];
+  'lp_bottommin','lp_lastbackup','lp_autocorr','lp_dicc','lp_diccno','lp_richcols',
+  'lp_chuleta'];
 function collectGlobalData(){
   const out={};
   GLOBAL_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)out[k]=v});
