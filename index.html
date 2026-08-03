@@ -2470,7 +2470,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v174'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v175'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -14723,14 +14723,20 @@ function linkCandidates(){
     hijos(nd.children,nd.title||'nodo');
   });
 
-  /* el mapa conceptual entero, apartado por apartado */
-  const walk=(arr,ruta)=>{
+  /* El mapa conceptual entero, apartado por apartado. Este recorrido ya sale en
+     el ORDEN DEL MAPA (cada apartado seguido de lo que cuelga de él), así que
+     se guarda la posición en `orden` y la profundidad en `prof`: la lista de
+     vincular los usa para enseñarlo tal como está organizado el mapa en vez de
+     por orden alfabético. Alfabético mezclaba los temas unos con otros y no
+     había forma de encontrar nada. */
+  const walk=(arr,ruta,prof)=>{
     (arr||[]).forEach(nd=>{
-      out.push({kind:'cmap',ref:nd.id,title:nd.title,body:nd.desc,themeId:null,sub:ruta});
-      walk(nd.children,(ruta?ruta+' › ':'')+(nd.title||''));
+      out.push({kind:'cmap',ref:nd.id,title:nd.title,body:nd.desc,themeId:null,sub:ruta,
+                orden:out.length,prof});
+      walk(nd.children,(ruta?ruta+' › ':'')+(nd.title||''),prof+1);
     });
   };
-  walk(loadCmap(),'');
+  walk(loadCmap(),'',0);
 
   loadProc().forEach(p=>{
     out.push({kind:'proc',ref:p.id,title:p.title,body:'',themeId:p.themeId||null});
@@ -14763,8 +14769,18 @@ function askCmapLink(){
     const hayAlgo=all.length>0;
     const inp=document.getElementById('cmap-link-search');
     const list=document.getElementById('cmap-link-list');
-    const orden=(a,b)=>(LINK_ORDEN.indexOf(a.kind)-LINK_ORDEN.indexOf(b.kind))
-      ||String(a.title||'').localeCompare(String(b.title||''),'es',{sensitivity:'base'});
+    /* EL MAPA CONCEPTUAL VA EN EL ORDEN DEL MAPA, no alfabético. Alfabético
+       está bien para las definiciones o las conclusiones, que son fichas
+       sueltas, pero el mapa es un ÍNDICE: ordenarlo por la letra inicial
+       mezclaba los apartados de todos los temas y no se encontraba nada.
+       `orden` es la posición que ocupa en el recorrido del mapa (ver
+       linkCandidates). Todo lo demás sigue igual que antes. */
+    const orden=(a,b)=>{
+      const k=LINK_ORDEN.indexOf(a.kind)-LINK_ORDEN.indexOf(b.kind);
+      if(k)return k;
+      if(a.kind==='cmap'&&b.kind==='cmap')return (a.orden||0)-(b.orden||0);
+      return String(a.title||'').localeCompare(String(b.title||''),'es',{sensitivity:'base'});
+    };
 
     const pinta=()=>{
       list.innerHTML='';
@@ -14803,6 +14819,12 @@ function askCmapLink(){
         [...arr].sort(orden).forEach(it=>{
           const b=document.createElement('button');
           b.style.cssText='flex:0 0 auto;display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:9px 10px;border:none;border-radius:9px;background:var(--bg2);color:var(--ink);font-family:inherit;font-size:13.5px;line-height:1.35;cursor:pointer;margin-bottom:2px;overflow:hidden';
+          /* El mapa se lee como un índice: sangrado según lo hondo que esté el
+             apartado. Va por dentro (padding) y no por fuera (margen), o la
+             fila se saldría por la derecha. Al buscar se quita: los resultados
+             sueltos no forman un árbol. */
+          if(it.kind==='cmap'&&!searching&&it.prof)
+            b.style.paddingLeft=(10+Math.min(it.prof,5)*13)+'px';
           const ic=document.createElement('span');ic.style.cssText='flex-shrink:0;display:inline-flex;color:var(--ink3)';ic.innerHTML=svg(LINK_KIND_ICON[it.kind]||'file');
           const tx=document.createElement('span');tx.style.cssText='flex:1;min-width:0;overflow:hidden';
           const t1=document.createElement('span');t1.style.cssText='display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
