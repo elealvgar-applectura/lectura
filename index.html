@@ -583,6 +583,12 @@ body.fullscreen #rd-bottom-show{display:none}
 #bk-pb{height:100%;background:var(--rosa);border-radius:4px;width:0%;transition:width .2s}
 /* tip */
 #tip{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:13px;border-radius:12px;padding:9px 17px;pointer-events:none;z-index:999;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis;box-shadow:var(--shadow)}
+/* El aviso normal no recibe toques (pointer-events:none) para no estorbar a lo
+   que hay debajo. Cuando lleva un botón "Deshacer" sí hay que poder pulsarlo:
+   esta clase se la pone showTipDeshacer y showTip se la quita. */
+#tip.con-boton{pointer-events:auto}
+.tip-undo{margin-left:12px;background:rgba(255,255,255,.16);border:none;border-radius:8px;color:#fff;font-family:inherit;font-size:12.5px;font-weight:600;padding:5px 11px;cursor:pointer}
+.tip-undo:active{opacity:.7}
 /* loading */
 #loading-screen{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:var(--ink2);font-size:15px}
 .spinner{width:34px;height:34px;border:3px solid var(--bg2);border-top-color:var(--rosa);border-radius:50%;animation:spin .8s linear infinite}
@@ -2072,6 +2078,21 @@ body.fullscreen #gid-bar{bottom:20px}
   </div>
 </div>
 
+<!-- MOVER UN APARTADO DEL MAPA CONCEPTUAL A OTRO SITIO.
+     Mismo formato que "Vincular con…": buscador arriba y lista debajo. Aquí la
+     lista es el índice entero del documento con sus sangrías, para que se vea
+     de un vistazo dentro de qué apartado va a caer. -->
+<div class="modal-bg hidden" id="modal-cmap-move">
+  <div class="modal">
+    <h3 id="cmap-move-title">Mover a…</h3>
+    <input id="cmap-move-search" type="search" placeholder="Buscar un apartado…" autocorrect="off" style="width:100%;background:var(--bg2);border:none;border-radius:10px;color:var(--ink);font-size:15px;padding:10px 12px;outline:none;margin-bottom:10px">
+    <div id="cmap-move-list" style="max-height:50vh;overflow-y:auto;display:flex;flex-direction:column;gap:2px"></div>
+    <div class="modal-btns">
+      <button class="mbtn cancel" id="modal-cmap-move-cancel">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <!-- vista previa de lo vinculado (clic en una palabra enlazada): diálogo de
      cómic que sale de la propia palabra, solo lectura y desplazable si el
      texto es largo, con un botón al pie que lleva al sitio de verdad -->
@@ -2368,7 +2389,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v167'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v168'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2568,6 +2589,8 @@ const ICON={
   outdent:'<path d="M10 6.5h10M10 12h10M10 17.5h10"/><path d="M6.6 9.6 4 12l2.6 2.4"/>',
   indent:'<path d="M10 6.5h10M10 12h10M10 17.5h10"/><path d="M4 9.6 6.6 12 4 14.4"/>',
   jump:'<path d="M5.5 12h11"/><path d="M12.6 7.4 17.2 12l-4.6 4.6"/>',
+  /* flecha que ENTRA en un contenedor: mover un apartado dentro de otro */
+  moveTo:'<path d="M13.6 4.6h4.8a1.6 1.6 0 0 1 1.6 1.6v11.6a1.6 1.6 0 0 1-1.6 1.6h-4.8"/><path d="M4 12h9.6"/><path d="m10.4 8.8 3.2 3.2-3.2 3.2"/>',
   winExpand:'<path d="M9 4.5H4.5V9M15 4.5H19.5V9M9 19.5H4.5V15M15 19.5H19.5V15"/>',
   winDock:'<path d="M4.5 9H9V4.5M19.5 9H15V4.5M4.5 15H9v4.5M19.5 15H15v4.5"/>',
   eraserFmt:'<path d="M8.4 19.4h11"/><path d="M15.6 5.2 5.4 15.4a1.6 1.6 0 0 0 0 2.3l1.7 1.7h4l7.8-7.8a1.6 1.6 0 0 0 0-2.3l-3.3-3.3a1.6 1.6 0 0 0-2.3 0Z"/>',
@@ -4797,7 +4820,25 @@ function showScreen(n){Object.values(screens).forEach(s=>s.classList.add('hidden
      flechas no sabían si sobraba sitio: se revisan al mostrarla */
   if(n==='reader'&&typeof refreshBarArrows==='function')refreshBarArrows()}
 let tipTimer;const tipEl=document.getElementById('tip');
-function showTip(m,ms=2400){tipEl.textContent=m;tipEl.classList.remove('hidden');clearTimeout(tipTimer);tipTimer=setTimeout(()=>tipEl.classList.add('hidden'),ms)}
+function showTip(m,ms=2400){tipEl.textContent=m;tipEl.classList.remove('hidden','con-boton');clearTimeout(tipTimer);tipTimer=setTimeout(()=>tipEl.classList.add('hidden'),ms)}
+/* ══ AVISO CON "DESHACER" ══
+   El botón de deshacer de la barra de arriba solo cubre lo que se DIBUJA sobre
+   la página (ver UNDO/REDO): no sabe nada de los paneles. Así que mover un
+   apartado a un sitio equivocado no se podía recuperar más que a mano, apartado
+   por apartado. Este aviso ofrece la vuelta atrás durante unos segundos.
+   Dura más que un aviso normal (6 s) porque hay que leerlo y decidir.
+   `textContent` de showTip borra el botón, así que no hace falta limpiarlo. */
+function showTipDeshacer(m,fn,ms=6000){
+  tipEl.textContent=m;
+  const b=document.createElement('button');
+  b.className='tip-undo';b.textContent='Deshacer';
+  b.onclick=()=>{tipEl.classList.add('hidden');tipEl.classList.remove('con-boton');fn()};
+  tipEl.appendChild(b);
+  tipEl.classList.add('con-boton');
+  tipEl.classList.remove('hidden');
+  clearTimeout(tipTimer);
+  tipTimer=setTimeout(()=>{tipEl.classList.add('hidden');tipEl.classList.remove('con-boton')},ms);
+}
 function setLoading(t){document.getElementById('loading-text').textContent=t;showScreen('loading')}
 
 /* ══ MODALS ══ */
@@ -11229,6 +11270,74 @@ function cmapOutdent(maps,node){
   g.list.splice(g.list.indexOf(f.parent)+1,0,node);
   return true;
 }
+/* ══ MOVER UN APARTADO A CUALQUIER SITIO ══
+   Subir, Bajar y Meter dentro del de arriba solo saben moverse ENTRE HERMANOS:
+   nunca pueden sacar un epígrafe de un subtítulo y llevarlo a otro. Además, si
+   no había hermano en esa dirección no hacían nada Y NO DECÍAN NADA, así que
+   parecía que los botones estaban rotos. Esta es la operación de verdad.
+
+   Es una función pura sobre `maps`, igual que las de arriba, y la usan tanto el
+   botón "Mover a…" como el arrastre: los dos hacen EXACTAMENTE lo mismo, así
+   que no puede haber dos comportamientos distintos.
+     destino → apartado que lo recibe, o null para sacarlo al nivel de los temas
+     modo    → 'dentro'  cuelga de destino (el último de sus hijos)
+               'antes' / 'despues'  queda como HERMANO de destino
+   Devuelve null si ha ido bien, o el motivo (texto) si no se puede.
+
+   El apartado se mueve ENTERO: se mueve el propio objeto, no una copia, así que
+   se lleva su descripción con el formato tal cual, su página anclada, sus
+   vínculos y todo lo que cuelga de él. No se toca su `level`, igual que hace
+   cmapIndent: un epígrafe sigue siendo un epígrafe (mismo color) aunque cambie
+   de sitio. */
+function cmapEsDescendiente(node,posible){
+  let r=false;
+  const walk=n=>{(n.children||[]).forEach(c=>{if(c===posible)r=true;walk(c)})};
+  walk(node);
+  return r;
+}
+function cmapMoveTo(maps,node,destino,modo){
+  if(!node)return 'No se encuentra ese apartado';
+  if(destino===node)return 'Un apartado no puede ir dentro de sí mismo';
+  /* LA PROTECCIÓN IMPORTANTE: soltar un apartado dentro de algo que cuelga de
+     él rompería el árbol (se mordería la cola) y esa rama entera desaparecería
+     de la pantalla. Parecería que se han borrado apuntes. */
+  if(destino&&cmapEsDescendiente(node,destino))
+    return 'No se puede meter un apartado dentro de algo que cuelga de él';
+  const f=cmapParentOf(maps,node);
+  if(!f)return 'No se encuentra ese apartado';
+  /* Se SACA primero y se busca el sitio DESPUÉS. Al revés no valdría: al mover
+     un apartado dentro de su propia lista, el índice calculado antes de sacarlo
+     ya no sirve, porque todo lo que va detrás se corre un puesto. */
+  f.list.splice(f.list.indexOf(node),1);
+  if(!destino){maps.push(node);return null}          // fuera: pasa a ser un tema más
+  if(modo==='dentro'){
+    if(!destino.children)destino.children=[];
+    destino.children.push(node);
+    destino.fold=false;                              // que se vea dónde ha caído
+    return null;
+  }
+  const g=cmapParentOf(maps,destino);
+  const lista=g?g.list:maps;
+  const i=lista.indexOf(destino);
+  lista.splice(i<0?lista.length:(modo==='antes'?i:i+1),0,node);
+  return null;
+}
+/* Ejecuta un movimiento con red: guarda una foto del mapa ANTES, y si sale bien
+   ofrece deshacerlo. Si la operación devuelve un motivo, no toca nada y lo dice
+   (esto es lo que faltaba: antes, cuando no se podía, no pasaba nada de nada). */
+function cmapConDeshacer(maps,accion,textoOk){
+  const foto=localStorage.getItem(cmapKey());
+  const err=accion();
+  if(err){showTip(err,3000);return false}
+  saveCmap(maps);refreshCmapPanel();renderPageAnchors();
+  showTipDeshacer(textoOk,()=>{
+    try{if(foto!==null)localStorage.setItem(cmapKey(),foto)}catch(e){}
+    refreshCmapPanel();renderPageAnchors();
+    showTip('Movimiento deshecho',1600);
+  });
+  return true;
+}
+
 /* mete el nodo dentro del hermano anterior */
 function cmapIndent(maps,node){
   const f=cmapParentOf(maps,node);if(!f)return false;
@@ -12422,6 +12531,101 @@ function cmapNextLevel(level){
 }
 function cmapLevelDot(level){return(CMAP_LEVEL_META[level]&&CMAP_LEVEL_META[level].dot)||'#C9C3D6'}
 
+/* ══ ELEGIR DÓNDE VA UN APARTADO ══
+   Enseña el índice entero con sus sangrías y devuelve {destino,modo} o null si
+   se cancela. Es la alternativa al arrastre: para llevar algo lejos, buscar y
+   pulsar es más cómodo (y en el iPad, más seguro) que arrastrar por una lista
+   larga mientras se desplaza sola.
+   NO se ofrecen como destino ni el propio apartado ni nada que cuelgue de él:
+   además de estar prohibido en cmapMoveTo, es que no tiene ningún sentido y
+   solo estorbaría en la lista. */
+let cmapMoveRes=null;
+const mCmapMove=document.getElementById('modal-cmap-move');
+document.getElementById('modal-cmap-move-cancel').onclick=()=>{
+  mCmapMove.classList.add('hidden');cmapMoveRes&&cmapMoveRes(null);cmapMoveRes=null;
+};
+function askCmapDestino(maps,node){
+  return new Promise(res=>{
+    cmapMoveRes=res;
+    const padreActual=(cmapParentOf(maps,node)||{}).parent||null;
+    /* el índice aplanado, en el mismo orden en que se ve en el panel */
+    const filas=[];
+    const recorrer=(lista,prof)=>{
+      lista.forEach(n=>{
+        if(n===node)return;                       // ni él ni los suyos
+        filas.push({n,prof});
+        recorrer(n.children||[],prof+1);
+      });
+    };
+    recorrer(maps,0);
+
+    const inp=document.getElementById('cmap-move-search');
+    const list=document.getElementById('cmap-move-list');
+    document.getElementById('cmap-move-title').textContent='Mover "'+
+      (node.title.length>34?node.title.slice(0,34)+'…':node.title)+'" a…';
+    inp.value='';
+
+    const elegir=(destino,modo)=>{
+      mCmapMove.classList.add('hidden');
+      const r=cmapMoveRes;cmapMoveRes=null;
+      r&&r({destino,modo});
+    };
+    const pinta=()=>{
+      list.innerHTML='';
+      const q=inp.value;
+      const vis=q.trim()?filas.filter(f=>panelMatch(q,f.n.title)):filas;
+
+      /* Sacarlo fuera del todo: pasa a ser un tema principal más. Solo tiene
+         sentido si ahora mismo cuelga de algo. */
+      if(padreActual&&!q.trim()){
+        const b=document.createElement('button');
+        b.style.cssText='flex:0 0 auto;display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:10px;border:none;border-radius:9px;background:var(--menta);color:var(--ink);font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;margin-bottom:6px';
+        b.innerHTML=svg('outdent');
+        const sp=document.createElement('span');sp.textContent='Sacarlo fuera (que sea un tema principal)';
+        b.appendChild(sp);
+        b.onclick=()=>elegir(null,'dentro');
+        list.appendChild(b);
+      }
+
+      if(!vis.length){
+        const em=document.createElement('div');
+        em.style.cssText='text-align:center;color:var(--ink3);font-size:13px;padding:20px 10px';
+        em.textContent=q.trim()?('Ningún apartado coincide con "'+q.trim()+'".')
+          :'No hay ningún otro apartado en este documento.';
+        list.appendChild(em);return;
+      }
+      vis.forEach(f=>{
+        const esPadre=f.n===padreActual;
+        const b=document.createElement('button');
+        b.style.cssText='flex:0 0 auto;display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:9px 10px;border:none;border-radius:9px;background:var(--bg2);color:var(--ink);font-family:inherit;font-size:13.5px;line-height:1.35;cursor:pointer;margin-bottom:2px;overflow:hidden';
+        /* La sangría es lo que hace legible el índice; al buscar se quita,
+           porque los resultados sueltos no forman un árbol.
+           Va por DENTRO (padding), no por fuera (margen): con margen, la fila
+           seguía midiendo el 100% del ancho y se salía por la derecha, dejando
+           una barra de desplazamiento horizontal y cortando el texto. */
+        if(!q.trim())b.style.paddingLeft=(10+Math.min(f.prof,6)*14)+'px';
+        const dot=document.createElement('span');
+        dot.style.cssText='width:9px;height:9px;border-radius:50%;flex-shrink:0;background:'+cmapLevelDot(f.n.level);
+        const tx=document.createElement('span');tx.style.cssText='flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+        tx.textContent=f.n.title||'(sin título)';
+        b.append(dot,tx);
+        if(esPadre){
+          const av=document.createElement('span');
+          av.style.cssText='flex-shrink:0;margin-left:auto;font-size:11px;color:var(--ink3)';
+          av.textContent='aquí está ahora';
+          b.appendChild(av);
+        }
+        b.onclick=()=>elegir(f.n,'dentro');
+        list.appendChild(b);
+      });
+    };
+    inp.oninput=pinta;
+    pinta();
+    mCmapMove.classList.remove('hidden');
+    setTimeout(()=>inp.focus(),100);
+  });
+}
+
 /* busca un nodo por id en TODOS los mapas/temas del documento. Devuelve
    también `maps` (el array raíz completo) para poder guardar cambios de
    plegado desde la tarjeta plasmada, igual que hace el panel. */
@@ -12530,19 +12734,37 @@ function buildCmapEl(node,siblings,maps){
     setTimeout(()=>{const w=pagesInner.querySelector(`[data-page="${node.page}"]`);
       if(w){w.style.outline='3px solid '+cmapLevelDot(node.level);setTimeout(()=>w.style.outline='',1400)}},420);
   };
-  const after=fn=>()=>{if(fn()){saveCmap(maps);refreshCmapPanel();renderPageAnchors()}};
+  /* `noPuede` es el motivo que se enseña cuando la operación no tiene sitio a
+     donde ir. ANTES NO HABÍA NINGUNO: se pulsaba "Subir" en el primero de su
+     grupo y no pasaba absolutamente nada, sin explicación, así que parecía que
+     el botón estaba roto. Ahora dice por qué y a dónde ir en su lugar. */
+  const after=(fn,noPuede)=>()=>{
+    if(fn()){saveCmap(maps);refreshCmapPanel();renderPageAnchors()}
+    else showTip(noPuede,3000);
+  };
+  const doMoverA=async()=>{
+    const d=await askCmapDestino(maps,node);
+    if(!d)return;
+    cmapConDeshacer(maps,()=>cmapMoveTo(maps,node,d.destino,d.modo),
+      d.destino?('Movido dentro de "'+d.destino.title+'"'):'Ahora es un tema principal');
+  };
   acts.append(
     mk('pencil','Editar',doEdit),
     mk('plus','Añadir subnivel',doSub),
     mk('dots','Más opciones',e=>{
       const r=e.currentTarget.getBoundingClientRect();
       showCtx(r.left-150,r.bottom+6,[
+        {icon:'moveTo',  label:'Mover a…',            action:doMoverA},
         {icon:'jump',    label:'Ir a la página',      action:doGo},
         {icon:'pin',     label:'Plasmar en la página',action:()=>{addEmbed('cmap',node.id,curPid());closePanel('cmap-panel')}},
-        {icon:'chevUp',  label:'Subir',               action:after(()=>cmapMove(maps,node,-1))},
-        {icon:'chevDown',label:'Bajar',               action:after(()=>cmapMove(maps,node,1))},
-        {icon:'indent',  label:'Meter dentro del de arriba',action:after(()=>cmapIndent(maps,node))},
-        {icon:'outdent', label:'Sacar un nivel',      action:after(()=>cmapOutdent(maps,node))},
+        {icon:'chevUp',  label:'Subir',               action:after(()=>cmapMove(maps,node,-1),
+          'Ya es el primero de su grupo. Para llevarlo a otro sitio, usa "Mover a…"')},
+        {icon:'chevDown',label:'Bajar',               action:after(()=>cmapMove(maps,node,1),
+          'Ya es el último de su grupo. Para llevarlo a otro sitio, usa "Mover a…"')},
+        {icon:'indent',  label:'Meter dentro del de arriba',action:after(()=>cmapIndent(maps,node),
+          'No hay ningún apartado justo encima en su mismo grupo. Usa "Mover a…"')},
+        {icon:'outdent', label:'Sacar un nivel',      action:after(()=>cmapOutdent(maps,node),
+          'Ya está al nivel más alto: no cuelga de nadie')},
         {icon:'trash',   label:'Eliminar',danger:true,action:async()=>{
           const ok=await askConfirm(`¿Eliminar "${node.title}" y todo lo que cuelga de él?`);if(!ok)return;
           const f=cmapParentOf(maps,node);
@@ -14692,6 +14914,7 @@ const MODAL_CANCEL={
   'modal-subnode':'modal-subnode-cancel',
   'modal-cmap':'modal-cmap-cancel',
   'modal-cmap-link':'modal-cmap-link-cancel',
+  'modal-cmap-move':'modal-cmap-move-cancel',
   'modal-proc':'modal-proc-cancel',
   'modal-proc-step':'modal-proc-step-cancel',
   'modal-bookmark':'modal-bookmark-cancel',
