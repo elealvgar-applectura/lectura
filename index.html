@@ -2539,7 +2539,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v185'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v186'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2981,6 +2981,7 @@ const RICH_TB_HTML=`
 <button type="button" data-cmd="lineH" title="Interlineado (espacio entre renglones)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 8V4m0 0L2.5 5.5M4 4l1.5 1.5M4 16v4m0 0 1.5-1.5M4 20l-1.5-1.5"/></svg></button>
 <span class="rt-sep"></span>
 <button type="button" data-cmd="case" title="MAYÚSCULAS / minúsculas / Tipo oración">Aa</button>
+<button type="button" data-cmd="ordenar" title="Ordenar lo dictado: convierte el churro del dictado en guiones, recuadros y avisos"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h9M4 12h6.5M4 18h9"/><path d="M17.6 3.8l1.1 2.7 2.7 1.1-2.7 1.1-1.1 2.7-1.1-2.7-2.7-1.1 2.7-1.1z"/></svg></button>
 <button type="button" data-cmd="image" title="Insertar una imagen"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 16-5-5L5 20"/></svg></button>
 <button type="button" data-cmd="table" title="Insertar una tabla"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16M15 4v16"/></svg></button>
 <button type="button" data-cmd="bloque" title="Recuadro, cita, nota pequeña o separador"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 10h10M7 14h6"/></svg></button>
@@ -4270,6 +4271,374 @@ function richCase(ed,modo){
   document.execCommand('insertText',false,out);
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   ORDENAR LO DICTADO
+   ──────────────────────────────────────────────────────────────────
+   Coge el churro que suelta el dictado del iPad (que llega SIN puntos, sin
+   comas y con tartamudeos) y lo convierte en apuntes: guiones, recuadros,
+   avisos y paréntesis.
+
+   POR QUÉ EXISTE: dictando explicas un apartado en dos minutos, pero luego
+   se te van diez picando guiones a mano. Esto hace el trabajo mecánico.
+   NO hace el trabajo de pensar: no reordena, no se inventa datos del libro
+   y no arregla lo que el dictado transcribió mal ("acceso léxico" salió como
+   "eso le psico"). Eso se revisa a mano SIEMPRE.
+
+   DE DÓNDE SALEN LAS REGLAS: de comparar apuntes ya hechos con el dictado
+   en bruto del mismo apartado. No son reglas generales del español, son las
+   muletillas de quien usa la app. Si algún día dejan de acertar, es que ha
+   cambiado la forma de explicar: hay que volver a mirar un churro de verdad
+   y ajustar las listas de abajo, no añadir reglas a ojo.
+
+   LAS DOS SEÑALES QUE SE USAN PARA CORTAR:
+     · los conectores de ORD_CORTES (hablados: "vamos con", "y además"…)
+     · las MAYÚSCULAS sueltas en medio del texto. El dictado del iPad pone
+       mayúscula después de cada pausa, así que marcan dónde respiras. Es lo
+       que permite reponer los puntos, que es la mitad del trabajo.
+       Se evita cortar cuando la palabra de antes es un "de", "con", "en"…
+       porque entonces la mayúscula es un nombre propio (con Alzheimer) y
+       no una pausa.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Marcas internas de usar y tirar. Se usan caracteres de control que no
+   existen en un texto escrito a mano, para que nunca choquen con el apunte. */
+const ORD_CORTE='';
+const ORD_ABRE={b:'',i:'',u:''};
+const ORD_CIERRA={b:'',i:'',u:''};
+
+/* Muletillas que el dictado recoge y no dicen nada. Lista CORTA a propósito:
+   borrar texto de los apuntes es lo más peligroso que hace esto. */
+const ORD_MULETILLAS=[
+  /\bse puede decir que\b/gi,
+  /\bpor as[ií] decirlo\b/gi,
+  /\bdigamos que\b/gi,
+  /\bcomo digo\b/gi
+];
+
+/* Sitios donde se parte el churro. El orden importa poco (todos meten una
+   marca de corte), pero la CLASIFICACIÓN de después sí va de más concreto a
+   más general. */
+const ORD_CORTES=[
+  /\bvale[,]?\s+(?=\S)/gi,
+  /\b(?:luego\s+)?(?:vamos con|en cuanto a)\s+/gi,
+  /\b(?:un|otro|el)\s+experimento\b/gi,
+  /\bse ha visto en experimentos\b/gi,
+  /\b(?:seg[uú]n|el estudio de)\s+/gi,
+  /\bY\s+adem[aá]s\b/g,
+  /\bpor un lado\b|\bpor otro(?:\s+lado)?\b/gi,
+  /\b(?:a diferencia de|en cambio|mientras que|frente a|sin embargo)\b/gi,
+  /\b(?:en resumen|en definitiva)\b/gi,
+  /\b(?:no me queda claro|esto lo tengo que mirar|esto no lo entiendo)\b/gi,
+  /\b(?:ojo|cuidado|no confundir)\b/gi,
+  /\b(?:por lo tanto|entonces)\b/gi
+];
+/* "y por eso" NO corta a propósito: es el remate de la misma idea
+   ("…se tarda más y por eso el acceso es más lento"), y cortando ahí
+   quedaban dos renglones sueltos donde tú escribes uno. */
+
+/* Palabras que cierran la etiqueta en negrita de "vamos con X": en cuanto
+   aparece una de estas, X ha terminado y empieza la explicación. */
+const ORD_PARA=/^(?:los|las|el|la|se|que|es|son|est[aá]n?|tienen|hay|realmente|debido|por|con|en|y|a|de|del|al|su|sus)$/i;
+
+/* Palabras de enlace: si una frase TERMINA en una de estas, está a medias
+   y hay que pegarle la siguiente (ver ordFrases). */
+const ORD_COLGANDO=/(?:^|\s)(?:porque|que|ya que|y|e|o|u|pero|sino|de|del|a|al|en|como|para|por|con|aunque|si|cuando|donde|ni|sobre|entre|hacia|desde)$/i;
+
+/* Palabras con las que un título no puede acabar: son de enlace y lo que
+   venía detrás ya no es el título. Se recortan del final. */
+const ORD_TIT_FIN=/(?:^|\s)(?:en|de|del|a|al|y|e|o|u|que|con|por|para|se|es|la|el|los|las|un|una)$/i;
+
+/* Frases que empiezan por disparador: aunque sean de una palabra suelta,
+   no se pegan a la frase anterior (ver ordFrases). */
+const ORD_ARRANQUE=/^(?:vale\b|dos\b|tres\b|cuatro\b|cinco\b|seis\b|vamos con|en cuanto a|luego\b|un experimento|otro experimento|el experimento|se ha visto|seg[uú]n\b|el estudio|en resumen|en definitiva|no me queda|esto lo tengo|esto no lo|ojo\b|cuidado\b|no confundir|y\s|por un lado|por otro|a diferencia|en cambio|mientras que|frente a|sin embargo|por lo tanto|entonces\b)/i;
+
+/* ── quitar tartamudeos ──
+   OJO, ESTO SE HIZO CON EXPRESIONES REGULARES Y ESTABA MAL. En JavaScript
+   el \b de "principio de palabra" NO cuenta las vocales acentuadas como
+   letra, así que en "debía a otras" veía una "a" pegada a otra "a" y se
+   comía una: el texto salía "debía otras". Perder palabras de los apuntes
+   sin avisar es justo lo que no puede pasar aquí.
+   Por eso ahora se recorre palabra por palabra, que es más largo de leer
+   pero no tiene sorpresas. NO volver a meter aquí un \b. */
+function ordDedup(t){
+  const baja=s=>s.toLocaleLowerCase('es');
+  let w=String(t).split(/\s+/).filter(Boolean),out=[];
+  /* palabra repetida seguida: "los los", "de de" */
+  w.forEach(x=>{if(!(out.length&&baja(out[out.length-1])===baja(x)))out.push(x)});
+  /* grupo de 2 a 5 palabras repetido: "los niños que los niños que".
+     De grupos largos a cortos, que si no el corto parte el largo. */
+  for(let n=5;n>=2;n--){
+    for(let i=0;i+2*n<=out.length;){
+      const a=baja(out.slice(i,i+n).join(' ')),b=baja(out.slice(i+n,i+2*n).join(' '));
+      if(a===b)out.splice(i+n,n); else i++;
+    }
+  }
+  return out.join(' ');
+}
+
+/* ── limpieza ──
+   Las muletillas NO se borran aquí. Se borran más tarde, frase a frase,
+   porque además de sobrar marcan un corte: en "…y bilingüismo en SE PUEDE
+   DECIR QUE hablar dos lenguas…" el título acaba justo antes de la
+   muletilla. Borrándola de primeras se pegaban las dos mitades y el título
+   se llevaba media explicación por delante. */
+function ordLimpia(t){
+  return ordDedup(String(t||'').replace(/\s+/g,' ').trim()).replace(/\s+/g,' ').trim();
+}
+
+/* ── órdenes dichas en voz alta ──
+   Se traducen a marcas ANTES de cortar en frases, para que una orden no
+   parta una frase por la mitad. El cierre se busca primero: si no, el
+   "negrita" a secas de "cierra negrita" se comería el cierre. */
+function ordOrdenes(t){
+  [['negrita','b'],['cursiva','i'],['subrayado','u']].forEach(([pal,k])=>{
+    /* se come el espacio de antes al cerrar y el de después al abrir, para
+       que no salga "sonido <b> esto es clave </b>" con aire dentro */
+    t=t.replace(new RegExp('\\s*\\b(?:cierra|cierro|fin(?:\\s+de)?)\\s+'+pal+'\\b','gi'),ORD_CIERRA[k]);
+    t=t.replace(new RegExp('\\b(?:(?:abre|abro)\\s+)?'+pal+'\\b\\s*','gi'),ORD_ABRE[k]);
+  });
+  /* Los recuadros y las citas SÍ piden el verbo: "cita" y "recuadro" a
+     secas aparecen al hablar ("una cita del libro dice…") y saltarían solas. */
+  /* LAS MARCAS VAN CON NÚMEROS, NO CON LETRAS. Antes eran «OJO», «CAJA»…
+     y se rompían solas: la regla del conector "ojo" encontraba el OJO de
+     dentro de la marca y partía la marca por la mitad, con lo que salían
+     avisos vacíos y trozos de marca metidos en los apuntes. Ninguna regla
+     de las de arriba mira números, así que con números no hay choque. */
+  t=t.replace(/\b(?:abre|abro)\s+recuadro\b/gi,ORD_CORTE+'«1»');
+  t=t.replace(/\b(?:cierra|cierro)\s+recuadro\b/gi,ORD_CORTE);
+  t=t.replace(/\b(?:abre|abro)\s+cita\b/gi,ORD_CORTE+'«2»');
+  t=t.replace(/\b(?:cierra|cierro)\s+cita\b/gi,ORD_CORTE);
+  t=t.replace(/\baviso\s+ojo\b/gi,ORD_CORTE+'«3»');
+  t=t.replace(/\baviso\s+duda\b/gi,ORD_CORTE+'«4»');
+  t=t.replace(/\baviso\s+recuerda\b/gi,ORD_CORTE+'«5»');
+  t=t.replace(/\bnuevo\s+gui[oó]n\b/gi,ORD_CORTE+'«6»');
+  t=t.replace(/\bnuevo\s+t[ií]tulo\b/gi,ORD_CORTE+'«7»');
+  return t;
+}
+
+/* ── partir en frases ── */
+function ordFrases(t){
+  ORD_MULETILLAS.forEach(re=>{t=t.replace(re,m=>ORD_CORTE+m)});
+  ORD_CORTES.forEach(re=>{t=t.replace(re,m=>ORD_CORTE+m)});
+  /* mayúscula en medio = pausa al hablar. Salvo detrás de palabra de enlace,
+     que entonces es un nombre propio y no una pausa. */
+  t=t.replace(/(\p{Ll}|\p{N})\s+(?=\p{Lu})/gu,(m,a,pos,s)=>{
+    const ant=/(\p{L}+)\s*$/u.exec(s.slice(0,pos+1));
+    if(ant&&ORD_PARA.test(ant[1]))return m;
+    return a+ORD_CORTE;
+  });
+  const fr=t.split(ORD_CORTE).map(s=>s.trim()).filter(Boolean);
+  /* Una frase que acaba en enlace ("Esto se sabe PORQUE") no es una frase:
+     es el principio de la siguiente, que se cortó por una mayúscula de por
+     medio. Se vuelven a pegar, si no salen puntos en mitad de la idea. */
+  const out=[],baja=s=>s.charAt(0).toLocaleLowerCase('es')+s.slice(1);
+  for(let i=0;i<fr.length;i++){
+    const f=fr[i],orden=f.charAt(0)==='«';   // una orden tuya nunca se pega a nada
+    /* Orden que se quedó sin texto detrás: pasa cuando lo que sigue lleva
+       también un conector ("aviso ojo NO CONFUNDIR con…"), que corta otra
+       vez y deja la orden sola. Se le devuelve su frase. */
+    if(out.length&&!orden&&/^«[1-7]»\s*$/.test(out[out.length-1])){
+      out[out.length-1]+=' '+f;continue;
+    }
+    if(out.length&&!orden&&ORD_COLGANDO.test(out[out.length-1])){
+      out[out.length-1]+=' '+baja(f);continue;
+    }
+    /* CACHOS SUELTOS DE UNA O DOS PALABRAS. Salen por dos motivos distintos
+       y hay que tratarlos al revés:
+         · un nombre propio en medio ("…test PEBODY en lo que…") lleva
+           mayúscula y corta ahí: ese cacho es el final de la frase de ANTES;
+         · dos disparadores pegados ("OJO no confundir…") cortan dos veces y
+           dejan el primero solo: ese va con la frase de DESPUÉS, que es la
+           suya. Si se pegara al anterior, el aviso saldría sin su "ojo" y
+           encima el "ojo" quedaría de sobra al final del renglón anterior. */
+    if(!orden&&f.split(/\s+/).length<=2){
+      if(ORD_ARRANQUE.test(f)&&i+1<fr.length&&fr[i+1].charAt(0)!=='«'){
+        fr[i+1]=f+' '+baja(fr[i+1]);continue;
+      }
+      if(out.length&&out[out.length-1].charAt(0)!=='«'){out[out.length-1]+=' '+f;continue}
+    }
+    out.push(f);
+  }
+  return out;
+}
+
+/* separa la etiqueta ("menos vocabulario") del desarrollo que la sigue */
+function ordEtiqueta(resto){
+  const w=resto.split(/\s+/);let i=0,et=[];
+  if(w[i]&&/^(?:los|las|el|la)$/i.test(w[i]))i++;      // "en cuanto a LAS…"
+  while(i<w.length&&et.length<6&&!ORD_PARA.test(w[i])){et.push(w[i]);i++}
+  return {et:et.join(' '),resto:w.slice(i).join(' ')};
+}
+
+/* ── retoques dentro de una frase ya cortada ── */
+function ordDentro(t){
+  ORD_MULETILLAS.forEach(re=>{t=t.replace(re,' ')});
+  t=t.replace(/\betc[eé]tera\b/gi,'etc.');
+  t=t.replace(/\b(?:que lleva a|y de ah[ií]|y eso da|y eso lleva a)\b/gi,' → ');
+  /* "es decir…" y "por ejemplo…" se meten entre paréntesis hasta el final
+     de la frase, que es como quedan en los apuntes a mano */
+  /* El paréntesis se cierra al llegar al SIGUIENTE aviso o al final de la
+     frase, no al final de todo: diciendo "por ejemplo X es decir Y" salía
+     un paréntesis gigante con las dos cosas dentro. */
+  const AV='(?:es decir|o sea|dicho de otra forma|por ejemplo|como por ejemplo)';
+  t=t.replace(new RegExp('[,\\s]*\\b'+AV+'\\b[,\\s]*(.+?)(?=\\s*\\b'+AV+'\\b|$)','gi'),
+    (m,resto)=>' ('+resto.trim()+')');
+  return t.replace(/\s+/g,' ').replace(/\s+([,.;:)])/g,'$1').trim();
+}
+
+/* primera letra en mayúscula y punto final si no lo trae */
+function ordRemata(t){
+  if(!t)return t;
+  t=t.charAt(0).toLocaleUpperCase('es')+t.slice(1);
+  if(!/[.:;!?»]$/.test(t))t+='.';        // tras un paréntesis SÍ va punto
+  return t;
+}
+
+/* las marcas de negrita/cursiva/subrayado se vuelven etiquetas al final,
+   DESPUÉS de escapar el texto (si no, se escaparían las propias etiquetas).
+   Si abriste y no cerraste, se cierra al acabar el trozo: más vale una
+   negrita de más que medio apunte en negrita. */
+function ordEscapa(t){
+  let h=esc(t);
+  [['b','b'],['i','i'],['u','u']].forEach(([k,tag])=>{
+    let abiertas=0;
+    h=h.split(ORD_ABRE[k]).join('<'+tag+'>');
+    h=h.split(ORD_CIERRA[k]).join('</'+tag+'>');
+    abiertas=(h.match(new RegExp('<'+tag+'>','g'))||[]).length-
+             (h.match(new RegExp('</'+tag+'>','g'))||[]).length;
+    while(abiertas-->0)h+='</'+tag+'>';
+  });
+  return h;
+}
+
+/* ── clasificar y montar el HTML ── */
+function ordMonta(frases){
+  const uds=[];
+  let caja=0;                       // para ir alternando gris / amarillo
+  frases.forEach(f=>{
+    let m;
+    /* órdenes dichas a propósito: mandan por encima de los conectores */
+    if(m=/^«([1-7])»\s*(.*)$/.exec(f)){
+      uds.push({t:{'1':'caja','2':'cita','3':'ojo','4':'duda','5':'rec','6':'guion','7':'titulo'}[m[1]],x:m[2]});
+      return;
+    }
+    /* "Vale" a secas: te lo has llevado una orden por delante ("Vale, nuevo
+       título…"). No es texto del apunte, así que fuera. */
+    if(/^vale[.,]?$/i.test(f))return;
+    /* "Vale, declive cognitivo y bilingüismo…" → el título del apartado */
+    if(m=/^vale[,]?\s+(?:ahora\s+)?(?:vamos\s+a\s+ver\s+)?(.+)$/i.exec(f)){
+      const p=m[1].split(/\s+/);
+      /* como mucho 6 palabras: tus títulos son cortos, y pasarse significa
+         tragarse el principio de la explicación */
+      let n=Math.min(6,p.length);
+      /* y sin acabar en palabra de enlace ("…y bilingüismo EN") */
+      while(n>1&&ORD_TIT_FIN.test(p.slice(0,n).join(' ')))n--;
+      uds.push({t:'titulo',x:p.slice(0,n).join(' ')});
+      if(p.length>n)uds.push({t:'parrafo',x:p.slice(n).join(' ')});
+      return;
+    }
+    /* "Dos consecuencias negativas…" → cabecera con el recuento */
+    if(m=/^(dos|tres|cuatro|cinco|seis)\s+(\p{L}+(?:\s+\p{L}+)?)\s*(.*)$/iu.exec(f)){
+      /* sin arrastrar palabras de enlace: "dos componentes EL" → "DOS COMPONENTES" */
+      let cab=m[1]+' '+m[2],sobra='';
+      while(ORD_TIT_FIN.test(cab)&&cab.split(/\s+/).length>2){
+        const p=cab.split(/\s+/);sobra=p.pop()+' '+sobra;cab=p.join(' ');
+      }
+      uds.push({t:'cabecera',x:cab.toLocaleUpperCase('es')});
+      const resto=(sobra+m[3]).trim();
+      if(resto)uds.push({t:'parrafo',x:resto});
+      return;
+    }
+    /* "Vamos con menos vocabulario…" → guion con la etiqueta en negrita */
+    if(m=/^(?:luego\s+)?(?:vamos con|en cuanto a)\s+(.+)$/i.exec(f)){
+      const p=ordEtiqueta(m[1]);
+      uds.push({t:'guion',x:p.resto,et:p.et});
+      return;
+    }
+    if(/^(?:un|otro|el)\s+experimento\b|^se ha visto en experimentos\b|^seg[uú]n\b|^el estudio de\b/i.test(f)){
+      uds.push({t:'caja',x:f,alt:caja++%2});return;
+    }
+    if(/^(?:en resumen|en definitiva)\b/i.test(f))            {uds.push({t:'resumen',x:f});return}
+    if(/^(?:no me queda claro|esto lo tengo que mirar|esto no lo entiendo)\b/i.test(f)){uds.push({t:'duda',x:f});return}
+    if(/^(?:ojo|cuidado|no confundir)\b/i.test(f))            {uds.push({t:'ojo',x:f});return}
+    /* "Y el diagnóstico…", "Y además…": así encadenas los datos al hablar,
+       y cada uno de esos "Y" es un guion nuevo en los apuntes */
+    if(/^Y\s/.test(f)||/^(?:por un lado|por otro)\b/i.test(f)||
+       /^(?:a diferencia de|en cambio|mientras que|frente a|sin embargo)\b/i.test(f)){
+      uds.push({t:'guion',x:f});return;
+    }
+    uds.push({t:'parrafo',x:f});
+  });
+
+  /* UN RECUADRO SE LLEVA TODA SU EXPLICACIÓN. Al hablar sueltas el
+     experimento en varias frases seguidas ("Otro experimento para adultos…
+     Los tiempos de respuesta fueron menores…"), y en tus apuntes todo eso
+     va dentro de la misma caja. Así que la caja se traga los párrafos que
+     vengan detrás, y se para en cuanto aparece otra cosa (un guion, otra
+     caja, un aviso): eso ya es tema nuevo. */
+  for(let i=0;i<uds.length;i++){
+    if(uds[i].t!=='caja'&&uds[i].t!=='resumen'&&uds[i].t!=='cita')continue;
+    uds[i].mas=[];
+    while(i+1<uds.length&&uds[i+1].t==='parrafo'){uds[i].mas.push(uds[i+1].x);uds.splice(i+1,1)}
+  }
+
+  /* el contenido de una caja: su frase y los párrafos que se ha tragado,
+     cada uno en su renglón (así los pinta el estilo del recuadro) */
+  const cuerpo2=(u,primero)=>'<div>'+primero+'</div>'+
+    (u.mas||[]).map(x=>'<div>'+ordEscapa(ordRemata(ordDentro(x)))+'</div>').join('');
+
+  /* los guiones seguidos van todos en la MISMA lista, como se escriben a mano */
+  let out='',lista=[];
+  const cierra=()=>{
+    if(!lista.length)return;
+    out+='<ul>'+lista.map(x=>'<li>'+x+'</li>').join('')+'</ul>';
+    lista=[];
+  };
+  uds.forEach(u=>{
+    if(!String(u.x||'').trim()&&!(u.mas&&u.mas.length))return;   // nunca un bloque vacío
+    const cuerpo=ordEscapa(ordRemata(ordDentro(u.x)));
+    if(u.t==='guion'){
+      lista.push(u.et?'<b>'+esc(ordRemata(u.et))+'</b> '+cuerpo:cuerpo);
+      return;
+    }
+    cierra();
+    /* el título va en mayúscula inicial pero SIN punto final */
+    if(u.t==='titulo'){
+      const x=ordDentro(u.x);
+      out+='<div><b>'+ordEscapa(x.charAt(0).toLocaleUpperCase('es')+x.slice(1))+'</b></div>';
+    }
+    else if(u.t==='cabecera') out+='<div><b>'+esc(u.x)+':</b></div>';
+    else if(u.t==='caja')     out+='<div class="lp-caja lp-caja-'+(u.alt?'ojo':'gris')+'">'+cuerpo2(u,cuerpo)+'</div>';
+    else if(u.t==='resumen')  out+='<div class="lp-caja lp-caja-res">'+cuerpo2(u,cuerpo)+'</div>';
+    else if(u.t==='cita')     out+='<div class="lp-cita">'+cuerpo2(u,cuerpo)+'</div>';
+    else if(u.t==='ojo')      out+='<div class="lp-nota lp-nota-ojo">'+cuerpo+'</div>';
+    else if(u.t==='duda')     out+='<div class="lp-nota lp-nota-dud">'+cuerpo+'</div>';
+    else if(u.t==='rec')      out+='<div class="lp-nota lp-nota-rec">'+cuerpo+'</div>';
+    else                      out+='<div>'+cuerpo+'</div>';
+  });
+  cierra();
+  return out;
+}
+
+/* ── el botón ──
+   Funciona igual que el de MAYÚSCULAS: sobre lo que tengas MARCADO y nada
+   más. Si no hay nada marcado no se toca el cuadro, se avisa y ya. Así no
+   puede estropear apuntes de otros días que estuvieran en la misma ficha. */
+function richOrdenarDictado(ed){
+  const sel=window.getSelection();
+  if(!sel||sel.isCollapsed||!ed.contains(sel.anchorNode)){
+    showTip('Marca antes el texto dictado que quieras ordenar');return;
+  }
+  const bruto=sel.toString();
+  if(!bruto||!bruto.trim()){showTip('No hay texto que ordenar');return}
+  const html=ordMonta(ordFrases(ordOrdenes(ordLimpia(bruto))));
+  if(!html){showTip('No he sabido ordenar eso');return}
+  ed.focus();
+  document.execCommand('insertHTML',false,html);
+  richFixLists(ed);
+  showTip('Ordenado · Ctrl+Z lo deja como estaba');
+}
+
 /* ── insertar una imagen ──
    OJO CON EL TAMAÑO: la imagen se guarda DENTRO de la ficha, y las fichas del
    glosario, conclusiones y aclaraciones viven en localStorage, que es
@@ -4900,6 +5269,7 @@ function wireRichToolbar(tb,ed){
       if(cmd==='lineH'){openRichLineH(btn,ed);return}
       if(cmd==='table'){openRichTable(btn,ed);return}
       if(cmd==='bloque'){openRichBloque(btn,ed);return}
+      if(cmd==='ordenar'){richOrdenarDictado(ed);return}
       if(cmd==='image'){richInsertImage(ed);return}
       if(cmd==='emoji'){openRichEmoji(btn,ed);return}
       if(cmd==='listOpts'){openListOpts(btn,ed);return}
