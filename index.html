@@ -1106,6 +1106,40 @@ body.dark .rich-content .lp-caja-ej {--lpc-bg:#32202A;--lpc-bd:#4A2E3C}
    la insignia/los botones a que el título se quede sin ancho. */
 .cmap-title{font-size:14px;font-weight:600;color:var(--ink);flex:1;min-width:100px;line-height:1.32;overflow-wrap:anywhere}
 .cmap-pg{font-size:11px;color:var(--ink2);flex-shrink:0}
+/* ── ARRASTRAR UN APARTADO ──
+   Se agarra SOLO por el asa, nunca por la tarjeta entera. Con el dedo, si toda
+   la fila arrastrara, no se podría desplazar la lista: el gesto de subir y
+   bajar se lo quedaría el arrastre. Con asa, el resto de la fila sigue siendo
+   normal (se toca para plegar, se desliza para hacer scroll).
+   touch-action:none SOLO en el asa: le dice al navegador que ahí el dedo no
+   hace scroll, sino que manda la app. */
+.cmap-grip{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;
+  width:24px;height:28px;padding:0;margin-left:-4px;border:none;background:none;
+  color:var(--ink3);cursor:grab;touch-action:none;opacity:.6}
+.cmap-grip:hover{opacity:1}
+.cmap-grip:active{cursor:grabbing;opacity:1}
+.cmap-grip .ico{width:17px;height:17px}
+/* el original se queda apagado mientras su copia viaja con el dedo */
+.cmap-card.cmap-arrastrando{opacity:.4}
+/* la copia que sigue al puntero. pointer-events:none es imprescindible: si
+   recibiera toques, sería ella la que está siempre debajo del dedo y no se
+   podría saber nunca sobre qué apartado se está soltando. */
+.cmap-ghost{position:fixed;z-index:970;pointer-events:none;transform:translate(14px,-50%);
+  max-width:min(280px,60vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  background:var(--card);border:1px solid var(--border);border-radius:10px;
+  box-shadow:0 8px 22px rgba(120,100,140,.30);padding:7px 11px;
+  font-size:13px;font-weight:600;color:var(--ink)}
+/* LAS DOS FORMAS DE SOLTAR, con marcas distintas a propósito:
+     · sobre el centro de una fila → DENTRO de ella (se pinta entera)
+     · sobre su borde de arriba/abajo → ANTES/DESPUÉS (una raya rosa)
+   Sin dos marcas distintas no habría forma de saber cuál de las dos cosas va
+   a pasar al levantar el dedo. */
+.cmap-hd.drop-dentro{background:var(--acento);border-radius:10px}
+.cmap-hd.drop-antes{box-shadow:inset 0 3px 0 0 var(--rosa)}
+.cmap-hd.drop-despues{box-shadow:inset 0 -3px 0 0 var(--rosa)}
+.cmap-hd.drop-no{background:rgba(229,139,139,.20);border-radius:10px;cursor:not-allowed}
+/* mientras se arrastra, que no se seleccione texto por el camino */
+body.cmap-drag-activo{user-select:none;-webkit-user-select:none}
 .cmap-body-wrap{display:none;padding:0 12px 10px 30px}
 .cmap-body-wrap.open{display:block}
 .cmap-desc{font-size:13px;color:var(--ink2);line-height:1.45;margin-bottom:8px;word-break:break-word}
@@ -2389,7 +2423,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v168'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v169'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2589,6 +2623,9 @@ const ICON={
   outdent:'<path d="M10 6.5h10M10 12h10M10 17.5h10"/><path d="M6.6 9.6 4 12l2.6 2.4"/>',
   indent:'<path d="M10 6.5h10M10 12h10M10 17.5h10"/><path d="M4 9.6 6.6 12 4 14.4"/>',
   jump:'<path d="M5.5 12h11"/><path d="M12.6 7.4 17.2 12l-4.6 4.6"/>',
+  /* asa de arrastre: los seis puntitos de siempre, el gesto universal de
+     "agárrame por aquí para moverme" */
+  grip:'<circle cx="9.4" cy="6.4" r="1.25"/><circle cx="14.6" cy="6.4" r="1.25"/><circle cx="9.4" cy="12" r="1.25"/><circle cx="14.6" cy="12" r="1.25"/><circle cx="9.4" cy="17.6" r="1.25"/><circle cx="14.6" cy="17.6" r="1.25"/>',
   /* flecha que ENTRA en un contenedor: mover un apartado dentro de otro */
   moveTo:'<path d="M13.6 4.6h4.8a1.6 1.6 0 0 1 1.6 1.6v11.6a1.6 1.6 0 0 1-1.6 1.6h-4.8"/><path d="M4 12h9.6"/><path d="m10.4 8.8 3.2 3.2-3.2 3.2"/>',
   winExpand:'<path d="M9 4.5H4.5V9M15 4.5H19.5V9M9 19.5H4.5V15M15 19.5H19.5V15"/>',
@@ -11268,6 +11305,7 @@ function cmapOutdent(maps,node){
   const g=cmapParentOf(maps,f.parent);if(!g)return false;
   f.list.splice(f.list.indexOf(node),1);
   g.list.splice(g.list.indexOf(f.parent)+1,0,node);
+  cmapRenivelar(node,f.parent.level);   // pasa a ser hermano de su padre: su nivel
   return true;
 }
 /* ══ MOVER UN APARTADO A CUALQUIER SITIO ══
@@ -11289,6 +11327,21 @@ function cmapOutdent(maps,node){
    vínculos y todo lo que cuelga de él. No se toca su `level`, igual que hace
    cmapIndent: un epígrafe sigue siendo un epígrafe (mismo color) aunque cambie
    de sitio. */
+/* ══ EL NIVEL SE HEREDA DEL SITIO ══
+   El mapa conceptual es un índice: lo que cuelga de un epígrafe ES un guión,
+   valga el color del subrayador con el que se creó en su día. Así que al mover
+   un apartado, su nivel —y por tanto el color de su puntito— pasa a ser el que
+   le toca por su sitio nuevo.
+   Y en CASCADA para todo lo que cuelga de él: un subtítulo con sus epígrafes
+   que pasa a ser epígrafe convierte a sus epígrafes en guiones. Si no, la mitad
+   del árbol quedaría pintada con los colores del sitio del que vino.
+   La escala se acaba en 'guion': más adentro es 'manual' (sin color propio),
+   igual que los subniveles creados a mano con "＋ Subnivel". */
+function cmapRenivelar(node,nivel){
+  node.level=nivel;
+  const nivelHijo=cmapNextLevel(nivel);
+  (node.children||[]).forEach(c=>cmapRenivelar(c,nivelHijo));
+}
 function cmapEsDescendiente(node,posible){
   let r=false;
   const walk=n=>{(n.children||[]).forEach(c=>{if(c===posible)r=true;walk(c)})};
@@ -11309,17 +11362,24 @@ function cmapMoveTo(maps,node,destino,modo){
      un apartado dentro de su propia lista, el índice calculado antes de sacarlo
      ya no sirve, porque todo lo que va detrás se corre un puesto. */
   f.list.splice(f.list.indexOf(node),1);
-  if(!destino){maps.push(node);return null}          // fuera: pasa a ser un tema más
+  if(!destino){                                      // fuera: pasa a ser un tema más
+    maps.push(node);
+    cmapRenivelar(node,'cmap_titulo');
+    return null;
+  }
   if(modo==='dentro'){
     if(!destino.children)destino.children=[];
     destino.children.push(node);
     destino.fold=false;                              // que se vea dónde ha caído
+    cmapRenivelar(node,cmapNextLevel(destino.level));
     return null;
   }
   const g=cmapParentOf(maps,destino);
   const lista=g?g.list:maps;
   const i=lista.indexOf(destino);
   lista.splice(i<0?lista.length:(modo==='antes'?i:i+1),0,node);
+  /* como hermano de destino: su mismo nivel */
+  cmapRenivelar(node,destino.level);
   return null;
 }
 /* Ejecuta un movimiento con red: guarda una foto del mapa ANTES, y si sale bien
@@ -11348,6 +11408,7 @@ function cmapIndent(maps,node){
   if(!prev.children)prev.children=[];
   prev.children.push(node);
   prev.fold=false;                            // que se vea dónde ha ido
+  cmapRenivelar(node,cmapNextLevel(prev.level));   // ahora cuelga de prev: un nivel más adentro
   return true;
 }
 /* Igual que las aclaraciones (createAclarFromGid, arriba): se crea UNA VEZ al
@@ -12531,6 +12592,120 @@ function cmapNextLevel(level){
 }
 function cmapLevelDot(level){return(CMAP_LEVEL_META[level]&&CMAP_LEVEL_META[level].dot)||'#C9C3D6'}
 
+/* ══════════════════════════════════════════════════════════════════
+   ARRASTRAR UN APARTADO CON EL DEDO O EL RATÓN
+
+   No inventa nada: al soltar llama a cmapMoveTo, exactamente igual que el
+   botón "Mover a…". Todo lo que hay aquí es el gesto; la operación sobre los
+   datos es la misma y está probada en un solo sitio.
+
+   Tres decisiones y por qué:
+     · Se agarra solo por el asa. Si arrastrara toda la fila, con el dedo no
+       se podría desplazar la lista.
+     · Al soltar hay DOS resultados posibles según dónde caiga el puntero
+       dentro de la fila de destino: por el centro, DENTRO de ella; por el
+       borde de arriba o de abajo, ANTES o DESPUÉS de ella (como hermano).
+       Cada uno tiene su marca visual.
+     · Nunca se deja soltar un apartado dentro de sí mismo ni dentro de algo
+       que cuelga de él (se pinta en rojo y no se hace nada). cmapMoveTo lo
+       vuelve a comprobar por su cuenta: es la red de seguridad de verdad.
+
+   Se suelta en el aire (fuera de cualquier fila) → no pasa nada.
+   Escape mientras se arrastra → se cancela.
+   ══════════════════════════════════════════════════════════════════ */
+let cmapDrag=null;
+/* busca un apartado por id DENTRO del array que se está usando (no vale
+   findCmapNode: ese carga una copia nueva del disco y devolvería otro objeto,
+   así que moverlo no cambiaría nada de lo que hay en pantalla) */
+function cmapNodoPorId(lista,id){
+  for(const n of lista){
+    if(n.id===id)return n;
+    const r=cmapNodoPorId(n.children||[],id);
+    if(r)return r;
+  }
+  return null;
+}
+function cmapLimpiaMarcas(){
+  document.querySelectorAll('.cmap-hd.drop-dentro,.cmap-hd.drop-antes,.cmap-hd.drop-despues,.cmap-hd.drop-no')
+    .forEach(el=>el.classList.remove('drop-dentro','drop-antes','drop-despues','drop-no'));
+}
+function cmapDragStart(e,node,maps,card){
+  if(cmapDrag)return;
+  const cuerpo=document.getElementById('cmap-body');
+  const ghost=document.createElement('div');
+  ghost.className='cmap-ghost';ghost.textContent=node.title||'(sin título)';
+  document.body.appendChild(ghost);
+  cmapDrag={node,maps,card,ghost,cuerpo,x:e.clientX,y:e.clientY,destino:null,modo:null,raf:0};
+  card.classList.add('cmap-arrastrando');
+  document.body.classList.add('cmap-drag-activo');
+  /* si el dedo se sale del asa (que es diminuta) el gesto se sigue recibiendo */
+  try{e.currentTarget.setPointerCapture(e.pointerId)}catch(_){}
+  cmapDragMueve(e.clientX,e.clientY);
+  /* El desplazamiento automático al llegar a los bordes va en su propio ciclo,
+     no dentro de pointermove: si dependiera del movimiento, al dejar el dedo
+     quieto en el borde la lista se pararía y no se podría llegar más lejos. */
+  const paso=()=>{
+    if(!cmapDrag)return;
+    if(cmapAutoScroll())cmapDragMueve(cmapDrag.x,cmapDrag.y);
+    cmapDrag.raf=requestAnimationFrame(paso);
+  };
+  cmapDrag.raf=requestAnimationFrame(paso);
+}
+function cmapAutoScroll(){
+  const d=cmapDrag;if(!d||!d.cuerpo)return false;
+  const r=d.cuerpo.getBoundingClientRect(),margen=48,antes=d.cuerpo.scrollTop;
+  if(d.y<r.top+margen)        d.cuerpo.scrollTop-=Math.max(5,(r.top+margen-d.y)/3);
+  else if(d.y>r.bottom-margen)d.cuerpo.scrollTop+=Math.max(5,(d.y-(r.bottom-margen))/3);
+  return d.cuerpo.scrollTop!==antes;
+}
+function cmapDragMueve(x,y){
+  const d=cmapDrag;if(!d)return;
+  d.x=x;d.y=y;
+  d.ghost.style.left=x+'px';d.ghost.style.top=y+'px';
+  cmapLimpiaMarcas();
+  d.destino=null;d.modo=null;
+  const bajo=document.elementFromPoint(x,y);
+  const hd=bajo&&bajo.closest?bajo.closest('.cmap-hd'):null;
+  if(!hd||!d.cuerpo.contains(hd))return;          // en el aire: no hay destino
+  const card=hd.closest('.cmap-card');
+  if(!card||card===d.card)return;                 // sobre sí mismo
+  const destino=cmapNodoPorId(d.maps,card.dataset.cid);
+  if(!destino)return;
+  if(destino===d.node||cmapEsDescendiente(d.node,destino)){hd.classList.add('drop-no');return}
+  const r=hd.getBoundingClientRect();
+  const rel=(y-r.top)/(r.height||1);
+  const modo=rel<0.28?'antes':rel>0.72?'despues':'dentro';
+  hd.classList.add(modo==='dentro'?'drop-dentro':modo==='antes'?'drop-antes':'drop-despues');
+  d.destino=destino;d.modo=modo;
+}
+function cmapDragFin(){
+  const d=cmapDrag;if(!d)return;
+  cancelAnimationFrame(d.raf);
+  d.ghost.remove();
+  d.card.classList.remove('cmap-arrastrando');
+  document.body.classList.remove('cmap-drag-activo');
+  cmapLimpiaMarcas();
+  cmapDrag=null;
+}
+function cmapDragSuelta(){
+  const d=cmapDrag;if(!d)return;
+  const node=d.node,maps=d.maps,destino=d.destino,modo=d.modo;
+  cmapDragFin();
+  if(!destino||!modo)return;               // soltado en el aire: no se toca nada
+  cmapConDeshacer(maps,()=>cmapMoveTo(maps,node,destino,modo),
+    modo==='dentro' ? 'Movido dentro de "'+destino.title+'"'
+                    : 'Movido '+(modo==='antes'?'encima':'debajo')+' de "'+destino.title+'"');
+}
+/* Los escuchas van en el documento, UNA sola vez: el panel se repinta entero
+   después de cada cambio, así que ponerlos en cada tarjeta los multiplicaría.
+   Con setPointerCapture los eventos siguen llegando hasta aquí. */
+document.addEventListener('pointermove',e=>{if(cmapDrag)cmapDragMueve(e.clientX,e.clientY)});
+document.addEventListener('pointerup',()=>{if(cmapDrag)cmapDragSuelta()});
+document.addEventListener('pointercancel',()=>{if(cmapDrag)cmapDragFin()});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&cmapDrag){cmapDragFin();showTip('Movimiento cancelado',1400);e.stopPropagation()}
+},true);
+
 /* ══ ELEGIR DÓNDE VA UN APARTADO ══
    Enseña el índice entero con sus sangrías y devuelve {destino,modo} o null si
    se cancela. Es la alternativa al arrastre: para llevar algo lejos, buscar y
@@ -12579,7 +12754,7 @@ function askCmapDestino(maps,node){
          sentido si ahora mismo cuelga de algo. */
       if(padreActual&&!q.trim()){
         const b=document.createElement('button');
-        b.style.cssText='flex:0 0 auto;display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:10px;border:none;border-radius:9px;background:var(--menta);color:var(--ink);font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;margin-bottom:6px';
+        b.style.cssText='flex:0 0 auto;display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:10px;border:none;border-radius:9px;background:var(--acento);color:var(--ink);font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;margin-bottom:6px';
         b.innerHTML=svg('outdent');
         const sp=document.createElement('span');sp.textContent='Sacarlo fuera (que sea un tema principal)';
         b.appendChild(sp);
@@ -12694,10 +12869,24 @@ function buildCmapEl(node,siblings,maps){
   card.dataset.cid=node.id;    // para saltar a este apartado desde fuera
 
   const hd=document.createElement('div');hd.className='cmap-hd';
+  /* asa de arrastre. Es un <button> a propósito: el gesto de "deslizar para
+     cerrar el panel" (addPanelSwipe) ignora lo que empieza en un botón, así
+     que arrastrar hacia la derecha ya no cierra el panel a media faena.
+     El stopPropagation del clic evita además que agarrar el asa pliegue o
+     despliegue el apartado. */
+  const grip=document.createElement('button');
+  grip.type='button';grip.className='cmap-grip';
+  grip.title='Arrástralo para moverlo de sitio';
+  grip.innerHTML=svg('grip');
+  grip.onclick=e=>e.stopPropagation();
+  grip.addEventListener('pointerdown',e=>{
+    e.stopPropagation();e.preventDefault();
+    cmapDragStart(e,node,maps,card);
+  });
   const arrow=document.createElement('span');arrow.className='cmap-arrow'+(node.fold?'':' open');arrow.innerHTML=svg('chevRight','ico cmap-chev');
   const dot=document.createElement('div');dot.className='cmap-dot';dot.style.background=cmapLevelDot(node.level);
   const titleEl=document.createElement('span');titleEl.className='cmap-title';titleEl.textContent=node.title;
-  hd.append(arrow,dot,titleEl);
+  hd.append(grip,arrow,dot,titleEl);
   if(node.page){
     const pgEl=document.createElement('span');pgEl.className='cmap-pg';pgEl.textContent='p.'+pageLabel(node.page);
     hd.appendChild(pgEl);
