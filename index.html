@@ -1788,6 +1788,9 @@ body.fullscreen #gid-bar{bottom:20px}
     <button class="tool-btn" id="tb-cmap" title="Mapa conceptual">
       <svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.6"/><circle cx="18" cy="6" r="2.6"/><circle cx="6" cy="18" r="2.6"/><circle cx="18" cy="18" r="2.6"/><path d="M8.3 7.3L15.7 15.7M15.7 8.3L8.3 15.7"/></svg>
     </button>
+    <button class="tool-btn" id="tb-temas" title="Temas del documento">
+      <svg viewBox="0 0 24 24"><path d="M6.2 3.8h9.1a1.7 1.7 0 0 1 1.7 1.7v5.1"/><path d="M17 16.6v2.1a1.7 1.7 0 0 1-1.7 1.7H6.2"/><path d="M6.2 3.8A1.7 1.7 0 0 0 4.5 5.5v13a1.7 1.7 0 0 0 1.7 1.7"/><path d="M4.5 16.8h4.2"/><path d="M20.2 11.4 21 12.2a1.2 1.2 0 0 1 0 1.7l-5.1 5.1-2.4.6.6-2.4 5.1-5.1a1.2 1.2 0 0 1 1.7 0Z"/></svg>
+    </button>
     <button class="tool-btn" id="tb-review" title="Repasar con tarjetas">
       <svg viewBox="0 0 24 24"><path d="M3 6.5A1.5 1.5 0 014.5 5H9a3 3 0 013 3v11a2.5 2.5 0 00-2.5-2.5H3z"/><path d="M21 6.5A1.5 1.5 0 0019.5 5H15a3 3 0 00-3 3v11a2.5 2.5 0 012.5-2.5H21z"/></svg>
     </button>
@@ -1933,7 +1936,6 @@ body.fullscreen #gid-bar{bottom:20px}
 <div id="glossary-panel" class="side-panel">
   <div class="sp-top">
     <span class="sp-title">Glosario</span>
-    <button class="sp-themes" title="Gestionar temas"></button>
     <button class="sp-close" data-panel="glossary-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <div id="glossary-body" class="sp-body"></div>
@@ -1947,7 +1949,6 @@ body.fullscreen #gid-bar{bottom:20px}
 <div id="conclusions-panel" class="side-panel">
   <div class="sp-top">
     <span class="sp-title">Conclusiones</span>
-    <button class="sp-themes" title="Gestionar temas"></button>
     <button class="sp-close" data-panel="conclusions-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <div id="conclusions-body" class="sp-body"></div>
@@ -1961,7 +1962,6 @@ body.fullscreen #gid-bar{bottom:20px}
 <div id="aclar-panel" class="side-panel">
   <div class="sp-top">
     <span class="sp-title">Aclaraciones</span>
-    <button class="sp-themes" title="Gestionar temas"></button>
     <button class="sp-close" data-panel="aclar-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <div id="aclar-body" class="sp-body"></div>
@@ -1969,6 +1969,18 @@ body.fullscreen #gid-bar{bottom:20px}
     <button id="aclar-export-pdf" class="sp-action-btn" style="flex:1;padding:9px;font-size:13px">Exportar PDF</button>
     <button id="aclar-export" class="sp-action-btn" style="flex:1;padding:9px;font-size:13px;background:var(--bg2)">Texto</button>
   </div>
+</div>
+
+<!-- TEMAS: panel propio. Los temas no son del glosario ni de las conclusiones:
+     los usan también los nodos, los procesos, las aclaraciones y el mapa. Son
+     un ajuste del documento entero, así que tienen su sitio, no el de dentro
+     de una herramienta. -->
+<div id="temas-panel" class="side-panel">
+  <div class="sp-top">
+    <span class="sp-title">Temas</span>
+    <button class="sp-close" data-panel="temas-panel"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div id="temas-body" class="sp-body"></div>
 </div>
 
 <!-- mapa conceptual panel -->
@@ -2517,7 +2529,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v181'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v182'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -8987,7 +8999,7 @@ const notesPanel=document.getElementById('notes-panel');
    ══════════════════════════════════════════════════════════════════ */
 const ALL_PANELS=['notes-panel','summary-panel','bookmarks-panel','thumbs-panel',
                   'proc-panel','glossary-panel','conclusions-panel','aclar-panel','resumen-panel','cmap-panel',
-                  'stats-panel','review-panel','findall-panel'];
+                  'temas-panel','stats-panel','review-panel','findall-panel'];
 function closeAllPanels(except){
   ALL_PANELS.forEach(id=>{
     if(id===except)return;
@@ -12412,7 +12424,14 @@ function openThemesMgr(kind){
    cableado de teclado (MODAL_OK / MODAL_CANCEL) la nombra, y quitarla sería
    un cambio mayor sin ninguna ganancia.
    ══════════════════════════════════════════════════════════════════ */
+/* `back` = a qué se vuelve al terminar. El panel de Temas NO lo lleva: el
+   gestor no está de visita ahí dentro, es su contenido, así que no hay nada a
+   lo que volver y no se pinta el botón.
+   Las tres entradas de los paneles de fichas se quedan aunque ya no se usen
+   (el botón de la libreta salió de sus cabeceras): si algún día conviene
+   volver a tener el atajo dentro de un panel, funciona tal cual. */
 const TM_PANELS={
+  'temas-panel':      {body:'temas-body'},
   'glossary-panel':   {body:'glossary-body',   back:()=>renderEnts('glos')},
   'conclusions-panel':{body:'conclusions-body',back:()=>renderEnts('conc')},
   'aclar-panel':      {body:'aclar-body',      back:()=>refreshAclarPanel()}
@@ -12425,13 +12444,15 @@ function openThemesInPanel(panelId){
 
   const host=document.createElement('div');host.className='tm-host';
 
-  const back=document.createElement('button');back.className='tm-back';
-  back.innerHTML=svg('chevRight')+'<span>Volver a las fichas</span>';
-  back.onclick=()=>closeThemesInPanel();
-  host.appendChild(back);
+  if(cfg.back){
+    const back=document.createElement('button');back.className='tm-back';
+    back.innerHTML=svg('chevRight')+'<span>Volver a las fichas</span>';
+    back.onclick=()=>closeThemesInPanel();
+    host.appendChild(back);
+  }
 
   const hint=document.createElement('div');hint.className='tm-hint';
-  hint.textContent='Toca el nombre para cambiarlo. Los cambios se guardan solos.';
+  hint.textContent='Los temas ordenan tus definiciones, conclusiones, aclaraciones, nodos y procesos. Toca un nombre para cambiarlo: se guarda solo.';
   host.appendChild(hint);
 
   const filtro=document.createElement('input');
@@ -13037,9 +13058,11 @@ addPanelSwipe('conclusions-panel');
 /* ── Aclaraciones ── */
 document.getElementById('tb-aclar').onclick=()=>{openPanel('aclar-panel');refreshAclarPanel()};
 document.querySelector('#aclar-panel .sp-close').onclick=()=>closePanel('aclar-panel');
-document.querySelectorAll('#aclar-panel .sp-themes').forEach(b=>b.onclick=()=>openThemesInPanel('aclar-panel'));
 document.getElementById('aclar-export').onclick=()=>exportAclars();
 addPanelSwipe('aclar-panel');
+/* ── Temas (panel propio) ── */
+document.querySelector('#temas-panel .sp-close').onclick=()=>closePanel('temas-panel');
+addPanelSwipe('temas-panel');
 
 /* ══ MAPA CONCEPTUAL: panel ══
    editor de título+descripción de un nodo (mismo patrón que askNodeEdit) */
@@ -15567,13 +15590,21 @@ document.getElementById('ip-cancel').onclick=()=>{
   const r=iconPickRes;iconPickRes=null;r&&r(null);
 };
 
-/* ══ GESTOR DE TEMAS: cableado ══ */
+/* ══ GESTOR DE TEMAS: cableado ══
+   Los temas tienen PANEL PROPIO. Antes el gestor estaba metido dentro del
+   glosario, las conclusiones y las aclaraciones, con el botón de la libreta en
+   sus cabeceras: era engañoso, porque los temas no son de esas tres
+   herramientas, sino del documento entero (también los usan los nodos, los
+   procesos y el mapa). Ahora se abre desde su botón de la barra, esté abierto
+   lo que esté abierto, y los tres paneles se quedan con lo suyo.
+   El cuadro que sale al guardar una ficha sigue teniendo su campo para crear un
+   tema al vuelo: eso es crear mientras subrayas, no gestionar, y quitarlo
+   obligaría a parar para ir al panel. */
 document.querySelectorAll('.sp-themes').forEach(b=>b.innerHTML=svg('notebook'));
-/* El gestor se abre DENTRO del propio panel (ya no en ventana), y cada uno
-   vuelve a su propia lista al terminar. Antes los tres llamaban a
-   openThemesMgr y además aclaraciones pasaba 'glos', que era engañoso. */
-document.querySelectorAll('#glossary-panel .sp-themes').forEach(b=>b.onclick=()=>openThemesInPanel('glossary-panel'));
-document.querySelectorAll('#conclusions-panel .sp-themes').forEach(b=>b.onclick=()=>openThemesInPanel('conclusions-panel'));
+document.getElementById('tb-temas').onclick=()=>{
+  openPanel('temas-panel');
+  openThemesInPanel('temas-panel');
+};
 document.getElementById('tm-close').onclick=()=>document.getElementById('modal-themes-mgr').classList.add('hidden');
 document.getElementById('tm-new-add').onclick=()=>{
   const num=parseInt(document.getElementById('tm-new-num').value,10)||nextThemeNum();
