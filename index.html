@@ -2508,7 +2508,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v178'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v179'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -9266,6 +9266,75 @@ function loadNodes(){try{
 }catch(e){return[]}}
 function saveNodes(arr){try{localStorage.setItem(nodeKey(),JSON.stringify(arr))}catch(e){}}
 
+/* ══ MOVER UN SUBNIVEL A OTRO SITIO ══
+   Hasta ahora un subnivel se quedaba para siempre donde nació: si te dabas
+   cuenta de que colgaba del nodo equivocado, había que borrarlo y reescribirlo
+   entero, perdiendo su explicación con formato y todo lo que colgara de él.
+   Mismas ideas que en el mapa conceptual (cmapMoveTo): funciones puras sobre el
+   array, se mueve el objeto ENTERO, y prohibido meterlo dentro de sí mismo o de
+   algo que cuelgue de él (rompería el árbol y esa rama desaparecería).
+   Devuelven el motivo (texto) si no se puede, o null si ha ido bien. */
+function nodeParentOf(nodes,item){
+  let found=null;
+  const visit=(list,parent)=>{
+    list.forEach(n=>{
+      if(n===item){found={list,parent};return}
+      if(n.children&&n.children.length)visit(n.children,n);
+    });
+  };
+  visit(nodes,null);
+  return found;
+}
+function nodeEsDescendiente(item,posible){
+  let r=false;
+  const walk=n=>{(n.children||[]).forEach(c=>{if(c===posible)r=true;walk(c)})};
+  walk(item);
+  return r;
+}
+function nodeMoveTo(nodes,item,destino){
+  if(!item)return 'No se encuentra ese subnivel';
+  if(destino===item)return 'Un subnivel no puede ir dentro de sí mismo';
+  if(destino&&nodeEsDescendiente(item,destino))
+    return 'No se puede meterlo dentro de algo que cuelga de él';
+  const f=nodeParentOf(nodes,item);
+  if(!f)return 'No se encuentra ese subnivel';
+  f.list.splice(f.list.indexOf(item),1);
+  if(!destino){
+    /* SALE COMO NODO PROPIO. A un subnivel le faltan tres cosas para ser un
+       nodo: página, color y tema. Se le da la página en la que estás y el color
+       de siempre; el tema se elige después desde su menú, porque adivinarlo
+       aquí sería inventárselo. */
+    nodes.push({id:item.id,title:item.title,body:item.body||'',themeId:null,
+                pages:[curPid()],color:'#E3D0F5',children:item.children||[],
+                created:Date.now()});
+    return null;
+  }
+  if(!destino.children)destino.children=[];
+  destino.children.push(item);
+  return null;
+}
+/* el árbol entero de nodos y subniveles, aplanado, para elegir destino */
+function askNodeDestino(nodes,item){
+  const padreActual=(nodeParentOf(nodes,item)||{}).parent||null;
+  const filas=[];
+  const recorrer=(lista,prof)=>{
+    lista.forEach(n=>{
+      if(n===item)return;                        // ni él ni los suyos
+      filas.push({obj:n,prof,label:n.title,
+                  color:prof===0?(n.color||'#E3D0F5'):'#C9C3D6',
+                  actual:n===padreActual});
+      recorrer(n.children||[],prof+1);
+    });
+  };
+  recorrer(nodes,0);
+  return askDestinoEnArbol({
+    titulo:'Mover "'+tituloCorto(item.title)+'" a…',
+    filas,
+    fuera:'Sacarlo fuera (que sea un nodo propio)',
+    vacio:'No hay ningún otro nodo en este documento.'
+  });
+}
+
 let nodeAddRes=null,nodeSubRes=null;
 /* conecta las barras de formato de los dos modales (una sola vez) */
 wireRichToolbar(document.getElementById('node-body-tb'),document.getElementById('node-body-in'));
@@ -9497,6 +9566,10 @@ function buildNodeEl(node,nodes){
     mkN('dots','Más opciones',e=>{
       const r=e.currentTarget.getBoundingClientRect();
       showCtx(r.left-150,r.bottom+6,[
+        {icon:'tagAuto',label:'Cambiar de tema',action:()=>pedirTemaY('ficha',tid=>{
+          node.themeId=tid;saveNodes(nodes);
+          refreshNodesPanel();renderNodeAnchors();tipTemaCambiado(tid);
+        })},
         {icon:'jump',label:'Ir a la página',action:doGo},
         {icon:'pin', label:'Plasmar en la página',action:()=>{addEmbed('node',node.id,curPid());closePanel(notesPanel)}},
         {icon:'plusFile',label:'Vincular a otra página',action:doAddPage},
@@ -9547,6 +9620,21 @@ function buildSubTree(item,siblings,nodes){
       const d=await askSubNode();if(!d)return;
       item.children.push({id:uid(),title:d.title,body:d.body,children:[]});
       saveNodes(nodes);refreshNodesPanel();renderNodeAnchors();
+    }),
+    mkS('moveTo','Mover a otro nodo',async()=>{
+      const d=await askNodeDestino(nodes,item);
+      if(!d)return;
+      /* foto ANTES de tocar nada, para poder deshacerlo: el botón de deshacer
+         de la barra solo cubre lo que se dibuja sobre la página */
+      const foto=localStorage.getItem(nodeKey());
+      const err=nodeMoveTo(nodes,item,d.destino);
+      if(err){showTip(err,3000);return}
+      saveNodes(nodes);refreshNodesPanel();renderNodeAnchors();
+      showTipDeshacer(d.destino?('Movido dentro de "'+d.destino.title+'"')
+                               :'Ahora es un nodo propio',()=>{
+        try{if(foto!==null)localStorage.setItem(nodeKey(),foto)}catch(e){}
+        refreshNodesPanel();renderNodeAnchors();showTip('Movimiento deshecho',1600);
+      });
     }),
     mkS('trash','Eliminar',async()=>{
       const ok=await askConfirm(`¿Eliminar "${item.title}" y todo lo que cuelga de él?`);if(!ok)return;
@@ -10768,6 +10856,9 @@ function buildProcCard(proc,procs){
       proc.title=d.title;proc.themeId=d.themeId;
       saveProc(procs);refreshProcPanel();
     }),
+    mkP('tagAuto','Cambiar de tema',()=>pedirTemaY('ficha',tid=>{
+      proc.themeId=tid;saveProc(procs);refreshProcPanel();tipTemaCambiado(tid);
+    })),
     mkP('pin','Plasmar en la página',()=>{
       addEmbed('proc',proc.id,curPid());
       closePanel('proc-panel');
@@ -11347,6 +11438,10 @@ function buildAclarCard(a){
       patchAclar(a.id,{text:d.text,themeId:d.themeId||null});
       refreshAclarPanel();renderPageAnchors();forceNoteLayerRefresh(a.page);
     }),
+    mkA('tagAuto','Cambiar de tema',()=>pedirTemaY('aclaración',tid=>{
+      patchAclar(a.id,{themeId:tid});
+      refreshAclarPanel();renderPageAnchors();tipTemaCambiado(tid);
+    })),
     mkA('trash','Eliminar',async()=>{
       const ok=await askConfirm('¿Eliminar esta aclaración? El subrayado no se borra.');if(!ok)return;
       saveAclars(loadAclars().filter(x=>x.id!==a.id));
@@ -12040,6 +12135,24 @@ function activeThemeObj(){
   return id?(loadThemes().find(t=>t.id===id)||null):null;
 }
 function themeLabel(t){return t?((t.num?t.num+'. ':'')+(t.name||'Tema')):''}
+
+/* ══ CAMBIAR DE TEMA EN DOS TOQUES ══
+   Cambiar el tema de una ficha ya se podía, pero solo abriendo su editor entero
+   y bajando al desplegable de dentro: para algo tan corriente era mucho trabajo.
+   Aquí es una opción más de su menú, y sale la MISMA lista de temas de siempre
+   (askTheme), con sus atajos de teclado y su opción de crear uno nuevo.
+   `aplicar` recibe el id elegido, o null si se eligió "Sin tema". Si cancelas
+   (Escape), no se llama y no se toca absolutamente nada. */
+async function pedirTemaY(etiqueta,aplicar){
+  const id=await askTheme(etiqueta);
+  if(id===null)return;
+  aplicar(id||null);
+}
+/* el aviso de a dónde ha ido, que es la única señal de que ha pasado algo */
+function tipTemaCambiado(themeId){
+  const t=themeId?themeById(themeId):null;
+  showTip(t?('Movida a "'+themeLabel(t)+'"'):'Ahora está sin tema',1800);
+}
 
 /* ══════════════════════════════════════════════════════════════════
    GESTOR DE TEMAS  (boton 🏷 en la cabecera de Glosario / Conclusiones)
@@ -12774,6 +12887,21 @@ function buildEntCard(kind,g){
     mkG('dots','Más opciones',e=>{
       const r=e.currentTarget.getBoundingClientRect();
       showCtx(r.left-150,r.bottom+6,[
+        {icon:'tagAuto',label:'Cambiar de tema',action:()=>pedirTemaY(
+          kind==='glos'?'definición':'conclusión',
+          tid=>{
+            const a=loadEnts(kind);const it=a.find(x=>x.gid===g.gid||x.id===g.id);
+            if(it){it.themeId=tid;saveEnts(kind,a)}
+            /* En una ficha AUTOMÁTICA el tema de verdad vive en el mapa
+               gid→tema: si solo se guardara dentro de la ficha, al reabrir el
+               panel autoUpdateEnts la reconstruiría y volvería a su tema viejo. */
+            if(g.auto&&g.gid){
+              const tmap=loadThemeMap();
+              if(tid)tmap[g.gid]=tid;else delete tmap[g.gid];
+              saveThemeMap(tmap);
+            }
+            renderEnts(kind);renderPageAnchors();tipTemaCambiado(tid);
+          })},
         {icon:'pin',label:'Plasmar en la página',action:()=>{
           /* usamos SIEMPRE el gid (estable) y no el id, que se regenera cuando
              las entradas automáticas se reconstruyen: si guardáramos el id, el
@@ -13003,25 +13131,21 @@ const mCmapMove=document.getElementById('modal-cmap-move');
 document.getElementById('modal-cmap-move-cancel').onclick=()=>{
   mCmapMove.classList.add('hidden');cmapMoveRes&&cmapMoveRes(null);cmapMoveRes=null;
 };
-function askCmapDestino(maps,node){
+/* El cuadro es el MISMO para el mapa conceptual y para los subniveles de los
+   nodos, porque el problema es idéntico: enseñar un árbol y que elijas un sitio.
+   Lo que cambia de una herramienta a otra son solo las filas, así que cada una
+   las prepara y llama aquí.
+     o.titulo   → lo que se lee arriba
+     o.filas    → [{obj, prof, label, color, actual}] ya en el orden del árbol
+     o.fuera    → texto del botón de "sacarlo fuera", o null si no aplica
+     o.vacio    → qué decir cuando no hay ningún destino posible
+   Devuelve {destino,modo} (destino null = "sacarlo fuera") o null si cancelas. */
+function askDestinoEnArbol(o){
   return new Promise(res=>{
     cmapMoveRes=res;
-    const padreActual=(cmapParentOf(maps,node)||{}).parent||null;
-    /* el índice aplanado, en el mismo orden en que se ve en el panel */
-    const filas=[];
-    const recorrer=(lista,prof)=>{
-      lista.forEach(n=>{
-        if(n===node)return;                       // ni él ni los suyos
-        filas.push({n,prof});
-        recorrer(n.children||[],prof+1);
-      });
-    };
-    recorrer(maps,0);
-
     const inp=document.getElementById('cmap-move-search');
     const list=document.getElementById('cmap-move-list');
-    document.getElementById('cmap-move-title').textContent='Mover "'+
-      (node.title.length>34?node.title.slice(0,34)+'…':node.title)+'" a…';
+    document.getElementById('cmap-move-title').textContent=o.titulo;
     inp.value='';
 
     const elegir=(destino,modo)=>{
@@ -13032,15 +13156,13 @@ function askCmapDestino(maps,node){
     const pinta=()=>{
       list.innerHTML='';
       const q=inp.value;
-      const vis=q.trim()?filas.filter(f=>panelMatch(q,f.n.title)):filas;
+      const vis=q.trim()?o.filas.filter(f=>panelMatch(q,f.label)):o.filas;
 
-      /* Sacarlo fuera del todo: pasa a ser un tema principal más. Solo tiene
-         sentido si ahora mismo cuelga de algo. */
-      if(padreActual&&!q.trim()){
+      if(o.fuera&&!q.trim()){
         const b=document.createElement('button');
         b.style.cssText='flex:0 0 auto;display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:10px;border:none;border-radius:9px;background:var(--acento);color:var(--ink);font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;margin-bottom:6px';
         b.innerHTML=svg('outdent');
-        const sp=document.createElement('span');sp.textContent='Sacarlo fuera (que sea un tema principal)';
+        const sp=document.createElement('span');sp.textContent=o.fuera;
         b.appendChild(sp);
         b.onclick=()=>elegir(null,'dentro');
         list.appendChild(b);
@@ -13049,32 +13171,30 @@ function askCmapDestino(maps,node){
       if(!vis.length){
         const em=document.createElement('div');
         em.style.cssText='text-align:center;color:var(--ink3);font-size:13px;padding:20px 10px';
-        em.textContent=q.trim()?('Ningún apartado coincide con "'+q.trim()+'".')
-          :'No hay ningún otro apartado en este documento.';
+        em.textContent=q.trim()?('Nada coincide con "'+q.trim()+'".'):o.vacio;
         list.appendChild(em);return;
       }
       vis.forEach(f=>{
-        const esPadre=f.n===padreActual;
         const b=document.createElement('button');
         b.style.cssText='flex:0 0 auto;display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:9px 10px;border:none;border-radius:9px;background:var(--bg2);color:var(--ink);font-family:inherit;font-size:13.5px;line-height:1.35;cursor:pointer;margin-bottom:2px;overflow:hidden';
-        /* La sangría es lo que hace legible el índice; al buscar se quita,
+        /* La sangría es lo que hace legible el árbol; al buscar se quita,
            porque los resultados sueltos no forman un árbol.
            Va por DENTRO (padding), no por fuera (margen): con margen, la fila
            seguía midiendo el 100% del ancho y se salía por la derecha, dejando
            una barra de desplazamiento horizontal y cortando el texto. */
         if(!q.trim())b.style.paddingLeft=(10+Math.min(f.prof,6)*14)+'px';
         const dot=document.createElement('span');
-        dot.style.cssText='width:9px;height:9px;border-radius:50%;flex-shrink:0;background:'+cmapLevelDot(f.n.level);
+        dot.style.cssText='width:9px;height:9px;border-radius:50%;flex-shrink:0;background:'+(f.color||'#C9C3D6');
         const tx=document.createElement('span');tx.style.cssText='flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
-        tx.textContent=f.n.title||'(sin título)';
+        tx.textContent=f.label||'(sin título)';
         b.append(dot,tx);
-        if(esPadre){
+        if(f.actual){
           const av=document.createElement('span');
           av.style.cssText='flex-shrink:0;margin-left:auto;font-size:11px;color:var(--ink3)';
           av.textContent='aquí está ahora';
           b.appendChild(av);
         }
-        b.onclick=()=>elegir(f.n,'dentro');
+        b.onclick=()=>elegir(f.obj,'dentro');
         list.appendChild(b);
       });
     };
@@ -13082,6 +13202,27 @@ function askCmapDestino(maps,node){
     pinta();
     mCmapMove.classList.remove('hidden');
     setTimeout(()=>inp.focus(),100);
+  });
+}
+/* recorta un título largo para que quepa en el rótulo del cuadro */
+function tituloCorto(t){const s=String(t||'');return s.length>34?s.slice(0,34)+'…':s}
+
+function askCmapDestino(maps,node){
+  const padreActual=(cmapParentOf(maps,node)||{}).parent||null;
+  const filas=[];
+  const recorrer=(lista,prof)=>{
+    lista.forEach(n=>{
+      if(n===node)return;                       // ni él ni los suyos
+      filas.push({obj:n,prof,label:n.title,color:cmapLevelDot(n.level),actual:n===padreActual});
+      recorrer(n.children||[],prof+1);
+    });
+  };
+  recorrer(maps,0);
+  return askDestinoEnArbol({
+    titulo:'Mover "'+tituloCorto(node.title)+'" a…',
+    filas,
+    fuera:padreActual?'Sacarlo fuera (que sea un tema principal)':null,
+    vacio:'No hay ningún otro apartado en este documento.'
   });
 }
 

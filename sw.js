@@ -1,4 +1,4 @@
-const CACHE = 'lecturapdf-v178';
+const CACHE = 'lecturapdf-v179';
 
 /* Recursos propios: sin ellos la app no existe. Si uno falla, es un error real. */
 const CORE = [
