@@ -2491,7 +2491,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v176'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v177'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -3716,6 +3716,82 @@ function richGuionALista(ed){
   richFixLists(ed);
   return true;
 }
+/* ══ CONVERTIR EN NOTA LO QUE YA ESTÁ ESCRITO ══
+   Antes solo se podía meter una nota VACÍA y escribir dentro. Lo natural es al
+   revés: escribes, relees, y decides que ese párrafo era un "recuerda". Ahora,
+   con el párrafo seleccionado, el botón lo convierte.
+
+   Tres casos, por orden:
+     · el cursor ya está dentro de una nota → solo le cambia el tipo (así se
+       pasa de DUDA a RECUERDA sin rehacerla);
+     · hay texto seleccionado → esos párrafos se meten dentro de la nota;
+     · no hay nada seleccionado → devuelve false y quien llama inserta una
+       nota vacía, como toda la vida.
+
+   Los párrafos se meten SIN su <div>, separados por saltos de línea: si se
+   metieran enteros, el rótulo (que va en ::before de la nota) caería en un
+   renglón para él solo, separado de su texto. */
+function richANota(ed,clase,forzar){
+  const sel=window.getSelection();
+  if(!ed||!sel||!sel.rangeCount)return false;
+  const n0=richNodoCursor(ed);
+  const el0=n0&&(n0.nodeType===3?n0.parentElement:n0);
+  const notaAct=el0&&el0.closest?el0.closest('.lp-nota'):null;
+  if(notaAct&&ed.contains(notaAct)){notaAct.className=clase;return true}
+  if(sel.isCollapsed&&!forzar)return false;
+  let bl=richBlocks(ed);
+  if(!bl.length){                       // texto suelto sin párrafo: se envuelve
+    try{document.execCommand('formatBlock',false,'div')}catch(e){}
+    bl=richBlocks(ed);
+  }
+  bl=bl.filter(b=>ed.contains(b)&&!b.closest('.lp-nota'));
+  if(!bl.length)return false;
+  const nota=document.createElement('div');
+  nota.className=clase;
+  bl[0].parentNode.insertBefore(nota,bl[0]);
+  bl.forEach((b,i)=>{
+    if(i)nota.appendChild(document.createElement('br'));
+    while(b.firstChild)nota.appendChild(b.firstChild);
+    b.remove();
+  });
+  if(!nota.firstChild)nota.appendChild(document.createElement('br'));
+  if(ed.contains(nota))richCursorEn(nota);
+  return true;
+}
+/* ══ EL AVISO, ESCRIBIÉNDOLO ══
+   Al principio de un renglón:
+     !   y un espacio → OJO
+     !!  y un espacio → RECUERDA
+     ?   y un espacio → DUDA
+   Es el mismo mecanismo del guion que se convierte en lista (richGuionALista):
+   se comprueba que no haya nada más escrito antes en ese renglón, se borra el
+   signo dejando que lo borre el propio navegador, y el párrafo se vuelve nota.
+
+   POR QUÉ ASÍ Y NO CON CONTROL + UNA TECLA: el navegador se queda con casi
+   todas las combinaciones de Control (Ctrl+R recarga, Ctrl+D marca la página,
+   Ctrl+1 cambia de pestaña…), y las que quedan libres hoy pueden dejar de
+   estarlo mañana. Además, en el iPad no hay teclado. Escribiendo un signo
+   funciona en todas partes y no hay nada que memorizar. */
+const RICH_SIGNO_NOTA={'!':'ojo','!!':'rec','?':'dud'};
+function richSignoANota(ed){
+  const sel=window.getSelection();
+  if(!ed||!sel||!sel.rangeCount||!sel.isCollapsed)return false;
+  const r=sel.getRangeAt(0);
+  const nodo=r.startContainer;
+  if(!nodo||nodo.nodeType!==3||!ed.contains(nodo))return false;
+  const el=nodo.parentElement;
+  if(el&&el.closest('.lp-nota'))return false;                 // ya es una nota
+  const antes=(nodo.nodeValue||'').slice(0,r.startOffset);
+  const m=/^\s*(!!|!|\?)$/.exec(antes);
+  if(!m)return false;                                         // hay más escrito
+  if(!richNadaAntesEnElRenglon(ed,nodo))return false;
+  const rr=document.createRange();
+  rr.setStart(nodo,r.startOffset-antes.length);
+  rr.setEnd(nodo,r.startOffset);
+  sel.removeAllRanges();sel.addRange(rr);
+  document.execCommand('delete');
+  return richANota(ed,'lp-nota lp-nota-'+RICH_SIGNO_NOTA[m[1]],true);
+}
 function richInsertBloque(k,ed,restore){
   if(k==='salir'){richSalirAbajo(ed);return}
   /* ══ UNA NOTA SÍ PUEDE IR DENTRO DE UN RECUADRO ══
@@ -3727,6 +3803,12 @@ function richInsertBloque(k,ed,restore){
      sabe dibujar eso (una caja se exporta como una tabla de una casilla, y la
      de dentro se perdería sin avisar). */
   const esNota=k.indexOf('nota')===0;          // 'nota' y 'nota-rec', 'nota-ojo'…
+  /* Convertir va ANTES de nada: richSalirDeBloque mueve el cursor y se llevaría
+     por delante lo que tuvieras seleccionado. */
+  if(esNota){
+    const t=k.slice(5);
+    if(richANota(ed,'lp-nota'+(t?' lp-nota-'+t:'')))return;
+  }
   const bloAct=richBloqueDe(richNodoCursor(ed),ed);
   const enCaja=!!(bloAct&&bloAct.classList&&
     (bloAct.classList.contains('lp-caja')||bloAct.classList.contains('lp-cita')));
@@ -4826,6 +4908,10 @@ function wireRichToolbar(tb,ed){
      condiciones, el espacio es un espacio normal y no pasa nada. */
   ed.addEventListener('keydown',e=>{
     if(e.key!==' '||e.shiftKey||e.ctrlKey||e.metaKey||e.altKey)return;
+    /* "!", "!!" o "?" al empezar el renglón → aclaración con aviso
+       (ver richSignoANota). Va antes que el guion porque son signos
+       distintos y no pueden confundirse entre sí. */
+    if(richSignoANota(ed)){e.preventDefault();return}
     if(richGuionALista(ed))e.preventDefault();
   });
 
