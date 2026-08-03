@@ -629,6 +629,16 @@ body.fullscreen #rd-bottom-show{display:none}
 .rv-filters select{width:100%;min-height:44px;border-radius:12px;border:1px solid var(--border);
   background:var(--bg2);color:var(--ink);font-size:14.5px;padding:0 10px;font-family:var(--font)}
 
+/* ═══ HORAS POR DÍA (barritas del panel de Progreso) ═══
+   Treinta barras, una por día, de altura proporcional a lo estudiado. La de
+   hoy va marcada. Los días sin nada llevan una rayita gris en vez de nada, para
+   que se vea el hueco y se entienda que la escala es continua. */
+.st-dias{display:flex;align-items:flex-end;gap:2px;height:58px;margin:4px 0 3px}
+.st-dia{flex:1;display:flex;align-items:flex-end;justify-content:center;height:100%;min-width:0}
+.st-barra{width:100%;background:var(--acento);border-radius:3px 3px 0 0;min-height:1px}
+.st-dia.vacio .st-barra{background:var(--border)}
+.st-dia.hoy .st-barra{background:var(--ink2)}
+.st-dias-pie{display:flex;justify-content:space-between;font-size:10px;color:var(--ink3);margin-bottom:8px}
 /* ══ PROGRESO (estadísticas) ══
    Todo se calcula al vuelo desde annotations y las claves que ya existen:
    este panel NO guarda ningún dato nuevo. */
@@ -2529,7 +2539,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v184'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v185'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -6473,6 +6483,42 @@ function renderStats(){
   add(`<div class="st-time">${t.s?fmtDur(t.s):'—'}</div>`);
   add(`<div class="st-pct">${hoy?'Hoy '+fmtDur(hoy)+' · ':''}${dias} día${dias!==1?'s':''} con este documento</div>`);
 
+  /* ══ HORAS POR DÍA ══
+     Los segundos de cada fecha ya se venían guardando (tiempoDoc.d), pero no se
+     enseñaban en ninguna parte: el panel solo decía el total. Aquí se ven, y
+     sumando TODOS los documentos, que es lo que de verdad se quiere saber al
+     estudiar ("¿cuánto llevo hoy?", no "¿cuánto llevo hoy de este PDF?").
+     NO SE GUARDA NADA NUEVO: se leen las claves lp_time_ que ya existen, así
+     que los días de atrás salen desde el primer momento. */
+  const porDia=horasPorDia();
+  const hoyG=porDia[hoyISO()]||0;
+  const base=new Date();
+  const dd=[];
+  for(let i=29;i>=0;i--){
+    const f=new Date(base.getFullYear(),base.getMonth(),base.getDate()-i);
+    const iso=f.getFullYear()+'-'+String(f.getMonth()+1).padStart(2,'0')+'-'+String(f.getDate()).padStart(2,'0');
+    dd.push({f,seg:porDia[iso]||0});
+  }
+  /* el suelo de 30 min evita que un día de 5 minutos llene la barra entera y
+     parezca una jornada de estudio */
+  const maxD=Math.max(1800,...dd.map(x=>x.seg));
+  const sem=dd.slice(-7).reduce((a,x)=>a+x.seg,0);
+  const total30=dd.reduce((a,x)=>a+x.seg,0);
+  add(`<div class="st-sec">HORAS POR DÍA · TODOS LOS DOCUMENTOS</div>`);
+  const graf=document.createElement('div');graf.className='st-dias';
+  dd.forEach((x,i)=>{
+    const c=document.createElement('div');c.className='st-dia'+(x.seg?'':' vacio');
+    c.title=x.f.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})+
+            ': '+(x.seg?fmtDur(x.seg):'nada');
+    if(i===dd.length-1)c.classList.add('hoy');
+    const b=document.createElement('div');b.className='st-barra';
+    b.style.height=(x.seg?Math.max(3,Math.round(x.seg/maxD*54)):1)+'px';
+    c.appendChild(b);graf.appendChild(c);
+  });
+  box.appendChild(graf);
+  add(`<div class="st-dias-pie"><span>hace 30 días</span><span>hoy</span></div>`);
+  add(`<div class="st-pct">Hoy ${hoyG?fmtDur(hoyG):'nada todavía'} · últimos 7 días ${sem?fmtDur(sem):'nada'} · últimos 30 ${total30?fmtDur(total30):'nada'}</div>`);
+
   const pct=s.pags?Math.round(s.pagsTocadas/s.pags*100):0;
   add(`<div class="st-sec">PÁGINAS TRABAJADAS</div>`);
   add(`<div class="st-track"><div class="st-fill" style="width:${pct}%"></div></div>`);
@@ -7089,6 +7135,23 @@ const TIEMPO_QUIETO=300000;    // 5 minutos sin tocar nada = ya no estás delant
 function hoyISO(){
   const d=new Date();
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+/* Suma los segundos de CADA FECHA de todos los documentos: {'2026-08-03':5400}.
+   Se recorre localStorage a pelo porque las horas viven en una clave por
+   documento (lp_time_<id>) y no hay ninguna lista central de documentos que
+   valga aquí: así entran también los PDF que ya borraste, que también fueron
+   horas de estudio. Solo se lee; no escribe nada. */
+function horasPorDia(){
+  const total={};
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(!k||k.indexOf('lp_time_')!==0)continue;
+    let o=null;
+    try{o=JSON.parse(localStorage.getItem(k)||'null')}catch(e){}
+    if(!o||!o.d)continue;
+    Object.keys(o.d).forEach(f=>{total[f]=(total[f]||0)+(o.d[f]||0)});
+  }
+  return total;
 }
 function saveTime(){
   if(!currentFileId||!tiempoDoc||!tiempoPend)return;
