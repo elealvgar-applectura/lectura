@@ -2470,7 +2470,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v172'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v173'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -10294,7 +10294,7 @@ function resumenExportPDF(){
       const pg=b.frases[0].pg;
       const marca=(pg!==ultimaPg)?String(pageLabel(pg)):null;
       ultimaPg=b.frases[b.frases.length-1].pg;
-      P.parrafos([{bullet:null,sangria:0,runs}],null,10.4,marca);
+      P.parrafos([{bullet:null,sangria:0,runs}],null,PDF_CUERPO,marca);
     });
     P.guardar('Resumen','Resumen exportado en PDF');
   });
@@ -13330,14 +13330,22 @@ function richToRuns(html){
   return paras.filter(p=>p.img||p.tabla||p.sep||p.runs.some(r=>r.t&&r.t.trim()));
 }
 
+/* ══ TAMAÑOS DEL PDF ══
+   EL CUERPO DEL TEXTO VA A 12 PUNTOS, que es el tamaño normal de un documento
+   en papel (el que usa Word por defecto). Antes iba a 10 y 9,6 y salía un
+   documento apretado, de folleto más que de apuntes.
+   Todo lo demás cuelga de ese número: los rótulos tienen que quedar POR ENCIMA
+   del cuerpo o un epígrafe se vería más pequeño que su propio texto, que es lo
+   que pasaba al subir el cuerpo sin tocar esta tabla. */
+const PDF_CUERPO=12;
 /* estilo de cada nivel de profundidad: el 0 es el rótulo con banda de color
    (un tema, un nodo raíz, un proceso…) y los demás van cayendo hacia dentro */
 const PDF_LV=[
-  {size:14.5,bold:true, ind:0,  gap:20},
-  {size:12,  bold:true, ind:18, gap:12},
-  {size:10.8,bold:true, ind:34, gap:8},
-  {size:10.2,bold:false,ind:50, gap:6},
-  {size:9.8, bold:false,ind:64, gap:5}    // y más hondos
+  {size:17,  bold:true, ind:0,  gap:20},
+  {size:14.5,bold:true, ind:18, gap:12},
+  {size:13.5,bold:true, ind:34, gap:8},
+  {size:12.6,bold:false,ind:50, gap:6},
+  {size:12.2,bold:false,ind:64, gap:5}    // y más hondos
 ];
 
 /* ══════════════════════════════════════════════════════════════════
@@ -13614,7 +13622,12 @@ function pdfExport(){
          tamaño y el color se deciden PÁRRAFO A PÁRRAFO y no una vez para
          todos, como se hacía antes. */
       const size=p.chico?sizeBase*.86:sizeBase;
-      const lh=size*1.42;
+      /* INTERLINEADO 1,5, el mismo que en la app.
+         El número es 1.75 y no 1.5 por lo mismo que en el CSS (ver RICH_LINEH):
+         el "1,5" de Word y del menú de la app no es 1,5 veces el alto de la
+         letra, sino 1,5 veces el renglón sencillo, que ya trae su propio aire.
+         Poner 1.5 aquí dejaría el papel más apretado que la pantalla. */
+      const lh=size*1.75;
       const colBase=p.chico?INK2:colorBase;
       /* ── SEPARADOR ── una raya fina de lado a lado */
       if(p.sep){
@@ -13831,15 +13844,20 @@ function pdfExport(){
     /* texto con formato colgando de un apartado */
     cuerpo(html,prof,size){
       if(html==null||!String(html).trim())return;
-      dibujarRico(html,xDe(prof)+13,size||((prof||0)<=1?10:9.6),INK2);
+      /* MISMO tamaño a cualquier profundidad: antes el texto de un subnivel
+         salía más pequeño que el de arriba y, leído en papel, parecía menos
+         importante cuando muchas veces es lo contrario. */
+      dibujarRico(html,xDe(prof)+13,size||PDF_CUERPO,INK2);
     },
     /* párrafos ya troceados a mano (los usa el resumen, que colorea frase a
        frase); `marca` va al margen izquierdo de la primera línea */
-    parrafos(paras,x,size,marca){dibujarParrafos(paras,x==null?ML+13:x,size||10.4,INK,marca)},
+    parrafos(paras,x,size,marca){dibujarParrafos(paras,x==null?ML+13:x,size||PDF_CUERPO,INK,marca)},
     /* título del documento original dentro del resumen: sin banda ni punto,
        como el encabezado de un libro */
     titulo(texto,nivelT){
-      const tam=nivelT===1?15:nivelT===2?12.4:11;
+      /* por encima del cuerpo (12), o el título del libro se leería más
+         pequeño que el texto que lo sigue */
+      const tam=nivelT===1?17:nivelT===2?14:12.8;
       doc.setFont('helvetica','bold');doc.setFontSize(tam);
       const lineas=doc.splitTextToSize(String(texto||''),RIGHT-ML);
       const lh=tam*1.3;
