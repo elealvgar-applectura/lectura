@@ -2572,7 +2572,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v188'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v189'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -3015,6 +3015,7 @@ const RICH_TB_HTML=`
 <span class="rt-sep"></span>
 <button type="button" data-cmd="case" title="MAYÚSCULAS / minúsculas / Tipo oración">Aa</button>
 <button type="button" data-cmd="ordenar" title="Ordenar lo dictado: convierte el churro del dictado en guiones, recuadros y avisos"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h9M4 12h6.5M4 18h9"/><path d="M17.6 3.8l1.1 2.7 2.7 1.1-2.7 1.1-1.1 2.7-1.1-2.7-2.7-1.1 2.7-1.1z"/></svg></button>
+<button type="button" data-cmd="pegarApunte" title="Pegar un apunte con formato (el que te preparen en Claude)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M8.5 10h7M8.5 14h5"/></svg></button>
 <button type="button" data-cmd="image" title="Insertar una imagen"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 16-5-5L5 20"/></svg></button>
 <button type="button" data-cmd="table" title="Insertar una tabla"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16M15 4v16"/></svg></button>
 <button type="button" data-cmd="bloque" title="Recuadro, cita, nota pequeña o separador"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 10h10M7 14h6"/></svg></button>
@@ -4846,6 +4847,180 @@ document.addEventListener('focusin',e=>{
   if(t&&t.classList&&t.classList.contains('rich-ed'))chuletaAuto();
 });
 
+/* ══════════════════════════════════════════════════════════════════
+   PEGAR UN APUNTE CON FORMATO
+   ──────────────────────────────────────────────────────────────────
+   Para traerse un apartado ya montado desde fuera (por ejemplo el que te
+   preparen en un chat) sin tener que picar el formato a mano.
+
+   POR QUÉ NO VALE EL PEGADO NORMAL: el Ctrl+V de la app tira el formato a
+   propósito (ver el manejador de 'paste'), porque al pegar de una web o un
+   PDF venían fuentes y fondos ajenos que descuadraban la ficha. Eso está
+   bien y no se toca. Esto es una puerta aparte: lee el portapapeles y monta
+   el formato con las cajas y avisos de la casa.
+
+   EL TEXTO VIENE EN TEXTO PLANO, con marcas sencillas. Es a propósito: el
+   texto plano sobrevive intacto a cualquier copiar y pegar entre programas,
+   mientras que el HTML se destroza por el camino.
+
+       # Título          ## SUBTÍTULO        ### Epígrafe (subrayado)
+       - guion             - sub-guion (con dos espacios delante)
+       [caja] recuadro gris      [ojo] amarillo    [res] verde    [ej] rosa
+       [cita] cita del libro     [img] hueco para poner una imagen
+       !ojo aviso naranja        !duda azul        !rec rosa
+       | tabla | con | barras |
+       ---  separador
+       **negrita**  *cursiva*  __subrayado__  ==resaltado==   ->  se hace →
+
+   Las líneas normales que van detrás de una [caja] caen DENTRO de la caja
+   hasta que llega un renglón en blanco. */
+const APU_HILITE='#FFF0A6';
+
+function apuInline(s){
+  let h=esc(s);
+  h=h.replace(/--?&gt;/g,'→');
+  h=h.replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>');
+  h=h.replace(/__([^_]+)__/g,'<u>$1</u>');
+  h=h.replace(/==([^=]+)==/g,'<span style="background-color:'+APU_HILITE+'">$1</span>');
+  /* la cursiva va la ÚLTIMA y pide que delante haya un espacio o nada: si no,
+     se comería el segundo asterisco de una negrita */
+  h=h.replace(/(^|[\s(«"'-])\*([^*\n]+)\*/g,'$1<i>$2</i>');
+  return h;
+}
+
+/* Sublistas BIEN colgadas: dentro del <li> de arriba, no sueltas al lado de
+   la lista. Colgarlas mal rompe el PDF (ver richFixLists). */
+function apuLista(items,cur,nivel){
+  let html='<ul>';
+  while(cur.k<items.length){
+    const it=items[cur.k];
+    if(it.n<nivel)break;
+    if(it.n>nivel){
+      html=html.replace(/<\/li>$/,'');
+      html+=apuLista(items,cur,nivel+1)+'</li>';
+      continue;
+    }
+    html+='<li>'+it.h+'</li>';
+    cur.k++;
+  }
+  return html+'</ul>';
+}
+
+function apunteAHtml(txt){
+  const lin=String(txt||'').replace(/\r\n?/g,'\n').split('\n');
+  let out='',lista=[],caja=null,tabla=[];
+  const cierraLista=()=>{if(lista.length){out+=apuLista(lista,{k:0},0);lista=[]}};
+  const cierraCaja=()=>{
+    if(!caja)return;
+    out+='<div class="'+caja.cls+'">'+
+      (caja.cuerpo.length?caja.cuerpo:['<br>']).map(x=>'<div>'+x+'</div>').join('')+'</div>';
+    caja=null;
+  };
+  const cierraTabla=()=>{
+    if(!tabla.length)return;
+    const cab=tabla[0],cuerpo=tabla.slice(1);
+    out+='<table><thead><tr>'+cab.map(c=>'<th>'+(c||'<br>')+'</th>').join('')+'</tr></thead><tbody>'+
+      cuerpo.map(f=>'<tr>'+f.map(c=>'<td>'+(c||'<br>')+'</td>').join('')+'</tr>').join('')+
+      '</tbody></table>';
+    tabla=[];
+  };
+  const cierra=()=>{cierraLista();cierraCaja();cierraTabla()};
+
+  lin.forEach(cruda=>{
+    const l=cruda.replace(/\s+$/,''),t=l.trim();
+    if(!t){cierra();return}                       // renglón en blanco: cierra todo
+    let m;
+
+    if(/^\|.*\|$/.test(t)){                       // fila de tabla
+      cierraLista();cierraCaja();
+      if(/^\|[\s:|-]+\|$/.test(t))return;         // la fila de guiones de markdown
+      tabla.push(t.slice(1,-1).split('|').map(c=>apuInline(c.trim())));
+      return;
+    }
+    cierraTabla();
+
+    if(/^-{3,}$/.test(t)){cierra();out+='<hr class="lp-sep">';return}
+
+    if(m=/^!(ojo|duda|rec)\b[.:]?\s*(.*)$/i.exec(t)){
+      cierra();
+      out+='<div class="lp-nota lp-nota-'+m[1].toLowerCase()+'">'+apuInline(m[2]||'')+'</div>';
+      return;
+    }
+
+    if(m=/^\[(caja|gris|ojo|res|ej|cita|img)\]\s*(.*)$/i.exec(t)){
+      cierra();
+      const k=m[1].toLowerCase();
+      if(k==='img'){
+        /* Las imágenes no viajan en el texto: esto deja un hueco a la vista
+           para que la pongas tú con el botón de imagen y luego borres el
+           renglón. Se ve mucho, para que no se quede olvidado dentro. */
+        out+='<div class="lp-nota">⬚ Aquí va una imagen'+(m[2]?': '+apuInline(m[2]):'')+'</div>';
+        return;
+      }
+      const cls=k==='cita'?'lp-cita':'lp-caja lp-caja-'+(k==='caja'?'gris':k);
+      caja={cls:cls,cuerpo:m[2]?[apuInline(m[2])]:[]};
+      return;
+    }
+
+    if(m=/^(#{1,3})\s+(.+)$/.exec(t)){
+      cierra();
+      const n=m[1].length;
+      if(n===1)      out+='<div><b>'+apuInline(m[2])+'</b></div>';
+      else if(n===2) out+='<div><b>'+apuInline(m[2].toLocaleUpperCase('es'))+'</b></div>';
+      else           out+='<div><b><u>'+apuInline(m[2])+'</u></b></div>';
+      return;
+    }
+
+    if(m=/^(\s*)[-•*]\s+(.+)$/.exec(l)){          // guion (la sangría marca el nivel)
+      cierraCaja();cierraTabla();
+      lista.push({n:Math.min(3,Math.floor(m[1].length/2)),h:apuInline(m[2])});
+      return;
+    }
+
+    if(caja){caja.cuerpo.push(apuInline(t));return}   // renglón dentro de la caja
+    cierraLista();
+    out+='<div>'+apuInline(t)+'</div>';
+  });
+  cierra();
+  return out;
+}
+
+/* ── el botón ──
+   Va directo y se deshace con Ctrl+Z, igual que el de ordenar. */
+function richPegarApunte(ed){
+  const meter=txt=>{
+    if(!String(txt||'').trim()){showTip('El portapapeles está vacío');return}
+    let html=apunteAHtml(txt);
+    if(!html){showTip('No he sabido montar eso');return}
+    ed.focus();
+    /* SI YA HAY TEXTO DELANTE, PRIMERO UN RENGLÓN EN BLANCO. El navegador
+       deshace el <div> de la primera línea cuando el cursor está en medio de
+       un renglón escrito, y el apunte nuevo salía pegado al de antes en la
+       misma línea ("Apunte de antesMemoria de trabajo"). */
+    try{
+      const s=window.getSelection();
+      if(s&&s.rangeCount){
+        const r=document.createRange();
+        r.setStart(ed,0);r.setEnd(s.getRangeAt(0).startContainer,s.getRangeAt(0).startOffset);
+        if(r.toString().trim())html='<div><br></div>'+html;
+      }
+    }catch(e){}
+    document.execCommand('insertHTML',false,html);
+    richFixLists(ed);
+    showTip('Apunte pegado · Ctrl+Z lo deshace');
+  };
+  /* Igual que al pegar dentro de un recuadro: en el iPad, Safari saca su
+     propio botón de "Pegar" y al tocarlo el cuadro pierde el foco, así que
+     el cursor se recoloca DESPUÉS de que llegue el texto. */
+  if(!(navigator.clipboard&&navigator.clipboard.readText)){
+    showTip('Este aparato no deja leer el portapapeles');return;
+  }
+  const restore=richKeepSel(ed);
+  navigator.clipboard.readText()
+    .then(t=>{if(restore)restore();meter(t)})
+    .catch(()=>showTip('No he podido leer el portapapeles'));
+}
+
 /* ── insertar una imagen ──
    OJO CON EL TAMAÑO: la imagen se guarda DENTRO de la ficha, y las fichas del
    glosario, conclusiones y aclaraciones viven en localStorage, que es
@@ -5481,6 +5656,7 @@ function wireRichToolbar(tb,ed){
       if(cmd==='table'){openRichTable(btn,ed);return}
       if(cmd==='bloque'){openRichBloque(btn,ed);return}
       if(cmd==='ordenar'){richOrdenarDictado(ed);return}
+      if(cmd==='pegarApunte'){richPegarApunte(ed);return}
       if(cmd==='image'){richInsertImage(ed);return}
       if(cmd==='emoji'){openRichEmoji(btn,ed);return}
       if(cmd==='listOpts'){openListOpts(btn,ed);return}
