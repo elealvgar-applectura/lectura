@@ -2572,7 +2572,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v192'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v193'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -4910,10 +4910,17 @@ function apunteAHtml(txt){
   const lin=String(txt||'').replace(/\r\n?/g,'\n').split('\n');
   let out='',lista=[],caja=null,tabla=[];
   const cierraLista=()=>{if(lista.length){out+=apuLista(lista,{k:0},0);lista=[]}};
+  /* Los guiones de dentro de un recuadro se van juntando aparte y se sueltan
+     como lista DENTRO de la caja. Antes el guion cerraba la caja y la lista
+     salía fuera: no había forma de poner guiones dentro de un recuadro. */
+  const cajaSueltaLista=()=>{
+    if(caja&&caja.lista.length){caja.cuerpo.push(apuLista(caja.lista,{k:0},0));caja.lista=[]}
+  };
   const cierraCaja=()=>{
     if(!caja)return;
+    cajaSueltaLista();
     out+='<div class="'+caja.cls+'">'+
-      (caja.cuerpo.length?caja.cuerpo:['<br>']).map(x=>'<div>'+x+'</div>').join('')+'</div>';
+      (caja.cuerpo.length?caja.cuerpo.join(''):'<div><br></div>')+'</div>';
     caja=null;
   };
   const cierraTabla=()=>{
@@ -4958,7 +4965,7 @@ function apunteAHtml(txt){
         return;
       }
       const cls=k==='cita'?'lp-cita':'lp-caja lp-caja-'+(k==='caja'?'gris':k);
-      caja={cls:cls,cuerpo:m[2]?[apuInline(m[2])]:[]};
+      caja={cls:cls,cuerpo:m[2]?['<div>'+apuInline(m[2])+'</div>']:[],lista:[]};
       return;
     }
 
@@ -4980,12 +4987,19 @@ function apunteAHtml(txt){
     }
 
     if(m=/^(\s*)[-•*]\s+(.+)$/.exec(l)){          // guion (la sangría marca el nivel)
-      cierraCaja();cierraTabla();
-      lista.push({n:Math.min(3,Math.floor(m[1].length/2)),h:apuInline(m[2])});
+      const punto={n:Math.min(3,Math.floor(m[1].length/2)),h:apuInline(m[2])};
+      /* Si hay un recuadro abierto, el guion va DENTRO. Antes se cerraba la
+         caja aquí mismo y la lista se pintaba fuera, así que era imposible
+         poner guiones dentro de un recuadro. */
+      if(caja){caja.lista.push(punto);return}
+      cierraTabla();
+      lista.push(punto);
       return;
     }
 
-    if(caja){caja.cuerpo.push(apuInline(t));return}   // renglón dentro de la caja
+    /* renglón normal dentro de la caja: primero se sueltan los guiones que
+       hubiera pendientes, para que la lista quede por encima del párrafo */
+    if(caja){cajaSueltaLista();caja.cuerpo.push('<div>'+apuInline(t)+'</div>');return}
     cierraLista();
     out+='<div>'+apuInline(t)+'</div>';
   });
