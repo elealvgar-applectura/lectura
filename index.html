@@ -2572,7 +2572,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v189'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v190'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2991,7 +2991,7 @@ function richToPlain(html){
    de saber si la negrita estaba activa.
    ══════════════════════════════════════════════════════════════════ */
 const RICH_TB_HTML=`
-<button type="button" data-cmd="bold" title="Negrita (Ctrl+E o Ctrl+B)"><b>B</b></button>
+<button type="button" data-cmd="bold" title="Negrita (Ctrl+E)"><b>B</b></button>
 <button type="button" data-cmd="italic" title="Cursiva (Ctrl+D o Ctrl+I)"><i>I</i></button>
 <button type="button" data-cmd="underline" title="Subrayado (Ctrl+S o Ctrl+U)"><u>U</u></button>
 <button type="button" data-cmd="strikeThrough" title="Tachado"><s>S</s></button>
@@ -3014,8 +3014,8 @@ const RICH_TB_HTML=`
 <button type="button" data-cmd="lineH" title="Interlineado (espacio entre renglones)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 8V4m0 0L2.5 5.5M4 4l1.5 1.5M4 16v4m0 0 1.5-1.5M4 20l-1.5-1.5"/></svg></button>
 <span class="rt-sep"></span>
 <button type="button" data-cmd="case" title="MAYÚSCULAS / minúsculas / Tipo oración">Aa</button>
-<button type="button" data-cmd="ordenar" title="Ordenar lo dictado: convierte el churro del dictado en guiones, recuadros y avisos"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h9M4 12h6.5M4 18h9"/><path d="M17.6 3.8l1.1 2.7 2.7 1.1-2.7 1.1-1.1 2.7-1.1-2.7-2.7-1.1 2.7-1.1z"/></svg></button>
-<button type="button" data-cmd="pegarApunte" title="Pegar un apunte con formato (el que te preparen en Claude)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M8.5 10h7M8.5 14h5"/></svg></button>
+<button type="button" data-cmd="ordenar" title="Ordenar lo dictado: convierte el churro del dictado en guiones, recuadros y avisos (Ctrl+Mayús+O)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h9M4 12h6.5M4 18h9"/><path d="M17.6 3.8l1.1 2.7 2.7 1.1-2.7 1.1-1.1 2.7-1.1-2.7-2.7-1.1 2.7-1.1z"/></svg></button>
+<button type="button" data-cmd="pegarApunte" title="Pegar un apunte con formato, el que te preparen en el chat (Ctrl+B)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M8.5 10h7M8.5 14h5"/></svg></button>
 <button type="button" data-cmd="image" title="Insertar una imagen"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 16-5-5L5 20"/></svg></button>
 <button type="button" data-cmd="table" title="Insertar una tabla"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16M15 4v16"/></svg></button>
 <button type="button" data-cmd="bloque" title="Recuadro, cita, nota pequeña o separador"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 10h10M7 14h6"/></svg></button>
@@ -5368,6 +5368,34 @@ window.addEventListener('keydown',e=>{
   richRun(cmd);
   richWired.forEach(w=>{if(w.ed===ed)richUpdateState(w.tb,w.ed)});
   pintaSelFmt();
+},true);
+
+/* ── atajos de las dos acciones del dictado ──
+   Ctrl+B  ·  Ctrl+Shift+V   pegar un apunte con formato
+   Ctrl+Shift+O              ordenar lo dictado
+
+   LO DE CTRL+B TIENE LETRA PEQUEÑA. La negrita de esta app es Ctrl+E (ver
+   RICH_ATAJOS aquí arriba); el Ctrl+B lo hacía el NAVEGADOR por su cuenta
+   en los cuadros editables, y el botón lo anunciaba. Al quedárselo el
+   pegado, Ctrl+B DEJA DE PONER NEGRITA en toda la app. Se hizo a petición
+   expresa, sabiendo eso, y por eso el rótulo del botón de negrita ya no
+   nombra Ctrl+B: si algún día alguien lo echa de menos, se quita este
+   atajo y vuelve solo.
+   Ctrl+Shift+V queda de repuesto (y es "el otro pegar", al lado del Ctrl+V
+   en la memoria de los dedos). Las demás letras sueltas están cogidas:
+   E negrita, D cursiva, S subrayado. */
+window.addEventListener('keydown',e=>{
+  if(!(e.ctrlKey||e.metaKey)||e.altKey)return;
+  const k=(e.key||'').toLowerCase();
+  let acc=null;
+  if(!e.shiftKey&&k==='b')acc='pegar';
+  else if(e.shiftKey&&k==='v')acc='pegar';
+  else if(e.shiftKey&&k==='o')acc='ordenar';
+  if(!acc)return;
+  const ed=richEdActivo();
+  if(!ed)return;
+  e.preventDefault();e.stopPropagation();
+  if(acc==='pegar')richPegarApunte(ed); else richOrdenarDictado(ed);
 },true);
 
 const selFmt=document.createElement('div');
