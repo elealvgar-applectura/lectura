@@ -2572,7 +2572,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v191'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v192'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -4965,8 +4965,16 @@ function apunteAHtml(txt){
     if(m=/^(#{1,3})\s+(.+)$/.exec(t)){
       cierra();
       const n=m[1].length;
+      /* LOS ESCALONES TIENEN QUE VERSE DISTINTOS.
+         Al principio los tres salían en negrita normal, y como el apartado
+         ya trae SU título puesto por la app, quedaban tres o cuatro
+         renglones seguidos igual de gordos: no había forma de saber cuál
+         mandaba y la página se leía revuelta.
+         Ahora el ## va en gris (como los rótulos de sección de los apuntes
+         a mano) y el ### subrayado, así cada uno pesa distinto. */
       if(n===1)      out+='<div><b>'+apuInline(m[2])+'</b></div>';
-      else if(n===2) out+='<div><b>'+apuInline(m[2].toLocaleUpperCase('es'))+'</b></div>';
+      else if(n===2) out+='<div><b><span style="color:#8A84A0">'+
+                          apuInline(m[2].toLocaleUpperCase('es'))+'</span></b></div>';
       else           out+='<div><b><u>'+apuInline(m[2])+'</u></b></div>';
       return;
     }
