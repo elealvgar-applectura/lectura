@@ -2572,7 +2572,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v190'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v191'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -14784,6 +14784,16 @@ function pdfExport(){
      No bajar mucho más: por debajo de ~30 pt hay impresoras que recortan. */
   const ML=32,MT=38,MB=40,RIGHT=doc.internal.pageSize.getWidth()-32;
   const INK=[74,68,88],INK2=[104,98,120],INK3=[152,146,168];
+  /* ── INTERLINEADO DEL TEXTO, UNO SOLO PARA TODO EL DOCUMENTO ──
+     Antes había dos números distintos: 1.2 en los párrafos normales y 1.3
+     dentro de los recuadros y las tablas (que se dibujan con el mismo
+     código: un recuadro se exporta como una tabla de una casilla). Se
+     notaba a simple vista — el texto de dentro de las cajas salía más
+     suelto que el de fuera, en la misma página y con la misma letra.
+     A partir de aquí SE USA ESTE, y solo este. Si algún día hay que
+     apretar o soltar los renglones, se cambia este número y cambia el
+     documento entero a la vez. */
+  const LH=1.2;
   const nom=(currentFileName||'Documento').replace(/\.[^.]+$/,'');
   let y=MT;
 
@@ -14869,7 +14879,7 @@ function pdfExport(){
     const esCita=tb.caja==='cita';
     const pad=tb.caja?(esCita?5:9):4;      // aire por arriba y por abajo
     const padL=tb.caja?11:4;               // …y por la izquierda (la cita, tras su barra)
-    const lh=size*1.3;
+    const lh=size*LH;          // el mismo que fuera de la caja (ver LH)
     /* parte el texto de cada celda en renglones que quepan en SU columna.
        Cada renglón es {segs, aire}: `aire` marca el que empieza párrafo nuevo,
        para dejarle un respiro por encima y que no parezca todo el mismo
@@ -15001,8 +15011,10 @@ function pdfExport(){
          1.2 es lo que usa un documento normal de estudio: los renglones quedan
          juntos pero sin tocarse, como en unos apuntes de toda la vida.
          PANTALLA Y PAPEL NO TIENEN POR QUÉ LLEVAR EL MISMO NÚMERO: son dos
-         formatos distintos y el ojo pide cosas distintas en cada uno. */
-      const lh=size*1.2;
+         formatos distintos y el ojo pide cosas distintas en cada uno.
+         El número vive ahora en LH, arriba, para que sea el mismo aquí y
+         dentro de los recuadros y las tablas. */
+      const lh=size*LH;
       const colBase=p.chico?INK2:colorBase;
       /* ── SEPARADOR ── una raya fina de lado a lado */
       if(p.sep){
