@@ -2572,7 +2572,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v187'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v188'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -4345,7 +4345,10 @@ const ORD_MULETILLAS=[
   /\bse puede decir que\b/gi,
   /\bpor as[ií] decirlo\b/gi,
   /\bdigamos que\b/gi,
-  /\bcomo digo\b/gi
+  /\bcomo digo\b/gi,
+  /\b(?:a ver )?vamos a ver\b/gi,
+  /\ba ver vamos\b/gi,
+  /\bla cosa es que\b/gi
 ];
 
 /* Sitios donde se parte el churro. El orden importa poco (todos meten una
@@ -4359,7 +4362,10 @@ const ORD_CORTES=[
   /\b(?:seg[uú]n|el estudio de)\s+/gi,
   /\bY\s+adem[aá]s\b/g,
   /\bpor un lado\b|\bpor otro(?:\s+lado)?\b/gi,
-  /\b(?:a diferencia de|en cambio|mientras que|frente a|sin embargo)\b/gi,
+  /* "frente a" NO corta: para ti es un "versus" dentro de la misma etiqueta
+     ("Nombres frente a verbos", "Seres vivos frente a objetos"), no un
+     cambio de idea. Cortando ahí salían dos guiones donde va uno. */
+  /\b(?:a diferencia de|en cambio|mientras que|sin embargo)\b/gi,
   /\b(?:en resumen|en definitiva)\b/gi,
   /\b(?:no me queda claro|esto lo tengo que mirar|esto no lo entiendo)\b/gi,
   /\b(?:ojo|cuidado|no confundir)\b/gi,
@@ -4444,7 +4450,17 @@ function ordOrdenes(t){
   t=t.replace(/\baviso\s+ojo\b/gi,ORD_CORTE+'«3»');
   t=t.replace(/\baviso\s+duda\b/gi,ORD_CORTE+'«4»');
   t=t.replace(/\baviso\s+recuerda\b/gi,ORD_CORTE+'«5»');
+  /* "APARTE" Y "GUIÓN": las dos palabras que más usas al dictar y que
+     faltaban. "Aparte" es tu punto y aparte de toda la vida; "guión" es un
+     punto de lista. Y muchas veces van juntas ("Aparte guión Seres vivos"),
+     que es párrafo nuevo Y guion: como el guion ya rompe el párrafo por su
+     cuenta, las dos juntas se tratan como un guion y ya está.
+     El orden importa: primero las dos juntas, luego cada una suelta. */
+  t=t.replace(/\baparte[,]?\s+gui[oó]n(?:es)?\b/gi,ORD_CORTE+'«6»');
   t=t.replace(/\bnuevo\s+gui[oó]n\b/gi,ORD_CORTE+'«6»');
+  t=t.replace(/\bgui[oó]n(?:es)?\b/gi,ORD_CORTE+'«6»');
+  t=t.replace(/\bpunto\s+y\s+aparte\b/gi,ORD_CORTE+'«8»');
+  t=t.replace(/\baparte\b/gi,ORD_CORTE+'«8»');
   t=t.replace(/\bnuevo\s+t[ií]tulo\b/gi,ORD_CORTE+'«7»');
   return t;
 }
@@ -4551,27 +4567,62 @@ function ordMonta(frases){
   frases.forEach(f=>{
     let m;
     /* órdenes dichas a propósito: mandan por encima de los conectores */
-    if(m=/^«([1-7])»\s*(.*)$/.exec(f)){
-      uds.push({t:{'1':'caja','2':'cita','3':'ojo','4':'duda','5':'rec','6':'guion','7':'titulo'}[m[1]],x:m[2]});
+    if(m=/^«([1-8])»\s*(.*)$/.exec(f)){
+      const tipo={'1':'caja','2':'cita','3':'ojo','4':'duda','5':'rec','6':'guion','7':'titulo','8':'corte'}[m[1]];
+      /* "aparte" solo corta; lo que venga detrás es un párrafo normal */
+      if(tipo==='corte'){uds.push({t:'corte'});if(m[2])uds.push({t:'parrafo',x:m[2]});return}
+      uds.push({t:tipo,x:m[2]});
       return;
     }
     /* "Vale" a secas: te lo has llevado una orden por delante ("Vale, nuevo
        título…"). No es texto del apunte, así que fuera. */
     if(/^vale[.,]?$/i.test(f))return;
     /* "Vale, declive cognitivo y bilingüismo…" → el título del apartado */
-    if(m=/^vale[,]?\s+(?:ahora\s+)?(?:vamos\s+a\s+ver\s+)?(.+)$/i.exec(f)){
-      const p=m[1].split(/\s+/);
-      /* como mucho 6 palabras: tus títulos son cortos, y pasarse significa
-         tragarse el principio de la explicación */
+    /* "VALE" NO ES UN TÍTULO, ES UN "VENGA, SIGO". Antes cualquier "vale"
+       abría título, y en un dictado largo lo dices muchas veces: salían
+       títulos absurdos en medio ("A ver vamos", "Se estuvo estudiando
+       hecho trastorno"). Ahora solo puede ser título el PRIMER "vale" de
+       todo, y aun así solo si detrás queda un tema de verdad. Los demás
+       cortan párrafo, que es lo que significan. Para poner un título a
+       propósito está la orden "nuevo título". */
+    if(m=/^vale\b[,]?\s*(.*)$/i.exec(f)){
+      /* las muletillas se quitan ANTES de decidir: si no, "Vale a ver vamos"
+         se tomaba por título y luego se quedaba en un renglón vacío */
+      const resto=(m[1]||'').replace(/^(?:vale\b[,\s]*)+/i,'')
+                            .replace(/^(?:ahora|ya|bueno)\b[,\s]*/i,'');
+      /* El título ACABA donde empieza la muletilla, no se la salta: si se
+         quitara sin más, se pegaría lo de después ("…y bilingüismo en
+         [se puede decir que] HABLAR dos lenguas") y el título se llevaría
+         media explicación.
+         PERO LO DE DETRÁS NO SE TIRA NUNCA. Aquí se perdió una vez entero
+         ("los costes cognitivos del bilingüismo" desapareció del apunte
+         porque la muletilla iba al principio). Todo lo que no acabe siendo
+         título tiene que salir igual, en un párrafo. */
+      let hasta=resto.length;
+      ORD_MULETILLAS.forEach(re=>{
+        re.lastIndex=0;const mm=re.exec(resto);
+        if(mm&&mm.index<hasta)hasta=mm.index;
+      });
+      const cab=resto.slice(0,hasta).replace(/\s+/g,' ').trim();
+      const cola=resto.slice(hasta).replace(/\s+/g,' ').trim();
+      const p=cab?cab.split(/\s+/):[];
       let n=Math.min(6,p.length);
-      /* y sin acabar en palabra de enlace ("…y bilingüismo EN") */
       while(n>1&&ORD_TIT_FIN.test(p.slice(0,n).join(' ')))n--;
-      uds.push({t:'titulo',x:p.slice(0,n).join(' ')});
-      if(p.length>n)uds.push({t:'parrafo',x:p.slice(n).join(' ')});
+      const tit=p.slice(0,n).join(' ');
+      if(!uds.length&&tit){
+        uds.push({t:'titulo',x:tit});
+        const sobra=(p.slice(n).join(' ')+' '+cola).trim();
+        if(sobra)uds.push({t:'parrafo',x:sobra});
+      }else{
+        uds.push({t:'corte'});
+        const todo=(cab+' '+cola).trim();
+        if(todo)uds.push({t:'parrafo',x:todo});
+      }
       return;
     }
     /* "Dos consecuencias negativas…" → cabecera con el recuento */
-    if(m=/^(dos|tres|cuatro|cinco|seis)\s+(\p{L}+(?:\s+\p{L}+)?)\s*(.*)$/iu.exec(f)){
+    /* también con cifra: al dictar dices "3 tipos", no "tres tipos" */
+    if(m=/^(dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|[2-9]|1\d)\s+(\p{L}+(?:\s+\p{L}+)?)\s*(.*)$/iu.exec(f)){
       /* sin arrastrar palabras de enlace: "dos componentes EL" → "DOS COMPONENTES" */
       let cab=m[1]+' '+m[2],sobra='';
       while(ORD_TIT_FIN.test(cab)&&cab.split(/\s+/).length>2){
@@ -4621,24 +4672,40 @@ function ordMonta(frases){
     (u.mas||[]).map(x=>'<div>'+ordEscapa(ordRemata(ordDentro(x)))+'</div>').join('');
 
   /* los guiones seguidos van todos en la MISMA lista, como se escriben a mano */
-  let out='',lista=[];
-  const cierra=()=>{
+  /* LAS FRASES SEGUIDAS VAN EN EL MISMO PÁRRAFO.
+     Antes cada frase era su propio renglón, y como el dictado pone mayúscula
+     en cada pausa tuya, un apartado largo salía en veinte renglones sueltos:
+     un churro con puntos. Las mayúsculas siguen sirviendo para saber dónde
+     va el punto, pero ya NO parten el párrafo. Quien parte el párrafo eres
+     tú, diciendo "aparte" (o "vale"), que para eso lo dices. */
+  let out='',lista=[],parr=[];
+  const cierraL=()=>{
     if(!lista.length)return;
     out+='<ul>'+lista.map(x=>'<li>'+x+'</li>').join('')+'</ul>';
     lista=[];
   };
+  const cierraP=()=>{
+    if(!parr.length)return;
+    out+='<div>'+parr.join(' ')+'</div>';
+    parr=[];
+  };
+  const cierra=()=>{cierraL();cierraP()};
   uds.forEach(u=>{
+    if(u.t==='corte'){cierra();return}
     if(!String(u.x||'').trim()&&!(u.mas&&u.mas.length))return;   // nunca un bloque vacío
     const cuerpo=ordEscapa(ordRemata(ordDentro(u.x)));
     if(u.t==='guion'){
+      cierraP();
       lista.push(u.et?'<b>'+esc(ordRemata(u.et))+'</b> '+cuerpo:cuerpo);
       return;
     }
+    if(u.t==='parrafo'){cierraL();parr.push(cuerpo);return}
     cierra();
     /* el título va en mayúscula inicial pero SIN punto final */
     if(u.t==='titulo'){
       const x=ordDentro(u.x);
-      out+='<div><b>'+ordEscapa(x.charAt(0).toLocaleUpperCase('es')+x.slice(1))+'</b></div>';
+      /* si al limpiar se ha quedado en nada, no se pone un renglón vacío */
+      if(x.trim())out+='<div><b>'+ordEscapa(x.charAt(0).toLocaleUpperCase('es')+x.slice(1))+'</b></div>';
     }
     else if(u.t==='cabecera') out+='<div><b>'+esc(u.x)+':</b></div>';
     else if(u.t==='caja')     out+='<div class="lp-caja lp-caja-'+(u.alt?'ojo':'gris')+'">'+cuerpo2(u,cuerpo)+'</div>';
@@ -4652,6 +4719,7 @@ function ordMonta(frases){
   cierra();
   return out;
 }
+
 
 /* ── el botón ──
    Funciona igual que el de MAYÚSCULAS: sobre lo que tengas MARCADO y nada
@@ -4694,7 +4762,8 @@ function richOrdenarDictado(ed){
    miente es peor que no tener chuleta. */
 const CHULETA=[
   ['Hablando normal',[
-    ['"Vale, [tema]"','Título'],
+    ['"Vale, [tema]" (solo al empezar)','Título'],
+    ['"vale" en medio','Párrafo nuevo'],
     ['"vamos con X" · "en cuanto a X"','Guion con X en negrita'],
     ['"dos/tres [cosas]"','Cabecera con el recuento'],
     ['"un experimento" · "otro experimento" · "según…" · "el estudio de"','Abre recuadro'],
@@ -4710,7 +4779,9 @@ const CHULETA=[
     ['"etcétera"','etc.']
   ]],
   ['Órdenes que mandan',[
-    ['"nuevo guion"','Punto de lista'],
+    ['"aparte"','Párrafo nuevo'],
+    ['"guión"','Punto de lista'],
+    ['"aparte guión"','Párrafo nuevo con guion'],
     ['"nuevo título"','Título'],
     ['"abre recuadro" … "cierra recuadro"','Recuadro'],
     ['"abro cita" … "cierro cita"','Cita del libro'],
