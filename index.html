@@ -2580,7 +2580,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v194'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v195'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2999,6 +2999,9 @@ function richToPlain(html){
    de saber si la negrita estaba activa.
    ══════════════════════════════════════════════════════════════════ */
 const RICH_TB_HTML=`
+<button type="button" data-cmd="undo" title="Deshacer (Ctrl+Z)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 9.5h11a5 5 0 0 1 0 10h-6"/><path d="M8.5 5.5l-4 4 4 4"/></svg></button>
+<button type="button" data-cmd="redo" title="Rehacer (Ctrl+Mayús+Z)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 9.5h-11a5 5 0 0 0 0 10h6"/><path d="M15.5 5.5l4 4-4 4"/></svg></button>
+<span class="rt-sep"></span>
 <button type="button" data-cmd="bold" title="Negrita (Ctrl+E)"><b>B</b></button>
 <button type="button" data-cmd="italic" title="Cursiva (Ctrl+D o Ctrl+I)"><i>I</i></button>
 <button type="button" data-cmd="underline" title="Subrayado (Ctrl+S o Ctrl+U)"><u>U</u></button>
@@ -5701,6 +5704,29 @@ function wireRichToolbar(tb,ed){
     btn.addEventListener('pointerdown',e=>e.preventDefault());
     btn.addEventListener('click',e=>{
       e.preventDefault();
+      /* ── DESHACER / REHACER ──
+         Es el deshacer del PROPIO navegador. Funciona porque en toda la app
+         los cambios de texto se hacen con execCommand y no tocando el HTML a
+         mano: por eso están los avisos de "se usa execCommand para que el
+         deshacer siga funcionando" repartidos por el código. Si algún día se
+         cambia algo de eso por manipulación directa del DOM, ESTOS BOTONES
+         dejarán de deshacer ese cambio, aunque parezca que no tiene nada que
+         ver.
+         Hacen falta porque en el iPad no hay Ctrl+Z y no había ninguna forma
+         de volver atrás. Cuando no queda nada que deshacer se avisa: si no,
+         tocas y no pasa nada y parece que el botón está roto. */
+      if(cmd==='undo'||cmd==='redo'){
+        ed.focus();
+        let puede=true;
+        try{puede=document.queryCommandEnabled(cmd)}catch(err){puede=true}
+        if(!puede){
+          showTip(cmd==='undo'?'No hay nada que deshacer':'No hay nada que rehacer',1400);
+          return;
+        }
+        document.execCommand(cmd);
+        richUpdateState(tb,ed);
+        return;
+      }
       if(cmd==='richLink'){
         /* vincular con una ficha: no es un comando del navegador, primero hay
            que preguntar QUÉ ficha. Aquí NO se hace ed.focus(): destruiría la
