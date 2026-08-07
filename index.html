@@ -2580,7 +2580,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v196'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v197'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -8717,10 +8717,40 @@ async function getPageLines(num){
     const page=await pdfDoc.getPage(slot.pdfNum);
     const vp=page.getViewport({scale:1});
     const tc=await page.getTextContent();
+    /* ══ EL TAMAÑO DE LETRA DE LOS EMOJIS ES MENTIRA ══
+       Un emoji (⬆️ ⚠️ ✅…) viene dentro del PDF con un tamaño de letra
+       disparatado aunque se vea pequeño: en los apuntes de psicofarma, 81,8
+       puntos metidos en un texto de 9,4. Y de ese número salían DOS cosas: el
+       alto de la banda del subrayador y el "¿estos trozos son de la misma
+       línea?". Así que un solo emoji hacía dos destrozos a la vez:
+         · la banda salía descomunal, tapando medio párrafo;
+         · se tragaba las líneas de alrededor dentro de un mismo renglón (la
+           tolerancia para juntar es el 45% del tamaño de letra: con 81 puntos,
+           36 píxeles arriba y abajo, o sea dos o tres renglones). La línea que
+           llevaba el emoji dejaba de existir por su cuenta y NO HABÍA FORMA DE
+           SUBRAYARLA: el lápiz se enganchaba a un renglón gigante que empezaba
+           tres líneas más arriba.
+       Se arregla midiendo primero la letra NORMAL de la página (la mediana,
+       contando cada carácter, que no se deja engañar por cuatro fragmentos
+       raros) y no dejando que ningún trozo pase del triple de eso. Un titular
+       de verdad cabe de sobra dentro de ese triple y no se toca: comprobado
+       sobre las 150 páginas de los apuntes, solo cambian las líneas con emoji.
+       OJO: el tope se aplica ANTES de agrupar, porque el problema gordo no era
+       el alto, era que juntaba líneas distintas. */
+    const alturas=[];
+    tc.items.forEach(it=>{
+      if(!it.str||!it.str.trim())return;
+      const t=pdfjsLib.Util.transform(vp.transform,it.transform);
+      const f=Math.hypot(t[2],t[3]);
+      if(f<=1)return;
+      for(let k=0;k<it.str.length;k++)alturas.push(f);
+    });
+    alturas.sort((a,b)=>a-b);
+    const fhTope=alturas.length?alturas[Math.floor(alturas.length/2)]*3:Infinity;
     tc.items.forEach(it=>{
       if(!it.str||!it.str.trim())return;
       const tx=pdfjsLib.Util.transform(vp.transform,it.transform);
-      const fh=Math.hypot(tx[2],tx[3]);
+      const fh=Math.min(Math.hypot(tx[2],tx[3]),fhTope);
       if(fh<=1)return;
       const top=tx[5]-fh, bottom=tx[5]+fh*.28;
       const x0=tx[4], x1=x0+(it.width||0);
