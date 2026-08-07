@@ -2580,7 +2580,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v195'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v196'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -8748,10 +8748,62 @@ async function getPageLines(num){
       r.mid = r.base - r.fh*0.30;
     });
     rows.sort((a,b)=>a.top-b.top);
+    limitaAlturaRenglones(rows);
     lineCache[num]=rows;textCache[num]=items;
   }catch(e){lineCache[num]=[];textCache[num]=[]}
   lineBusy[num]=false;
   return lineCache[num];
+}
+/* ══ UN RENGLÓN NO PUEDE SER MÁS ALTO QUE SU SITIO ══
+   El grosor de la banda del subrayador sale del tamaño de letra que DECLARA el
+   PDF (la caja de la fuente), no de la tinta que se ve. Y hay PDFs donde ese
+   tamaño declarado es enorme aunque las letras se vean normales: los que llevan
+   una capa de texto puesta por un escáner, los que estiran la letra desde la
+   matriz de texto, o una línea que mezcla un signo de una fuente gigante con
+   texto normal (el alto del renglón se quedaba con el MAYOR de todos).
+   Resultado: subrayabas un párrafo corriente y salía una banda descomunal, como
+   si hubiera detectado un titular donde no lo hay.
+
+   Se corrige con lo único que en un PDF nunca miente: la distancia entre líneas
+   base. Dos renglones de texto de verdad no se pisan, así que ninguno puede ser
+   mucho más alto que el hueco hasta su vecino de arriba o de abajo.
+
+   DOS AVISOS PARA EL FUTURO:
+     · solo cuentan como vecinos los renglones que se solapan en horizontal. En
+       un PDF a dos columnas, una línea de la columna de al lado no dice nada
+       del alto de ésta, y si contara dejaría bandas de un pelo.
+     · un titular de verdad NO se toca: alrededor tiene hueco de sobra, así que
+       su tope sale grande y se queda como estaba. Lo mismo el texto normal:
+       el alto de siempre (1,28 veces la letra) cabe de sobra en el interlineado
+       corriente, así que en un PDF sano esto no cambia ni un píxel. */
+function limitaAlturaRenglones(rows){
+  if(!rows||rows.length<2)return;
+  const topes=rows.map((r,i)=>{
+    let hueco=Infinity;
+    for(let j=0;j<rows.length;j++){
+      if(j===i)continue;
+      const o=rows[j];
+      if(Math.min(r.x1,o.x1)-Math.max(r.x0,o.x0)<=0)continue;   // otra columna: no opina
+      const d=Math.abs(o.base-r.base);
+      if(d>1&&d<hueco)hueco=d;
+    }
+    return hueco===Infinity?null:Math.max(6,hueco*1.15);
+  });
+  let tocado=false;
+  rows.forEach((r,i)=>{
+    const tope=topes[i];
+    if(tope==null||r.h<=tope)return;
+    r.h=tope;
+    /* se rehace el "alto de letra" que corresponde a esa banda (es la cuenta de
+       arriba al revés: h = 1,28·fh + 3) para que el centro del renglón y su
+       caja sigan cuadrando con la línea base, que es lo que se ve */
+    r.fh=Math.max(2,(r.h-3)/1.28);
+    r.top=r.base-r.fh-1.5;
+    r.bottom=r.top+r.h;
+    r.mid=r.base-r.fh*0.30;
+    tocado=true;
+  });
+  if(tocado)rows.sort((a,b)=>a.top-b.top);
 }
 /* ══════════════════════════════════════════════════════════════════
    RENGLONES DEL TEXTO ESCRITO ENCIMA (para poder subrayarlo)
