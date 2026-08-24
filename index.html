@@ -250,6 +250,13 @@ input,textarea{user-select:text!important;-webkit-user-select:text!important}
 .cchip.auto-tema .dot .ico{width:15px;height:15px}
 .cchip.auto-tema.apagado .dot{opacity:.4}
 .cchip.auto-tema.apagado .tag{opacity:.6}
+/* chip de FUNCION DEL SUBRAYADO: mismo lenguaje que el de tema automatico
+   (interruptor, no color). Va al FINAL de la barra, detras de los colores,
+   porque se toca justo despues de elegir el color: "este lo quiero con
+   funcion" o "este solo para marcar". */
+.cchip.hl-fun .dot .ico{width:15px;height:15px}
+.cchip.hl-fun.apagado .dot{opacity:.45}
+.cchip.hl-fun.apagado .tag{color:var(--ink);font-weight:700}
 
 /* canvas area */
 #canvas-wrap{flex:1;overflow:auto;background:var(--bg2);-webkit-overflow-scrolling:touch;position:relative;touch-action:pan-x pan-y;
@@ -2580,7 +2587,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v197'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v198'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2766,6 +2773,8 @@ const ICON={
   warm:'<circle cx="12" cy="9.4" r="3.4"/><path d="M12 2.8v1.5M18.2 9.4h1.5M4.3 9.4h1.5M16.4 5l1-1M6.6 4l1 1"/><path d="M5.6 16.6c1.4-1.2 2.9-1.2 4.3 0s2.9 1.2 4.3 0 2.9-1.2 4.3 0"/><path d="M5.6 20.2c1.4-1.2 2.9-1.2 4.3 0s2.9 1.2 4.3 0 2.9-1.2 4.3 0"/>',
   /* etiqueta: el chip de "tema automatico" de la barra de colores */
   tagAuto:'<path d="M12.7 3.8H19a1.2 1.2 0 0 1 1.2 1.2v6.3a1.2 1.2 0 0 1-.35.85l-7.7 7.7a1.2 1.2 0 0 1-1.7 0l-6.3-6.3a1.2 1.2 0 0 1 0-1.7l7.7-7.7a1.2 1.2 0 0 1 .85-.35Z"/><circle cx="16.2" cy="7.8" r="1.25"/>',
+  /* varita con chispas: el chip de "el subrayado hace ficha" */
+  varita:'<path d="M5.2 18.8 15.4 8.6"/><path d="M15.4 8.6 17.6 6.4a1.4 1.4 0 0 1 2 0l.4.4a1.4 1.4 0 0 1 0 2l-2.2 2.2Z"/><path d="M8.4 4.2v3M6.9 5.7h3M15.6 16.4v2.4M14.4 17.6h2.4"/>',
   plus:'<path d="M12 5.5v13M5.5 12h13"/>',
   /* ── ACCIONES DE FICHA ─────────────────────────────────────────────
      Mismo lenguaje que el resto: trazo unico, sin relleno. Sustituyen a
@@ -6710,6 +6719,11 @@ function buildColorBar(){
     b.onclick=()=>{setColor(cd.c,`${cd.n} · ${cd.t}`);showTip(`${cd.n} · ${cd.t}`,1100)};
     colorBar.appendChild(b);
   });
+  /* chip de FUNCIÓN: al final de la barra, detrás de todos los colores */
+  const fun=document.createElement('button');fun.className='cchip hl-fun';
+  fun.onclick=()=>toggleHlFun();
+  colorBar.appendChild(fun);
+  paintHlFunChip(fun);
   syncColorBar();
   /* las fichas nuevas se han añadido al final, detrás de la flecha derecha:
      hay que devolverla a su sitio */
@@ -6720,8 +6734,62 @@ function syncColorBar(){colorBar.querySelectorAll('.cchip').forEach(el=>{
      cosa y lo pinta paintAutoThemeChip. Sin esta línea, elegir cualquier color
      le apagaba el resalte. */
   if(el.classList.contains('auto-tema'))return;
+  /* lo mismo para el chip de función: tampoco es un color */
+  if(el.classList.contains('hl-fun'))return;
   el.classList.toggle('on',(el.dataset.c||'').toLowerCase()===curColor.toLowerCase());
 })}
+
+/* ══ INTERRUPTOR: ¿EL SUBRAYADO HACE FICHA? ══
+   Los colores llevan función: Definiciones va al glosario, Conclusiones a
+   conclusiones, Títulos/Subtítulos/Epígrafes/Guiones al mapa conceptual y
+   Aclaraciones abre su cuadro. A veces solo quieres MARCAR algo con ese color
+   sin que la app cree nada. Este chip apaga esa función para lo que subrayes
+   a partir de ahora.
+
+   POR QUÉ SE MARCA EL SUBRAYADO Y NO BASTA CON "no crear la ficha":
+   el glosario y las conclusiones se REHACEN solos leyendo el COLOR de todos
+   los subrayados (ver autoUpdateEnts). Si solo evitáramos crear la ficha en el
+   momento, en el siguiente repaso volvería a aparecer. Por eso cada subrayado
+   hecho con la función apagada guarda `nf:1` (sin función) y ese repaso lo
+   salta. Los subrayados de siempre no llevan la marca, así que se comportan
+   exactamente igual que antes: no se toca nada de lo que ya tienes.
+
+   Es un ajuste del APARATO (como el modo oscuro), no del documento: encendido
+   por defecto, y solo se guarda la clave cuando está APAGADO. */
+function isHlFun(){try{return localStorage.getItem('lp_hlfun')!=='0'}catch(e){return true}}
+function setHlFun(on){
+  try{
+    if(on)localStorage.removeItem('lp_hlfun');
+    else localStorage.setItem('lp_hlfun','0');
+  }catch(e){}
+  syncHlFunChip();
+}
+function paintHlFunChip(btn){
+  const on=isHlFun();
+  btn.classList.toggle('apagado',!on);
+  /* NO se le pone la clase `on` de los colores: ese aro grueso significa "este
+     es el color que estás usando" y aquí despistaría. El estado se lee en el
+     texto de debajo, que además va en negrita cuando está APAGADO, para que no
+     se te pase que llevas media hora subrayando sin que se cree nada. */
+  btn.innerHTML=`<div class="dot" style="background:var(--bg2);display:flex;align-items:center;justify-content:center;color:var(--ink2)">${svg('varita')}</div>`+
+    `<span class="tag">${on?'Con función':'Sin función'}</span>`;
+  btn.title = on
+    ? 'Los colores hacen su trabajo: definiciones al glosario, títulos al mapa conceptual… Toca para subrayar solo por marcar.'
+    : 'Subrayado normal: el color no crea fichas ni nodos. Toca para volver a activarlo.';
+}
+function syncHlFunChip(){
+  const btn=colorBar&&colorBar.querySelector('.cchip.hl-fun');
+  if(btn)paintHlFunChip(btn);
+}
+function toggleHlFun(){
+  const on=!isHlFun();
+  setHlFun(on);
+  /* si había una ficha a medias se deja como está: la barra de sesión sigue
+     ahí con su ✓ y su ×, y es la usuaria quien decide. Lo único que cambia es
+     que lo que subraye a partir de ahora ya no se suma al grupo. */
+  if(!on&&curGid)showTip('Sin función. La ficha que tienes a medias sigue abierta: ciérrala con ✓ o descártala con ×',3600);
+  else showTip(on?'Con función: los colores vuelven a crear fichas y nodos':'Sin función: subrayas solo para marcar',2400);
+}
 
 /* ══ CHIP DE TEMA AUTOMÁTICO ══
    Apagado (por defecto): la app pregunta el tema en cada ficha, como siempre.
@@ -8399,6 +8467,8 @@ function entKindForColor(c){
 }
 /* devuelve el gid al que debe pertenecer un subrayado nuevo (y abre grupo si toca) */
 function gidForHighlight(color){
+  /* interruptor de la barra de colores: apagado, ningún color hace ficha */
+  if(typeof isHlFun==='function'&&!isHlFun())return null;
   const kind=entKindForColor(color);
   if(!kind)return null;                       // color normal → no genera ficha
   if(curGid&&curGidKind===kind){curGidCount++;updateGidBar();return curGid}
@@ -9479,6 +9549,11 @@ function setupPageEvents(wrap,aCv,nl,num){
         const r1=v=>Math.round(v*10)/10;
         const rec={x:r1(bd.x),y:r1(bd.y),w:r1(bd.w),h:r1(bd.h),color:curColor,opacity:toolCfg.highlight.opacity,bold:colorBold(curColor)};
         if(gid)rec.gid=gid;
+        /* SIN FUNCIÓN: se marca el subrayado para que el glosario y las
+           conclusiones no lo recojan luego al rehacerse por color. Solo se
+           anota cuando el color TENÍA función; con un color normal no hace
+           falta y sería peso muerto en los datos. */
+        else if(!isHlFun()&&entKindForColor(curColor))rec.nf=1;
         ann.highlights.push(rec);added++;
       });
       if(!added&&gid&&curGidCount>0)curGidCount--;   // no se añadió nada: no lo cuentes
@@ -13529,7 +13604,9 @@ const DOC_KEY_PREFIXES=['lp_order_','lp_margin_','lp_nodes_','lp_embeds_','lp_bm
 const GLOBAL_KEYS=['lp_custompals','lp_toolcfg','lp_color','lp_boldstrength',
   'lp_boldbycolor','lp_bartab','lp_panelwin','lp_panelw','lp_dark','lp_warm','lp_paper','lp_gest',
   'lp_bottommin','lp_lastbackup','lp_autocorr','lp_dicc','lp_diccno','lp_richcols',
-  'lp_chuleta'];
+  'lp_chuleta',
+  /* interruptor "con función / sin función" de la barra de colores */
+  'lp_hlfun'];
 function collectGlobalData(){
   const out={};
   GLOBAL_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)out[k]=v});
@@ -13647,14 +13724,15 @@ async function autoUpdateEnts(kind){
   for(const slot of pageOrder){
     const pid=slot.pid;
     const ann=annotations[pid];if(!ann)continue;
-    if((ann.highlights||[]).some(h=>K.match(h.color)))pages.push(pid);
+    /* h.nf = subrayado hecho con la función apagada: es solo color, no ficha */
+    if((ann.highlights||[]).some(h=>K.match(h.color)&&!h.nf))pages.push(pid);
   }
   await Promise.all(pages.map(pid=>ensurePageText(pid)));
 
   /* agrupa por gid (o por subrayado suelto si es de una versión anterior) */
   const groups=new Map();
   for(const pg of pages){
-    (annotations[pg].highlights||[]).filter(h=>K.match(h.color)).forEach(h=>{
+    (annotations[pg].highlights||[]).filter(h=>K.match(h.color)&&!h.nf).forEach(h=>{
       const gid=h.gid||('solo-'+pg+'-'+Math.round(h.x)+'-'+Math.round(h.y));
       if(!groups.has(gid))groups.set(gid,{gid,page:pg,color:h.color,parts:[]});
       const g=groups.get(gid);
