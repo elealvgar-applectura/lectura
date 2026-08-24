@@ -2587,7 +2587,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v199'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v200'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -9190,8 +9190,19 @@ function hlPorToque(num,row,p){
   const hit=palabraEnPunto(num,row,p.x);
   if(!hit)return false;
   const ahora=Date.now();
-  const doble = tapHL && tapHL.pid===num && (ahora-tapHL.t)<450 &&
-                Math.abs(p.x-tapHL.px)<34 && Math.abs(p.y-tapHL.py)<22;
+  /* ══ ¿ESTO ES UN DOBLE TOQUE, O SON DOS PALABRAS SUELTAS? ══
+     Antes valía con que el segundo toque cayera CERCA (34 px). Pero 34 px es
+     casi una palabra entera: tocando rápido dos palabras seguidas de la misma
+     frase —para subrayar solo esas dos— se disparaba la frase completa.
+     Ahora el sitio manda: la frase solo sale si los dos toques han caído en LA
+     MISMA palabra. Tocar dos palabras distintas, por rápido que sea, deja las
+     dos palabras subrayadas y nada más.
+     El tiempo se queda CORTO a propósito (0,4 s, lo que dura un doble clic de
+     toda la vida). Elena subraya a veces la misma palabra dos veces seguidas
+     para remarcarla: dando los toques con calma se remarca, dándolos seguidos
+     sale la frase. Si el margen fuera largo, remarcar sería imposible. */
+  const doble = tapHL && tapHL.pid===num && (ahora-tapHL.t)<400 &&
+                hit.ri===tapHL.ri && hit.wi===tapHL.wi;
   let sel,gid;
   if(doble){
     /* fuera lo que puso el primer toque */
@@ -9220,7 +9231,7 @@ function hlPorToque(num,row,p){
   }
   /* tras un doble toque se empieza de cero: un tercer toque es una palabra
      nueva, no un "triple" */
-  tapHL = doble ? null : {pid:num,t:ahora,px:p.x,py:p.y,recs,gid,ri:hit.ri,wi:hit.wi};
+  tapHL = doble ? null : {pid:num,t:ahora,recs,gid,ri:hit.ri,wi:hit.wi};
   if(doble)showTip('Frase subrayada',900);
   return true;
 }
@@ -18868,7 +18879,7 @@ Object.entries(toolMap).forEach(([id,tool])=>{
     if(tool!=='text'&&tool!=='select')txtDeselect();
     curTool=tool;markToolOnPages();
     Object.keys(toolMap).forEach(k=>document.getElementById(k).classList.remove('on'));document.getElementById(id).classList.add('on');
-    const tips={select:'Dedo = desplazar · Lápiz o ratón = seleccionar texto',highlight:'Sigue el texto o baja para varias líneas · un toque = palabra, dos = frase',pen:'Lápiz fino · mantén quieto para línea recta',note:'Toca el PDF para añadir una nota',text:'Toca la página para escribir · toca un texto para editarlo · estira la esquina para el tamaño',cover:'Arrastra para tapar · toca la tapa para destapar · mantén para eliminar · toca 2x para tapar de golpe',eraser:'Pasa por encima para borrar · toca 2x para ajustes'};
+    const tips={select:'Dedo = desplazar · Lápiz o ratón = seleccionar texto',highlight:'Sigue el texto o baja para varias líneas · un toque = palabra, dos en la misma = frase',pen:'Lápiz fino · mantén quieto para línea recta',note:'Toca el PDF para añadir una nota',text:'Toca la página para escribir · toca un texto para editarlo · estira la esquina para el tamaño',cover:'Arrastra para tapar · toca la tapa para destapar · mantén para eliminar · toca 2x para tapar de golpe',eraser:'Pasa por encima para borrar · toca 2x para ajustes'};
     showTip(tips[tool],2800);
   };
 });
