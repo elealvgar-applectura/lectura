@@ -2587,7 +2587,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v198'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v199'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -8201,7 +8201,7 @@ function rebuildPages(){
      resultados de búsqueda apuntarían a páginas equivocadas. El texto por pid
      sigue siendo válido, así que findIndex NO hace falta rehacerlo. */
   clearFindResults();
-  lineCache={};lineBusy={};
+  lineCache={};lineBusy={};wordRowsCache={};parCache={};
   /* innerHTML='' acaba de tirar todos los canvas, asi que los canceladores de
      trazo que apuntaban a ellos ya no sirven: hay que vaciarlos ANTES de crear
      los nuevos. Si no, el array crece sin parar y cada cancelador retiene su
@@ -8291,7 +8291,7 @@ async function openReader(fileId,fileName){
        limpia, ensurePageText() devuelve el texto del PDF ANTERIOR. lineCache sí
        se vaciaba, por eso el fallo pasaba desapercibido. */
     tiempoDoc=loadTime(fileId);tiempoActividad=Date.now();tiempoPend=0;
-    undoStack.length=0;redoStack.length=0;updateUndoBtns();lineCache={};textCache={};
+    undoStack.length=0;redoStack.length=0;updateUndoBtns();lineCache={};textCache={};wordRowsCache={};parCache={};
     /* Igual que lineCache/textCache: los canceladores del documento anterior
        apuntan a canvas que ya no existen. Sin esto se acumulaban uno por
        pagina y por apertura (un libro de 400 paginas abierto tres veces dejaba
@@ -8982,6 +8982,248 @@ async function ensurePageText(num){
   await getPageLines(num);
   return textCache[num]||[];
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   PALABRAS Y FRASES DE LA PÁGINA  (subrayar de un toque)
+
+   Un toque con el lápiz subraya la palabra entera; dos toques seguidos,
+   la frase entera. Para eso hace falta saber DÓNDE empieza y acaba cada
+   palabra, y el PDF no lo dice: da bloques de texto ("de la palabra"
+   puede venir como un solo bloque) con su ancho total, nada más.
+
+   Así que el ancho del bloque se reparte entre sus letras midiéndolas en
+   un canvas. No es la fuente real del PDF, pero las PROPORCIONES entre
+   letras se parecen mucho de una fuente a otra, y como se normaliza sobre
+   el ancho total del bloque el error no se acumula: la última palabra
+   siempre termina exactamente donde termina el bloque. El desvío queda en
+   uno o dos píxeles, que no se ven.
+
+   En un PDF escaneado (una foto de la página, sin texto de verdad) no hay
+   nada que repartir: el toque no puede hacer nada y se avisa.
+   ══════════════════════════════════════════════════════════════════ */
+let wordRowsCache={}, parCache={};
+let _medirCtx=null;
+function anchoDeTexto(s){
+  if(!_medirCtx){
+    const c=document.createElement('canvas');
+    _medirCtx=c.getContext('2d');
+    _medirCtx.font='100px serif';
+  }
+  return _medirCtx.measureText(s).width;
+}
+/* parte un bloque del PDF en palabras con su sitio (x0..x1) */
+function palabrasDeFragmento(it){
+  const out=[];
+  const w=it.x1-it.x0;
+  if(!(w>0)||!it.str)return out;
+  const partes=it.str.split(/(\s+)/).filter(s=>s!=='');
+  if(!partes.length)return out;
+  const anchos=partes.map(s=>Math.max(0.01,anchoDeTexto(s)));
+  const total=anchos.reduce((a,b)=>a+b,0)||1;
+  let acc=0;
+  partes.forEach((s,i)=>{
+    const x0=it.x0+(acc/total)*w;
+    acc+=anchos[i];
+    const x1=it.x0+(acc/total)*w;
+    if(s.trim())out.push({str:s,x0,x1,top:it.top,bottom:it.bottom,base:it.base});
+  });
+  return out;
+}
+/* las palabras de la página, repartidas en sus renglones (mismo orden y
+   mismos renglones que usa el subrayado guiado, para que todo case) */
+function renglonesConPalabras(num){
+  if(wordRowsCache[num])return wordRowsCache[num];
+  const rows=lineCache[num], items=textCache[num];
+  if(!rows||!items||!rows.length)return null;
+  const rr=rows.map(r=>({row:r,words:[]}));
+  items.forEach(it=>{
+    let bi=-1,bd=Infinity;
+    for(let i=0;i<rows.length;i++){
+      const d=Math.abs(rows[i].base-it.base);
+      if(d<bd){bd=d;bi=i}
+    }
+    if(bi<0)return;
+    palabrasDeFragmento(it).forEach(w=>rr[bi].words.push(w));
+  });
+  rr.forEach(x=>x.words.sort((a,b)=>a.x0-b.x0));
+  wordRowsCache[num]=rr;
+  return rr;
+}
+/* la palabra que hay bajo el punto, dentro del renglón enganchado.
+   `row` es la fila a la que se enganchó el subrayador; si es una de las
+   filas del texto escrito ENCIMA del PDF (no del PDF), no hay palabras. */
+function palabraEnPunto(num,row,x){
+  const rr=renglonesConPalabras(num);
+  if(!rr)return null;
+  const ri=(lineCache[num]||[]).indexOf(row);
+  if(ri<0||!rr[ri])return null;
+  const ws=rr[ri].words;
+  if(!ws.length)return null;
+  let best=null,bd=Infinity;
+  ws.forEach((w,wi)=>{
+    const d=(x<w.x0)?(w.x0-x):(x>w.x1?(x-w.x1):0);
+    if(d<bd){bd=d;best={ri,wi,w}}
+  });
+  if(!best)return null;
+  /* si has tocado muy lejos de cualquier palabra (el margen, un hueco entre
+     columnas), mejor no inventarse nada */
+  const margen=Math.max(10,(best.w.x1-best.w.x0));
+  return bd<=margen?best:null;
+}
+
+/* ── ¿DÓNDE ACABA UNA FRASE? ──
+   Un punto no siempre cierra frase: "art. 3", "p. ej.", "Sr. Piaget",
+   "J. Bowlby". Se descartan las abreviaturas más frecuentes en apuntes y
+   las iniciales sueltas, y se exige que lo siguiente empiece como empieza
+   una frase (mayúscula, comilla o signo de apertura). No acierta el 100%
+   de las veces: cuando se pase, se deshace y se subraya a mano. */
+const ABREVIATURAS=new Set(['p','ej','pag','pág','pags','págs','pp','art','arts',
+  'cap','caps','num','núm','nums','núms','vol','vols','ed','eds','edit','coord',
+  'aprox','sr','sra','srs','sras','dr','dra','drs','dras','prof','profa','vs',
+  'cf','cfr','op','cit','fig','figs','tab','tabs','max','máx','min','mín','ap',
+  'aps','tel','av','dpto','ud','uds','etc','ss','sig','sigs','n','no','nº','ver',
+  'ss','a','d','c','ee','uu','ii','iii','iv','vi','vii','viii','ix','xi','xii']);
+function cierraFrase(str,sig){
+  const s=(str||'').replace(/[»"'’)\]}]+$/,'');
+  if(!/[.!?…]$/.test(s))return false;
+  if(!sig)return true;                      // no hay nada detrás: se acabó
+  const cuerpo=s.replace(/[.!?…]+$/,'');
+  const limpio=cuerpo.replace(/[^0-9A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g,'').toLowerCase();
+  if(limpio.length===1&&/[a-záéíóúüñ]/i.test(limpio))return false; // inicial: "J."
+  if(ABREVIATURAS.has(limpio))return false;
+  return /^[«"'¿¡(0-9A-ZÁÉÍÓÚÜÑ]/.test(sig);
+}
+/* medidas del bloque de texto de la página: hasta dónde llegan los renglones
+   completos y cuánto miden los saltos de línea normales */
+function infoParrafo(num){
+  if(parCache[num])return parCache[num];
+  const rows=lineCache[num]||[];
+  const xs=rows.map(r=>r.x1).sort((a,b)=>a-b);
+  const izq=rows.length?Math.min(...rows.map(r=>r.x0)):0;
+  const derecha=xs.length?xs[Math.floor(xs.length*0.9)]:0;
+  const saltos=[];
+  for(let i=1;i<rows.length;i++){const d=rows[i].base-rows[i-1].base;if(d>0)saltos.push(d)}
+  saltos.sort((a,b)=>a-b);
+  const interlineado=saltos.length?saltos[Math.floor(saltos.length/2)]:14;
+  const info={derecha,izq,tol:Math.max(8,(derecha-izq)*0.04),interlineado};
+  parCache[num]=info;
+  return info;
+}
+/* ¿se rompe el texto entre estos dos renglones?
+   Es lo que evita que un TÍTULO o un guión de una lista (que no llevan punto
+   final) se coman el párrafo que viene detrás. */
+function cortaParrafo(num,i,j){
+  const rows=lineCache[num]||[];
+  const A=rows[i],B=rows[j];
+  if(!A||!B)return true;
+  if(j!==i+1)return true;                          // hay renglones por medio
+  const inf=infoParrafo(num);
+  if(A.x1<inf.derecha-inf.tol)return true;         // acaba corto: fin de párrafo
+  const fa=A.fh||A.h, fb=B.fh||B.h;
+  if(Math.abs(fa-fb)/Math.max(fa,fb,1)>0.25)return true;  // cambia el tamaño de letra
+  if(Math.abs(B.base-A.base)>inf.interlineado*1.7)return true; // hueco grande
+  return false;
+}
+/* la frase entera a la que pertenece una palabra */
+function frasePalabras(num,ri,wi){
+  const rr=renglonesConPalabras(num);
+  if(!rr)return null;
+  const seq=[];
+  rr.forEach((x,i)=>x.words.forEach((w,j)=>seq.push({ri:i,wi:j,w})));
+  const pos=seq.findIndex(s=>s.ri===ri&&s.wi===wi);
+  if(pos<0)return null;
+  let a=pos;
+  while(a>0){
+    const ant=seq[a-1],act=seq[a];
+    if(ant.ri!==act.ri&&cortaParrafo(num,ant.ri,act.ri))break;
+    if(cierraFrase(ant.w.str,act.w.str))break;
+    a--;
+  }
+  let b=pos;
+  while(b<seq.length-1){
+    const act=seq[b],sig=seq[b+1];
+    if(cierraFrase(act.w.str,sig.w.str))break;
+    if(act.ri!==sig.ri&&cortaParrafo(num,act.ri,sig.ri))break;
+    b++;
+  }
+  return seq.slice(a,b+1);
+}
+/* de las palabras elegidas a las bandas de subrayado: una por renglón */
+function bandasDePalabras(num,sel){
+  const rows=lineCache[num]||[];
+  const porFila=new Map();
+  sel.forEach(s=>{
+    const g=porFila.get(s.ri)||{x0:Infinity,x1:-Infinity};
+    g.x0=Math.min(g.x0,s.w.x0);g.x1=Math.max(g.x1,s.w.x1);
+    porFila.set(s.ri,g);
+  });
+  const out=[];
+  [...porFila.keys()].sort((a,b)=>a-b).forEach(ri=>{
+    const row=rows[ri];if(!row)return;
+    const g=porFila.get(ri);
+    /* un pelín de aire a los lados, como cuando subrayas a mano */
+    const x0=Math.max(row.x0,g.x0-1.5), x1=Math.min(row.x1,g.x1+1.5);
+    if(x1-x0<=0)return;
+    const {y,h}=hlBox(row);
+    out.push({x:x0,y,w:x1-x0,h});
+  });
+  return out;
+}
+
+/* ══ EL GESTO: UN TOQUE = PALABRA · DOS TOQUES = FRASE ══
+   El primer toque subraya la palabra al instante (no se espera a ver si viene
+   un segundo: eso metería un retardo en TODOS los toques). Si el segundo llega
+   enseguida y cerca, se quita lo que puso el primero y se pone la frase entera
+   en su lugar, con el mismo grupo, para que la ficha no se duplique.
+   Devuelve true si ha subrayado algo. */
+let tapHL=null;
+function hlPorToque(num,row,p){
+  const ann=annotations[num];
+  if(!ann)return false;
+  const rr=renglonesConPalabras(num);
+  if(!rr){
+    /* textCache vacío = página escaneada (una foto, sin texto que leer) */
+    if(textCache[num])showTip('Esta página no tiene texto: subraya arrastrando',2400);
+    else showTip('Aún estoy leyendo el texto de la página; prueba otra vez',2000);
+    return false;
+  }
+  const hit=palabraEnPunto(num,row,p.x);
+  if(!hit)return false;
+  const ahora=Date.now();
+  const doble = tapHL && tapHL.pid===num && (ahora-tapHL.t)<450 &&
+                Math.abs(p.x-tapHL.px)<34 && Math.abs(p.y-tapHL.py)<22;
+  let sel,gid;
+  if(doble){
+    /* fuera lo que puso el primer toque */
+    tapHL.recs.forEach(r=>{const i=ann.highlights.indexOf(r);if(i>=0)ann.highlights.splice(i,1)});
+    gid=tapHL.gid;
+    sel=frasePalabras(num,tapHL.ri,tapHL.wi)||[{ri:hit.ri,wi:hit.wi,w:hit.w}];
+  }else{
+    sel=[{ri:hit.ri,wi:hit.wi,w:hit.w}];
+    gid=gidForHighlight(curColor);
+  }
+  const r1=v=>Math.round(v*10)/10;
+  const recs=[];
+  bandasDePalabras(num,sel).forEach(bd=>{
+    if(bd.w<4)return;
+    const rec={x:r1(bd.x),y:r1(bd.y),w:r1(bd.w),h:r1(bd.h),color:curColor,
+               opacity:toolCfg.highlight.opacity,bold:colorBold(curColor)};
+    if(gid)rec.gid=gid;
+    else if(!isHlFun()&&entKindForColor(curColor))rec.nf=1;
+    ann.highlights.push(rec);recs.push(rec);
+  });
+  if(!recs.length){
+    /* no se llegó a poner nada: el grupo no debe contar este toque */
+    if(!doble&&gid&&curGidCount>0)curGidCount--;
+    tapHL=null;
+    return false;
+  }
+  /* tras un doble toque se empieza de cero: un tercer toque es una palabra
+     nueva, no un "triple" */
+  tapHL = doble ? null : {pid:num,t:ahora,px:p.x,py:p.y,recs,gid,ri:hit.ri,wi:hit.wi};
+  if(doble)showTip('Frase subrayada',900);
+  return true;
+}
 /* ══ ENGANCHE AL RENGLÓN ══
    BUG GRAVE que había aquí: `lineAt` devolvía un objeto NUEVO ({top,h}) en vez
    de la fila del array. Luego se hacía `snapRows.indexOf(snapLine)`, que compara
@@ -9089,6 +9331,7 @@ function coverAt(ann,p){const cs=ann.covers||[];for(let i=cs.length-1;i>=0;i--){
 */
 function setupPageEvents(wrap,aCv,nl,num){
   let isDown=false,startX,startY,curStroke=null;
+  let hlDownT=0;          // cuándo empezó el trazo del subrayador (para el toque)
   let straightTimer=null,straightMode=false;
   let coverTapTimer=null,coverDownP=null;
   let snapLine=null; // línea de texto a la que va enganchado el subrayador
@@ -9357,7 +9600,7 @@ function setupPageEvents(wrap,aCv,nl,num){
     if(e.pointerType==='pen'){penActive=true;penActiveT=Date.now()}
     pushUndo(num);
     if(curTool==='highlight'||curTool==='cover'){
-      startX=p.x;startY=p.y;
+      startX=p.x;startY=p.y;hlDownT=Date.now();
       snapLine=null;snapRows=null;snapStartIdx=-1;lastRowIdx=-1;
       if(curTool==='highlight'){
         /* Engancha por ÍNDICE (nunca por identidad de objeto: ese era el bug
@@ -9537,6 +9780,21 @@ function setupPageEvents(wrap,aCv,nl,num){
     if(straightTimer){clearTimeout(straightTimer);straightTimer=null}straightMode=false;
     const p=basePos(e);const ann=annotations[num];
     if(curTool==='highlight'){
+      /* ══ TOQUE SIN ARRASTRAR = PALABRA · DOS TOQUES = FRASE ══
+         Solo con el Apple Pencil o el ratón. Con el dedo NO: la mano apoyada
+         en el iPad roza la pantalla constantemente y llenaría la página de
+         subrayados sueltos. (Además, hasta ahora un toque no hacía nada: el
+         subrayado salía de ancho cero y se descartaba más abajo.) */
+      const quieto=Math.hypot(p.x-startX,p.y-startY)<5&&(Date.now()-hlDownT)<500;
+      if(quieto&&e.pointerType!=='touch'&&snapLine){
+        hlPorToque(num,snapLine,p);
+        snapLine=null;snapRows=null;snapStartIdx=-1;snapBands=[];
+        updateGidBar();
+        /* si no había palabra debajo, popUndoIfUnchanged (más abajo) quita el
+           punto de deshacer que se apiló al tocar: no queda rastro */
+        curStroke=null;redrawPage(aCv,nl,num);popUndoIfUnchanged(num);scheduleSave();
+        return;
+      }
       /* guarda una banda por renglón; todas comparten `gid` para que el
          glosario / conclusiones las funda en una sola ficha */
       const bands=computeBands(p);
@@ -18610,7 +18868,7 @@ Object.entries(toolMap).forEach(([id,tool])=>{
     if(tool!=='text'&&tool!=='select')txtDeselect();
     curTool=tool;markToolOnPages();
     Object.keys(toolMap).forEach(k=>document.getElementById(k).classList.remove('on'));document.getElementById(id).classList.add('on');
-    const tips={select:'Dedo = desplazar · Lápiz o ratón = seleccionar texto',highlight:'Sigue el texto · baja para subrayar varias líneas · toca 2x para el grosor',pen:'Lápiz fino · mantén quieto para línea recta',note:'Toca el PDF para añadir una nota',text:'Toca la página para escribir · toca un texto para editarlo · estira la esquina para el tamaño',cover:'Arrastra para tapar · toca la tapa para destapar · mantén para eliminar · toca 2x para tapar de golpe',eraser:'Pasa por encima para borrar · toca 2x para ajustes'};
+    const tips={select:'Dedo = desplazar · Lápiz o ratón = seleccionar texto',highlight:'Sigue el texto o baja para varias líneas · un toque = palabra, dos = frase',pen:'Lápiz fino · mantén quieto para línea recta',note:'Toca el PDF para añadir una nota',text:'Toca la página para escribir · toca un texto para editarlo · estira la esquina para el tamaño',cover:'Arrastra para tapar · toca la tapa para destapar · mantén para eliminar · toca 2x para tapar de golpe',eraser:'Pasa por encima para borrar · toca 2x para ajustes'};
     showTip(tips[tool],2800);
   };
 });
