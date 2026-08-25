@@ -242,7 +242,7 @@ input,textarea{user-select:text!important;-webkit-user-select:text!important}
 .cchip .dot{width:26px;height:26px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1.5px var(--ink3);transition:transform .12s,box-shadow .12s}
 .cchip .dot .ico{width:14px;height:14px}
 .cchip.on .dot{transform:scale(1.12);box-shadow:0 0 0 2.5px var(--ink)}
-.cchip .tag{font-size:9px;color:var(--ink2);max-width:64px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cchip .tag{font-size:9px;color:var(--ink2);max-width:64px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:11px}
 .cchip.on .tag{color:var(--ink);font-weight:600}
 /* chip de TEMA AUTOMATICO: no es un color, es un interruptor. Apagado se ve
    apagado de verdad (translucido), para que de un vistazo se sepa si las
@@ -2627,7 +2627,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v201'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v202'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2748,6 +2748,25 @@ const CATEGORY_LABELS=['Títulos generales','Subtítulos','Epígrafes','Guiones'
 function loadCustomPalettes(){try{return JSON.parse(localStorage.getItem('lp_custompals')||'[]')}catch(e){return[]}}
 function saveCustomPalettes(a){try{localStorage.setItem('lp_custompals',JSON.stringify(a))}catch(e){}}
 loadCustomPalettes().forEach(p=>{PALETTES[p.id]=p});
+
+/* ══ HUECOS LIBRES ══
+   Cinco subrayadores mas al final de TODAS las paletas, sin nombre y sin
+   categoria. Al no tener categoria no tienen funcion: subrayan y ya, no crean
+   definiciones ni mapa conceptual (entKindForColor devuelve null). Estan para
+   cuando quieres marcar algo con un color cualquiera sin que la app haga nada.
+
+   Se anaden en memoria al arrancar, NUNCA se guardan dentro de lp_custompals:
+   si se guardaran, cada arranque anadiria cinco mas. Su color se cambia con la
+   cuadricula igual que el de los demas (por eso van antes de la copia
+   PAL_BASE). */
+const FREE_DEFAULTS=['#B7BBC2','#CDA37A','#C3D96B','#8FB8E8','#D9A7E0'];
+function addFreeSlots(pal){
+  if(!pal||!pal.colors)return pal;
+  if(pal.colors.some(c=>c.free))return pal;      // ya los tiene
+  FREE_DEFAULTS.forEach(c=>pal.colors.push({c,n:'',t:'',free:true}));
+  return pal;
+}
+Object.values(PALETTES).forEach(addFreeSlots);
 
 /* ══ COLORES A MEDIDA DE CADA SUBRAYADOR ══
    Elena puede cambiarle el color a cualquier subrayador, tambien en las
@@ -6563,7 +6582,11 @@ function renderPalTab(tab){
   if(!pal){palList.textContent='';return}
   pal.colors.forEach((col,i)=>{
     const r=document.createElement('div');r.className='pal-row'+(col.c.toLowerCase()===curColor.toLowerCase()?' sel':'');
-    r.innerHTML=`<div class="pal-swatch" style="background:${col.c}"></div><span class="pal-name">${esc(col.n||'')}</span><span class="pal-tag">${esc(col.t||'')}</span>`;
+    /* los huecos libres no llevan nombre ni categoria: en la ventana se marcan
+       en gris para saber cuales son, pero en la barra salen solo con su punto */
+    const tag=col.free?'<span class="pal-tag" style="opacity:.6;font-style:italic">Libre · sin función</span>'
+                      :`<span class="pal-tag">${esc(col.t||'')}</span>`;
+    r.innerHTML=`<div class="pal-swatch" style="background:${col.c}"></div><span class="pal-name">${esc(col.n||'')}</span>`+tag;
     r.onclick=()=>{setColor(col.c,colLabel(col));modalPal.classList.add('hidden')};
     /* lapiz: cambiarle EL COLOR a este subrayador (no elegirlo para pintar) */
     const ed=document.createElement('button');
@@ -6588,7 +6611,7 @@ function renderPalTab(tab){
       loadCustomPalettes().forEach(p=>{PALETTES[p.id]=p});
       /* sus colores quedan apuntados EN DISCO como retirados: antes esto se
          hacia solo en memoria y al recargar la pagina dejaban de tener funcion */
-      (pal.colors||[]).forEach(col=>retireColor(col.c,col.t));
+      (pal.colors||[]).forEach(col=>{if(!col.free)retireColor(col.c,col.t)});
       delete PAL_BASE[pal.id];
       const ovDel=loadPalOver();if(ovDel[pal.id]){delete ovDel[pal.id];savePalOver(ovDel)}
       rebuildColorRoles();
@@ -6675,6 +6698,9 @@ document.getElementById('pal-build-save').onclick=()=>{
   }))};
   const all=loadCustomPalettes();all.push(pal);saveCustomPalettes(all);
   PALETTES[id]=pal;
+  /* los cinco huecos libres se anaden DESPUES de guardarla, para que no
+     acaben escritos dentro de lp_custompals (ver addFreeSlots) */
+  addFreeSlots(pal);
   /* copia original de la paleta recien creada: es la que permite luego
      "volver al color original" si le cambias un color con la cuadricula */
   PAL_BASE[id]=JSON.parse(JSON.stringify(pal));
@@ -6902,7 +6928,7 @@ function cyclePalette(){
   const pos=prev.findIndex(c=>c.c.toLowerCase()===(curColor||'').toLowerCase());
   if(pos>=0){
     const nc=PALETTES[barTab].colors[pos];
-    if(nc)setColor(nc.c,`${nc.n} · ${nc.t}`);
+    if(nc)setColor(nc.c,colLabel(nc));
   }
   showTip('Paleta: '+PALETTES[barTab].label,1200);
 }
@@ -10240,7 +10266,7 @@ function renderNote(nl,nd,num,focus){
   const palColors=(PALETTES[barTab]||PALETTES.pastel).colors;
   palColors.forEach(cd=>{
     const dot=document.createElement('div');dot.className='stnote-coldot'+((nd.color===cd.c)?' on':'');
-    dot.style.background=cd.c;dot.title=cd.n+' · '+cd.t;
+    dot.style.background=cd.c;dot.title=colLabel(cd);
     dot.addEventListener('pointerdown',e=>e.stopPropagation());
     dot.addEventListener('click',e=>{
       e.stopPropagation();
