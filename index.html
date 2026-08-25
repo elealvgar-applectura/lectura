@@ -525,6 +525,10 @@ body.fullscreen #rd-bottom-show{display:none}
 .sw-prev{display:flex;align-items:center;gap:10px;margin-bottom:12px}
 .sw-prev-dot{width:36px;height:36px;border-radius:50%;flex-shrink:0;border:1px solid rgba(0,0,0,.08)}
 .sw-prev-txt{font-size:12.5px;color:var(--ink2);line-height:1.4;flex:1}
+/* muestra de como queda el texto: es una aproximacion, el subrayado de verdad
+   se pinta sobre el texto del PDF y aqui no hay PDF */
+.sw-demo{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:6px;text-align:center}
+.sw-demo span{color:#1a1a1a;font-size:15px;padding:1px 3px;border-radius:2px}
 #modal-swatch{z-index:930}
 .custom-box{display:flex;flex-direction:column;gap:14px;padding-top:4px}
 .custom-row{display:flex;align-items:center;gap:12px}
@@ -2465,7 +2469,22 @@ body.fullscreen #gid-bar{bottom:20px}
       <label>Código #</label>
       <input type="text" id="sw-hex" placeholder="#F9D5E5" maxlength="7" autocapitalize="off" autocorrect="off" style="margin-bottom:0">
     </div>
-    <button class="mbtn" id="sw-reset" style="width:100%;margin-bottom:10px;background:var(--bg2);color:var(--ink2)">Volver al color original</button>
+    <!-- Opacidad y negrita DE ESTE SUBRAYADOR. Si no se tocan, cada color usa
+         lo que diga el ajuste general de la llave inglesa, como siempre. -->
+    <div class="sw-demo"><span id="sw-demo-txt">Así se verá el texto subrayado</span></div>
+    <div class="set-row">
+      <label>Opacidad <span id="sw-op-val">40%</span></label>
+      <input type="range" id="sw-op" min="5" max="100" value="40" step="1">
+    </div>
+    <div class="set-row" style="flex-direction:row;align-items:center;justify-content:space-between">
+      <label style="margin:0">Negrita en el texto</label>
+      <label class="gswitch"><input type="checkbox" id="sw-bold"><span class="gslider"></span></label>
+    </div>
+    <div class="set-row" id="sw-bs-row">
+      <label>Intensidad de la negrita <span id="sw-bs-val">22%</span></label>
+      <input type="range" id="sw-bs" min="5" max="60" value="22" step="1">
+    </div>
+    <button class="mbtn" id="sw-reset" style="width:100%;margin-bottom:10px;background:var(--bg2);color:var(--ink2)">Volver al color y ajustes originales</button>
     <div class="modal-btns">
       <button class="mbtn cancel" id="sw-cancel">Cancelar</button>
       <button class="mbtn ok" id="sw-ok" style="background:var(--acento)">Guardar</button>
@@ -2627,7 +2646,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v202'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v203'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -6038,6 +6057,33 @@ function saveBoldByColor(){try{localStorage.setItem('lp_boldbycolor',JSON.string
 function colorBold(c){const k=(c||'').toLowerCase();return boldByColor[k]!==false}
 function setColorBold(c,on){boldByColor[(c||'').toLowerCase()]=on;saveBoldByColor()}
 
+/* ══ OPACIDAD E INTENSIDAD DE NEGRITA, SUBRAYADOR A SUBRAYADOR ══
+   Antes las dos eran generales (los ajustes de la llave inglesa). Ahora cada
+   color puede llevar las suyas; si no lleva ninguna, se usa la general, que
+   sigue funcionando igual que siempre. Se guardan por codigo de color, no por
+   paleta: el mismo tono se comporta igual salga donde salga.
+
+   Ojo a la diferencia, que no es un descuido:
+   · La OPACIDAD se guarda dentro de cada subrayado al hacerlo (rec.opacity),
+     como ha sido siempre. Cambiarla no toca lo que ya esta subrayado.
+   · La INTENSIDAD DE LA NEGRITA no es un dato guardado: es como se pinta. Al
+     cambiarla se ve en todos los subrayados de ese color, tambien los viejos.
+     Es exactamente lo que ya hacia el ajuste general. */
+let opByColor={};
+try{opByColor=JSON.parse(localStorage.getItem('lp_opbycolor')||'{}')}catch(e){opByColor={}}
+function saveOpByColor(){try{localStorage.setItem('lp_opbycolor',JSON.stringify(opByColor))}catch(e){}}
+function opForColor(c){
+  const v=opByColor[(c||'').toLowerCase()];
+  return (v>=5&&v<=100)?v:(toolCfg.highlight.opacity||38);
+}
+let bsByColor={};
+try{bsByColor=JSON.parse(localStorage.getItem('lp_bsbycolor')||'{}')}catch(e){bsByColor={}}
+function saveBsByColor(){try{localStorage.setItem('lp_bsbycolor',JSON.stringify(bsByColor))}catch(e){}}
+function bsForColor(c){
+  const v=bsByColor[(c||'').toLowerCase()];
+  return (v>=.05&&v<=.8)?v:boldStrength;
+}
+
 /* ══ SCREENS ══ */
 const screens={browser:document.getElementById('screen-browser'),reader:document.getElementById('screen-reader'),loading:document.getElementById('screen-loading'),backup:document.getElementById('screen-backup')};
 function showScreen(n){Object.values(screens).forEach(s=>s.classList.add('hidden'));screens[n].classList.remove('hidden');
@@ -6759,6 +6805,10 @@ function colLabel(cd){
 const modalSw=document.getElementById('modal-swatch');
 const swGrid=document.getElementById('sw-grid'),swHex=document.getElementById('sw-hex');
 const swPrevDot=document.getElementById('sw-prev-dot'),swPrevTxt=document.getElementById('sw-prev-txt');
+const swOp=document.getElementById('sw-op'),swOpVal=document.getElementById('sw-op-val');
+const swBold=document.getElementById('sw-bold'),swBs=document.getElementById('sw-bs');
+const swBsVal=document.getElementById('sw-bs-val'),swBsRow=document.getElementById('sw-bs-row');
+const swDemo=document.getElementById('sw-demo-txt');
 let swTarget=null;    // {pal,idx} el subrayador que se esta editando
 let swPick='';        // color elegido, todavia sin guardar
 function buildSwatchGrid(){
@@ -6775,7 +6825,23 @@ function syncSwatch(){
   swGrid.querySelectorAll('.sw-c').forEach(el=>{
     el.classList.toggle('on',(el.dataset.c||'').toLowerCase()===(swPick||'').toLowerCase());
   });
+  /* muestra: el color al tanto por ciento elegido y, si lleva negrita, un
+     texto mas marcado. Es solo orientativo (no hay PDF debajo). */
+  const op=parseInt(swOp.value,10)/100;
+  const bs=parseInt(swBs.value,10)/100;
+  swOpVal.textContent=swOp.value+'%';
+  swBsVal.textContent=swBs.value+'%';
+  swBsRow.style.display=swBold.checked?'':'none';
+  const rgb=hexRgb(swPick);
+  swDemo.style.background=rgb?`rgba(${rgb[0]},${rgb[1]},${rgb[2]},${op})`:'transparent';
+  swDemo.style.textShadow=swBold.checked?`0 0 ${(bs*2.4).toFixed(2)}px rgba(0,0,0,${(bs*1.6).toFixed(2)})`:'none';
 }
+function hexRgb(h){
+  if(!/^#[0-9a-fA-F]{6}$/.test(h||''))return null;
+  return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+}
+[swOp,swBs].forEach(el=>el.addEventListener('input',syncSwatch));
+swBold.addEventListener('change',syncSwatch);
 function openSwatch(palId,idx){
   const pal=PALETTES[palId];if(!pal)return;
   const cd=pal.colors[idx];if(!cd)return;
@@ -6783,6 +6849,9 @@ function openSwatch(palId,idx){
   document.getElementById('sw-title').textContent='Color de: '+colLabel(cd);
   swPrevTxt.innerHTML='Paleta <b>'+esc(pal.label)+'</b>. Lo que ya tienes subrayado con el color de ahora <b>no cambia</b>: se queda como está y sigue creando sus fichas igual.';
   swHex.value=cd.c;
+  swOp.value=opForColor(cd.c);
+  swBold.checked=colorBold(cd.c);
+  swBs.value=Math.round(bsForColor(cd.c)*100);
   buildSwatchGrid();syncSwatch();
   modalSw.classList.remove('hidden');
 }
@@ -6798,7 +6867,14 @@ document.getElementById('sw-reset').onclick=()=>{
   const base=PAL_BASE[swTarget.pal];
   const b=base&&base.colors[swTarget.idx];
   if(!b)return;
-  swPick=b.c;swHex.value=b.c;swHex.style.color='var(--ink)';syncSwatch();
+  swPick=b.c;swHex.value=b.c;swHex.style.color='var(--ink)';
+  /* y tambien a la opacidad y la negrita generales: al guardar, si coinciden
+     con las generales no se apunta nada, asi que el color queda "sin ajuste
+     propio" y vuelve a seguir a la llave inglesa */
+  swOp.value=toolCfg.highlight.opacity||38;
+  swBold.checked=true;
+  swBs.value=Math.round(boldStrength*100);
+  syncSwatch();
 };
 document.getElementById('sw-ok').onclick=()=>{
   if(!swTarget){modalSw.classList.add('hidden');return}
@@ -6806,6 +6882,20 @@ document.getElementById('sw-ok').onclick=()=>{
   if(!/^#[0-9A-F]{6}$/.test(nc)){showTip('Código de color no válido: usa #RRGGBB');return}
   const pal=PALETTES[swTarget.pal],cd=pal.colors[swTarget.idx];
   const old=cd.c;
+  /* ── opacidad y negrita de ESTE subrayador ──
+     Si coinciden con las generales no se apunta nada: el color se queda
+     "sin ajuste propio" y sigue a la llave inglesa, como toda la vida. */
+  const k=nc.toLowerCase();
+  const opv=parseInt(swOp.value,10),bsv=parseInt(swBs.value,10)/100;
+  if(opv===(toolCfg.highlight.opacity||38))delete opByColor[k];else opByColor[k]=opv;
+  saveOpByColor();
+  if(Math.abs(bsv-boldStrength)<0.005)delete bsByColor[k];else bsByColor[k]=bsv;
+  saveBsByColor();
+  if(swBold.checked)delete boldByColor[k];else boldByColor[k]=false;
+  saveBoldByColor();
+  /* si ademas ha cambiado de color, los ajustes viajan con el: el codigo
+     viejo conserva los suyos (lo ya subrayado con el no debe cambiar) */
+
   if(nc.toLowerCase()!==(old||'').toLowerCase()){
     /* el color que se va conserva su funcion para siempre: los subrayados
        antiguos tienen que seguir comportandose exactamente igual */
@@ -6826,7 +6916,10 @@ document.getElementById('sw-ok').onclick=()=>{
     buildColorBar();
     if(!modalPal.classList.contains('hidden'))renderPalTab(curPalTab);
     showTip('Color cambiado',1300);
-  }
+  }else showTip('Subrayador ajustado',1200);
+  /* la intensidad de la negrita es como se PINTA, no un dato guardado: hay
+     que repintar para que se vea el cambio en lo que ya hay en pantalla */
+  if(typeof repaintBold==='function')repaintBold();
   modalSw.classList.add('hidden');swTarget=null;
 };
 
@@ -8876,7 +8969,8 @@ function paintBoldHL(dctx,src,sx,sy,sw,sh,dx,dy,color,P,op,bold){
      Si bold=false, la capa de color queda detrás y el texto se ve normal. */
   if(bold!==false){
     const o=Math.max(1,Math.round(P*BOLD_SPREAD));
-    dctx.globalAlpha=boldStrength;
+    /* cada color puede tener su propia intensidad; si no la tiene, la general */
+    dctx.globalAlpha=bsForColor(color);
     for(const[ax,ay] of BOLD_RING)
       dctx.drawImage(src,sx,sy,sw,sh,dx+ax*o,dy+ay*o,sw,sh);
   }
@@ -9479,7 +9573,7 @@ function hlPorToque(num,row,p){
   bandasDePalabras(num,sel).forEach(bd=>{
     if(bd.w<4)return;
     const rec={x:r1(bd.x),y:r1(bd.y),w:r1(bd.w),h:r1(bd.h),color:curColor,
-               opacity:toolCfg.highlight.opacity,bold:colorBold(curColor)};
+               opacity:opForColor(curColor),bold:colorBold(curColor)};
     if(gid)rec.gid=gid;
     else if(!isHlFun()&&entKindForColor(curColor))rec.nf=1;
     ann.highlights.push(rec);recs.push(rec);
@@ -9670,7 +9764,7 @@ function setupPageEvents(wrap,aCv,nl,num){
     blitCache(aCv,nl,num);              // 1 drawImage, en vez de N×9
     const ctx=aCv.getContext('2d');
     snapBands=computeBands(p);
-    const OPA=toolCfg.highlight.opacity/100;
+    const OPA=opForColor(curColor)/100;
     const P=pxs();
     /* Durante el arrastre pintamos la banda PLANA (un fillRect por renglón).
        El efecto de negrita cuesta 9 drawImage a resolución retina por banda y
@@ -10077,7 +10171,7 @@ function setupPageEvents(wrap,aCv,nl,num){
         /* Redondeamos: `x:312.4166717529297` ocupa 18 caracteres y aporta una
            precision de 0.0000001 px que nadie puede ver. */
         const r1=v=>Math.round(v*10)/10;
-        const rec={x:r1(bd.x),y:r1(bd.y),w:r1(bd.w),h:r1(bd.h),color:curColor,opacity:toolCfg.highlight.opacity,bold:colorBold(curColor)};
+        const rec={x:r1(bd.x),y:r1(bd.y),w:r1(bd.w),h:r1(bd.h),color:curColor,opacity:opForColor(curColor),bold:colorBold(curColor)};
         if(gid)rec.gid=gid;
         /* SIN FUNCIÓN: se marca el subrayado para que el glosario y las
            conclusiones no lo recojan luego al rehacerse por color. Solo se
@@ -14136,6 +14230,8 @@ const GLOBAL_KEYS=['lp_custompals','lp_toolcfg','lp_color','lp_boldstrength',
      colores retirados (lp_retired): los que ya no salen en ninguna paleta pero
      que lo ya subrayado con ellos sigue necesitando para conservar su funcion */
   'lp_palover','lp_retired',
+  /* opacidad e intensidad de negrita propias de cada color */
+  'lp_opbycolor','lp_bsbycolor',
   'lp_boldbycolor','lp_bartab','lp_panelwin','lp_panelw','lp_dark','lp_warm','lp_paper','lp_gest',
   'lp_bottommin','lp_lastbackup','lp_autocorr','lp_dicc','lp_diccno','lp_richcols',
   'lp_chuleta',
