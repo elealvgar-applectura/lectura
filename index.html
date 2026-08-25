@@ -2593,6 +2593,13 @@ body.fullscreen #gid-bar{bottom:20px}
     </div>
     <div class="gest-row">
       <div class="gest-info">
+        <div class="gest-name">Clic derecho = cambiar de paleta</div>
+        <div class="gest-desc">Un clic derecho sobre el documento pasa a la siguiente paleta y te deja el mismo subrayador en su color equivalente (PC). Arrastrar con el derecho sigue seleccionando texto, y Ctrl + derecho sigue abriendo tu diccionario.</div>
+      </div>
+      <label class="gswitch"><input type="checkbox" id="g-palright" checked><span class="gslider"></span></label>
+    </div>
+    <div class="gest-row">
+      <div class="gest-info">
         <div class="gest-name">Zoom con pinza</div>
         <div class="gest-desc">Pellizca con dos dedos para acercar/alejar</div>
       </div>
@@ -2646,7 +2653,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v203'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v204'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -18216,7 +18223,7 @@ window.addEventListener('keydown',e=>{
    OJO: debe declararse ANTES de killSideBtn / sideBtnActive y de los gestos
    tactiles, que la leen. (Se perdio al reescribir los atajos: sin ella todo
    el bloque de raton y gestos lanzaba ReferenceError.) */
-let gestCfg={twoTapUndo:true,threeTapRedo:true,pinch:true,mouseSide:true};
+let gestCfg={twoTapUndo:true,threeTapRedo:true,pinch:true,mouseSide:true,palRight:true};
 try{Object.assign(gestCfg,JSON.parse(localStorage.getItem('lp_gest')||'{}'))}catch(e){}
 function saveGest(){try{localStorage.setItem('lp_gest',JSON.stringify(gestCfg))}catch(e){}}
 
@@ -18261,6 +18268,40 @@ window.addEventListener('mouseup',e=>{
   if(screens.reader.classList.contains('hidden'))return;
   e.preventDefault();e.stopPropagation();
 },true);
+/* ══ CLIC DERECHO = CAMBIAR DE PALETA (PC) ══
+   Solo el clic derecho LIMPIO encima del documento: pulsar y soltar sin mover.
+   Todo lo que ya hacia el boton derecho se respeta:
+   · arrastrar con el derecho sigue seleccionando texto (al arrastrar, el
+     puntero se mueve mas de 6 px y este atajo se aparta)
+   · Ctrl (o Cmd) + derecho sigue abriendo el diccionario
+   · el menu de Chrome sigue saliendo donde se ESCRIBE (fichas, apuntes,
+     buscador), que es donde hace falta su corrector, y fuera del documento
+   Lo que se cancela es el evento contextmenu: sin eso, el menu del navegador
+   se abriria justo encima nada mas cambiar de paleta. */
+let palRcDown=null;
+function palRightActive(e){
+  if(!gestCfg.palRight)return false;
+  if(e.ctrlKey||e.metaKey||e.shiftKey||e.altKey)return false;
+  if(screens.reader.classList.contains('hidden'))return false;
+  if(anyModalOpen())return false;
+  if(isTyping(e.target))return false;
+  if(!canvasWrap||!canvasWrap.contains(e.target))return false;
+  return true;
+}
+window.addEventListener('pointerdown',e=>{
+  if(e.pointerType!=='mouse'||e.button!==2)return;
+  palRcDown=palRightActive(e)?{x:e.clientX,y:e.clientY}:null;
+},true);
+window.addEventListener('contextmenu',e=>{
+  const d=palRcDown;palRcDown=null;
+  if(!d)return;
+  /* si se ha movido, era un arrastre para seleccionar texto: no es lo nuestro */
+  if(Math.abs(e.clientX-d.x)>6||Math.abs(e.clientY-d.y)>6)return;
+  if(!palRightActive(e))return;
+  e.preventDefault();e.stopPropagation();
+  cyclePalette();
+},true);
+
 /* Si aun asi el navegador navega hacia atras, lo devolvemos al sitio. */
 (function(){
   try{history.pushState({lp:1},'')}catch(e){}
@@ -18352,7 +18393,7 @@ canvasWrap.addEventListener('touchcancel',()=>{G=null;pagesInner.style.transform
 
 /* gestures panel */
 const modalGest=document.getElementById('modal-gest');
-const gestInputs={twoTapUndo:'g-twotap',threeTapRedo:'g-threetap',pinch:'g-pinch',mouseSide:'g-mouseside'};
+const gestInputs={twoTapUndo:'g-twotap',threeTapRedo:'g-threetap',pinch:'g-pinch',mouseSide:'g-mouseside',palRight:'g-palright'};
 document.getElementById('tb-gest').onclick=()=>{Object.entries(gestInputs).forEach(([k,id])=>document.getElementById(id).checked=!!gestCfg[k]);modalGest.classList.remove('hidden')};
 Object.entries(gestInputs).forEach(([k,id])=>{document.getElementById(id).addEventListener('change',e=>{gestCfg[k]=e.target.checked;saveGest()})});
 document.getElementById('gest-close').onclick=()=>modalGest.classList.add('hidden');
