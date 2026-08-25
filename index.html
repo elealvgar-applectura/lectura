@@ -508,6 +508,24 @@ body.fullscreen #rd-bottom-show{display:none}
 .pal-swatch{width:28px;height:28px;border-radius:50%;flex-shrink:0;border:1px solid rgba(0,0,0,.06)}
 .pal-name{font-size:14px;font-weight:500;color:var(--ink);flex-shrink:0;width:88px}
 .pal-tag{font-size:12.5px;color:var(--ink2);flex:1}
+/* lapiz de "cambiarle el color a este subrayador": va al final de cada fila
+   de la ventana de colores. Tocar la fila SIGUE eligiendo el color (es lo que
+   mas se usa); solo el lapiz abre la cuadricula. */
+.pal-edit{border:none;background:var(--bg2);color:var(--ink2);width:32px;height:32px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.pal-edit .ico{width:15px;height:15px}
+/* ── CUADRICULA DE COLORES ──
+   12 familias en columnas; dentro de cada una, de arriba abajo, del tono mas
+   fuerte al pastel. La ultima columna son los grises. */
+.sw-grid{display:grid;grid-template-columns:repeat(14,1fr);grid-template-rows:repeat(7,1fr);
+  grid-auto-flow:column;gap:4px;margin:2px 0 14px}
+.sw-c{width:100%;aspect-ratio:1;border-radius:6px;border:1px solid rgba(0,0,0,.07);cursor:pointer;padding:0;
+  -webkit-appearance:none;appearance:none}
+.sw-c.on{outline:2.5px solid var(--ink);outline-offset:1.5px;border-color:transparent}
+.sw-prev{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.sw-prev-dot{width:36px;height:36px;border-radius:50%;flex-shrink:0;border:1px solid rgba(0,0,0,.08)}
+.sw-prev-txt{font-size:12.5px;color:var(--ink2);line-height:1.4;flex:1}
+#modal-swatch{z-index:930}
 .custom-box{display:flex;flex-direction:column;gap:14px;padding-top:4px}
 .custom-row{display:flex;align-items:center;gap:12px}
 .custom-row label{font-size:14px;color:var(--ink);width:110px;flex-shrink:0}
@@ -2432,6 +2450,28 @@ body.fullscreen #gid-bar{bottom:20px}
     </div>
   </div>
 </div>
+<!-- CUADRICULA DE COLORES: cambiarle el color a un subrayador concreto de la
+     paleta que sea, sin tener que escribir codigos #. Se abre desde el lapiz
+     de la ventana de colores y dejando pulsado un subrayador de la barra. -->
+<div class="modal-bg hidden" id="modal-swatch">
+  <div class="modal">
+    <h3 id="sw-title">Color del subrayador</h3>
+    <div class="sw-prev">
+      <div class="sw-prev-dot" id="sw-prev-dot"></div>
+      <div class="sw-prev-txt" id="sw-prev-txt"></div>
+    </div>
+    <div id="sw-grid" class="sw-grid"></div>
+    <div class="custom-row" style="margin-bottom:14px">
+      <label>Código #</label>
+      <input type="text" id="sw-hex" placeholder="#F9D5E5" maxlength="7" autocapitalize="off" autocorrect="off" style="margin-bottom:0">
+    </div>
+    <button class="mbtn" id="sw-reset" style="width:100%;margin-bottom:10px;background:var(--bg2);color:var(--ink2)">Volver al color original</button>
+    <div class="modal-btns">
+      <button class="mbtn cancel" id="sw-cancel">Cancelar</button>
+      <button class="mbtn ok" id="sw-ok" style="background:var(--acento)">Guardar</button>
+    </div>
+  </div>
+</div>
 <div class="modal-bg hidden" id="modal-settings">
   <div class="modal">
     <h3 id="set-title">Ajustes</h3>
@@ -2587,7 +2627,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v200'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v201'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -2709,6 +2749,43 @@ function loadCustomPalettes(){try{return JSON.parse(localStorage.getItem('lp_cus
 function saveCustomPalettes(a){try{localStorage.setItem('lp_custompals',JSON.stringify(a))}catch(e){}}
 loadCustomPalettes().forEach(p=>{PALETTES[p.id]=p});
 
+/* ══ COLORES A MEDIDA DE CADA SUBRAYADOR ══
+   Elena puede cambiarle el color a cualquier subrayador, tambien en las
+   paletas de fabrica. El cambio NO se escribe a lo bruto sobre PALETTES: se
+   guarda aparte (lp_palover) y se aplica al arrancar sobre una copia del
+   original (PAL_BASE). Asi siempre se puede volver al color de fabrica.
+
+   IMPORTANTISIMO: lo que ya esta subrayado con el color VIEJO no cambia ni se
+   toca — son datos guardados. Para que esos subrayados sigan creando
+   definiciones, conclusiones y mapa conceptual igual que siempre, el color
+   viejo queda apuntado en lp_retired con su categoria, y de ahi lo recoge
+   rebuildColorRoles. Antes esto solo pasaba en memoria al borrar una paleta y
+   se perdia al recargar la pagina. */
+const PAL_BASE=JSON.parse(JSON.stringify(PALETTES));
+function loadPalOver(){try{return JSON.parse(localStorage.getItem('lp_palover')||'{}')}catch(e){return{}}}
+function savePalOver(o){try{localStorage.setItem('lp_palover',JSON.stringify(o))}catch(e){}}
+function loadRetired(){try{return JSON.parse(localStorage.getItem('lp_retired')||'[]')}catch(e){return[]}}
+function saveRetired(a){try{localStorage.setItem('lp_retired',JSON.stringify(a))}catch(e){}}
+/* apunta un color que deja de estar en una paleta (porque se ha cambiado o
+   porque la paleta se ha borrado): lo ya subrayado con el conserva su funcion */
+function retireColor(c,t){
+  if(!c)return;
+  const k=c.toLowerCase(),a=loadRetired();
+  if(a.some(x=>(x.c||'').toLowerCase()===k&&(x.t||'')===(t||'')))return;
+  a.push({c,t:t||''});saveRetired(a);
+}
+function applyPalOver(){
+  const ov=loadPalOver();
+  Object.keys(PALETTES).forEach(id=>{
+    const base=PAL_BASE[id];if(!base)return;
+    (PALETTES[id].colors||[]).forEach((col,i)=>{
+      const b=base.colors[i];if(!b)return;
+      col.c=(ov[id]&&ov[id][i])||b.c;
+    });
+  });
+}
+applyPalOver();
+
 /* ══ QUÉ HACE CADA COLOR AL SUBRAYAR ══
    Antes cada función (isDefColor, isConcColor…) llevaba su propia lista de
    códigos de color escrita a mano. Eso impedía que una paleta creada por la
@@ -2744,6 +2821,12 @@ function rebuildColorRoles(){
   COLOR_ROLE={};
   const add=(c,t)=>{const r=CATEGORY_ROLE[t];if(r&&c)COLOR_ROLE[c.toLowerCase()]=r};
   LEGACY_COLORS.forEach(x=>add(x.c,x.t));
+  /* colores retirados (los que Elena ha cambiado de una paleta, o los de una
+     paleta borrada): siguen teniendo funcion para siempre */
+  loadRetired().forEach(x=>add(x.c,x.t));
+  /* los colores de fabrica tambien, aunque encima de ellos haya ahora otro
+     color puesto a mano: lo subrayado antes no puede perder su funcion */
+  Object.values(PAL_BASE).forEach(p=>(p.colors||[]).forEach(col=>add(col.c,col.t)));
   Object.values(PALETTES).forEach(p=>(p.colors||[]).forEach(col=>add(col.c,col.t)));
 }
 rebuildColorRoles();
@@ -6478,10 +6561,16 @@ function renderPalTab(tab){
   palList.innerHTML='';
   const pal=PALETTES[tab];
   if(!pal){palList.textContent='';return}
-  pal.colors.forEach(col=>{
+  pal.colors.forEach((col,i)=>{
     const r=document.createElement('div');r.className='pal-row'+(col.c.toLowerCase()===curColor.toLowerCase()?' sel':'');
-    r.innerHTML=`<div class="pal-swatch" style="background:${col.c}"></div><span class="pal-name">${col.n}</span><span class="pal-tag">${col.t}</span>`;
-    r.onclick=()=>{setColor(col.c,col.n+' · '+col.t);modalPal.classList.add('hidden')};
+    r.innerHTML=`<div class="pal-swatch" style="background:${col.c}"></div><span class="pal-name">${esc(col.n||'')}</span><span class="pal-tag">${esc(col.t||'')}</span>`;
+    r.onclick=()=>{setColor(col.c,colLabel(col));modalPal.classList.add('hidden')};
+    /* lapiz: cambiarle EL COLOR a este subrayador (no elegirlo para pintar) */
+    const ed=document.createElement('button');
+    ed.className='pal-edit';ed.title='Cambiar este color';
+    ed.innerHTML=svg('pencil');
+    ed.onclick=e=>{e.stopPropagation();openSwatch(tab,i)};
+    r.appendChild(ed);
     palList.appendChild(r);
   });
   /* una paleta propia se puede borrar; las de fábrica no */
@@ -6497,7 +6586,11 @@ function renderPalTab(tab){
       /* los colores siguen teniendo función gracias a que quedan registrados
          como heredados: se recalcula el mapa sin perder los ya subrayados */
       loadCustomPalettes().forEach(p=>{PALETTES[p.id]=p});
-      (pal.colors||[]).forEach(col=>LEGACY_COLORS.push({c:col.c,t:col.t}));
+      /* sus colores quedan apuntados EN DISCO como retirados: antes esto se
+         hacia solo en memoria y al recargar la pagina dejaban de tener funcion */
+      (pal.colors||[]).forEach(col=>retireColor(col.c,col.t));
+      delete PAL_BASE[pal.id];
+      const ovDel=loadPalOver();if(ovDel[pal.id]){delete ovDel[pal.id];savePalOver(ovDel)}
       rebuildColorRoles();
       if(barTab===pal.id){barTab='pastel';try{localStorage.setItem('lp_bartab',barTab)}catch(e){}buildColorBar()}
       curPalTab='pastel';
@@ -6582,6 +6675,9 @@ document.getElementById('pal-build-save').onclick=()=>{
   }))};
   const all=loadCustomPalettes();all.push(pal);saveCustomPalettes(all);
   PALETTES[id]=pal;
+  /* copia original de la paleta recien creada: es la que permite luego
+     "volver al color original" si le cambias un color con la cuadricula */
+  PAL_BASE[id]=JSON.parse(JSON.stringify(pal));
   rebuildColorRoles();          // sus colores pasan a tener función YA
   nameEl.value='';palBuildDraft=null;
   curPalTab=id;
@@ -6592,6 +6688,122 @@ document.getElementById('pal-build-save').onclick=()=>{
   renderPalTab(id);
   showTip('Paleta "'+label+'" guardada y activada',1800);
 };
+/* ══ CUADRICULA DE COLORES ══
+   La cuadricula no es una lista de codigos escrita a mano: se genera sola a
+   partir de 14 familias (una por columna) y 7 tonos dentro de cada una, del
+   mas fuerte arriba al pastel abajo. Asi no hay colores repetidos y estan
+   todos los tonos posibles sin llenar la pantalla de cuadraditos iguales.
+   ss = cuanto se rebaja el color de la familia (los tierras y los grises son
+   los mismos tonos pero desaturados). */
+const SW_FAMS=[
+  {h:48},{h:32},{h:14},{h:350},{h:330},{h:300},{h:270},
+  {h:225},{h:200},{h:178},{h:140},{h:95},
+  {h:25,ss:.42},    // tierras y marrones
+  {h:220,ss:.10}    // grises
+];
+/* [saturacion, luminosidad] de cada fila: fuerte → intermedio → pastel */
+const SW_TONES=[[92,38],[92,47],[88,56],[85,65],[82,74],[84,83],[90,91]];
+function hsl2hex(h,s,l){
+  s/=100;l/=100;
+  const a=s*Math.min(l,1-l);
+  const f=n=>{
+    const k=(n+h/30)%12;
+    const v=l-a*Math.max(-1,Math.min(k-3,Math.min(9-k,1)));
+    return Math.round(255*v).toString(16).padStart(2,'0').toUpperCase();
+  };
+  return '#'+f(0)+f(8)+f(4);
+}
+let SW_COLORS=null;
+function swatchColors(){
+  if(SW_COLORS)return SW_COLORS;
+  SW_COLORS=[];
+  /* columna a columna: la cuadricula se rellena por columnas (grid-auto-flow) */
+  SW_FAMS.forEach(fam=>SW_TONES.forEach(([s,l])=>{
+    SW_COLORS.push(hsl2hex(fam.h,Math.round(s*(fam.ss??1)),l));
+  }));
+  return SW_COLORS;
+}
+/* etiqueta de un color de la paleta (los huecos libres no tienen categoria) */
+function colLabel(cd){
+  if(!cd)return '';
+  if(cd.t)return (cd.n?cd.n+' · ':'')+cd.t;
+  return cd.n||'Libre';
+}
+
+const modalSw=document.getElementById('modal-swatch');
+const swGrid=document.getElementById('sw-grid'),swHex=document.getElementById('sw-hex');
+const swPrevDot=document.getElementById('sw-prev-dot'),swPrevTxt=document.getElementById('sw-prev-txt');
+let swTarget=null;    // {pal,idx} el subrayador que se esta editando
+let swPick='';        // color elegido, todavia sin guardar
+function buildSwatchGrid(){
+  if(swGrid.childElementCount)return;      // se monta una sola vez
+  swatchColors().forEach(c=>{
+    const b=document.createElement('button');
+    b.className='sw-c';b.style.background=c;b.dataset.c=c;b.title=c;
+    b.onclick=()=>{swPick=c;swHex.value=c;syncSwatch()};
+    swGrid.appendChild(b);
+  });
+}
+function syncSwatch(){
+  swPrevDot.style.background=swPick;
+  swGrid.querySelectorAll('.sw-c').forEach(el=>{
+    el.classList.toggle('on',(el.dataset.c||'').toLowerCase()===(swPick||'').toLowerCase());
+  });
+}
+function openSwatch(palId,idx){
+  const pal=PALETTES[palId];if(!pal)return;
+  const cd=pal.colors[idx];if(!cd)return;
+  swTarget={pal:palId,idx};swPick=cd.c;
+  document.getElementById('sw-title').textContent='Color de: '+colLabel(cd);
+  swPrevTxt.innerHTML='Paleta <b>'+esc(pal.label)+'</b>. Lo que ya tienes subrayado con el color de ahora <b>no cambia</b>: se queda como está y sigue creando sus fichas igual.';
+  swHex.value=cd.c;
+  buildSwatchGrid();syncSwatch();
+  modalSw.classList.remove('hidden');
+}
+swHex.oninput=()=>{
+  let v=swHex.value.trim();
+  if(v&&!v.startsWith('#')){v='#'+v;swHex.value=v}
+  if(/^#[0-9a-fA-F]{6}$/.test(v)){swPick=v.toUpperCase();swHex.style.color='var(--ink)';syncSwatch()}
+  else swHex.style.color='var(--danger)';
+};
+document.getElementById('sw-cancel').onclick=()=>{modalSw.classList.add('hidden');swTarget=null};
+document.getElementById('sw-reset').onclick=()=>{
+  if(!swTarget)return;
+  const base=PAL_BASE[swTarget.pal];
+  const b=base&&base.colors[swTarget.idx];
+  if(!b)return;
+  swPick=b.c;swHex.value=b.c;swHex.style.color='var(--ink)';syncSwatch();
+};
+document.getElementById('sw-ok').onclick=()=>{
+  if(!swTarget){modalSw.classList.add('hidden');return}
+  const nc=(swPick||'').toUpperCase();
+  if(!/^#[0-9A-F]{6}$/.test(nc)){showTip('Código de color no válido: usa #RRGGBB');return}
+  const pal=PALETTES[swTarget.pal],cd=pal.colors[swTarget.idx];
+  const old=cd.c;
+  if(nc.toLowerCase()!==(old||'').toLowerCase()){
+    /* el color que se va conserva su funcion para siempre: los subrayados
+       antiguos tienen que seguir comportandose exactamente igual */
+    retireColor(old,cd.t);
+    const ov=loadPalOver();
+    const base=PAL_BASE[swTarget.pal];
+    const bc=base&&base.colors[swTarget.idx]&&base.colors[swTarget.idx].c;
+    ov[swTarget.pal]=ov[swTarget.pal]||{};
+    /* si vuelve al color de fabrica, se quita el apunte en vez de guardarlo */
+    if(bc&&bc.toLowerCase()===nc.toLowerCase())delete ov[swTarget.pal][swTarget.idx];
+    else ov[swTarget.pal][swTarget.idx]=nc;
+    if(!Object.keys(ov[swTarget.pal]).length)delete ov[swTarget.pal];
+    savePalOver(ov);
+    cd.c=nc;
+    rebuildColorRoles();
+    /* si justo estabas usando ese subrayador, te pasas al color nuevo */
+    if((curColor||'').toLowerCase()===(old||'').toLowerCase())setColor(nc,colLabel(cd));
+    buildColorBar();
+    if(!modalPal.classList.contains('hidden'))renderPalTab(curPalTab);
+    showTip('Color cambiado',1300);
+  }
+  modalSw.classList.add('hidden');swTarget=null;
+};
+
 function toHex6(c){return /^#[0-9a-fA-F]{6}$/.test(c)?c:'#F9D5E5'}
 wheelIn.oninput=()=>{hexIn.value=wheelIn.value.toUpperCase();hexPrev.style.background=wheelIn.value};
 hexIn.oninput=()=>{let v=hexIn.value.trim();if(!v.startsWith('#'))v='#'+v;if(/^#[0-9a-fA-F]{6}$/.test(v)){hexPrev.style.background=v;wheelIn.value=v}};
@@ -6694,6 +6906,23 @@ function cyclePalette(){
   }
   showTip('Paleta: '+PALETTES[barTab].label,1200);
 }
+/* PULSACION LARGA sobre un subrayador de la barra = cambiarle el color.
+   El toque normal tiene que seguir eligiendo el color (es lo que mas se usa en
+   toda la app), asi que la cuadricula solo se abre si mantienes ~600 ms sin
+   mover el dedo: en cuanto arrastras (para desplazar la barra) se cancela. */
+function longPressEdit(btn,idx){
+  let t=null,x0=0,y0=0;
+  const clear=()=>{if(t){clearTimeout(t);t=null}};
+  btn.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='mouse'&&e.button!==0)return;
+    btn._lpFired=false;x0=e.clientX;y0=e.clientY;clear();
+    t=setTimeout(()=>{t=null;btn._lpFired=true;openSwatch(barTab,idx)},600);
+  });
+  btn.addEventListener('pointermove',e=>{
+    if(t&&(Math.abs(e.clientX-x0)>8||Math.abs(e.clientY-y0)>8))clear();
+  });
+  ['pointerup','pointercancel','pointerleave'].forEach(ev=>btn.addEventListener(ev,clear));
+}
 function buildColorBar(){
   colorBar.querySelectorAll('.cchip').forEach(el=>el.remove());
   const cyc=document.createElement('button');cyc.className='cchip';
@@ -6713,10 +6942,16 @@ function buildColorBar(){
   auto.onclick=()=>toggleAutoTheme(auto);
   colorBar.appendChild(auto);
   paintAutoThemeChip(auto);
-  PALETTES[barTab].colors.forEach(cd=>{
+  PALETTES[barTab].colors.forEach((cd,i)=>{
     const b=document.createElement('button');b.className='cchip';b.dataset.c=cd.c;
-    b.innerHTML=`<div class="dot" style="background:${cd.c}"></div><span class="tag">${esc(cd.t)}</span>`;
-    b.onclick=()=>{setColor(cd.c,`${cd.n} · ${cd.t}`);showTip(`${cd.n} · ${cd.t}`,1100)};
+    b.innerHTML=`<div class="dot" style="background:${cd.c}"></div><span class="tag">${esc(cd.t||'')}</span>`;
+    b.onclick=()=>{
+      /* si venimos de una pulsacion larga, ya se ha abierto la cuadricula:
+         ese toque NO debe ademas cambiar el color activo */
+      if(b._lpFired){b._lpFired=false;return}
+      setColor(cd.c,colLabel(cd));showTip(colLabel(cd),1100);
+    };
+    longPressEdit(b,i);
     colorBar.appendChild(b);
   });
   /* chip de FUNCIÓN: al final de la barra, detrás de todos los colores */
@@ -13871,6 +14106,10 @@ const DOC_KEY_PREFIXES=['lp_order_','lp_margin_','lp_nodes_','lp_embeds_','lp_bm
    de seguridad: hasta ver:5 se quedaban fuera y al restaurar en un iPad nuevo
    las paletas que te habias creado desaparecian sin decir nada. */
 const GLOBAL_KEYS=['lp_custompals','lp_toolcfg','lp_color','lp_boldstrength',
+  /* colores que Elena le ha puesto a mano a un subrayador (lp_palover) y
+     colores retirados (lp_retired): los que ya no salen en ninguna paleta pero
+     que lo ya subrayado con ellos sigue necesitando para conservar su funcion */
+  'lp_palover','lp_retired',
   'lp_boldbycolor','lp_bartab','lp_panelwin','lp_panelw','lp_dark','lp_warm','lp_paper','lp_gest',
   'lp_bottommin','lp_lastbackup','lp_autocorr','lp_dicc','lp_diccno','lp_richcols',
   'lp_chuleta',
@@ -17642,6 +17881,7 @@ const MODAL_OK={
   'modal-export-themes':'ext-ok',        // Exportar lo marcado
   'modal-confirm':'modal-confirm-ok',    // Eliminar (es la accion que se pidio)
   'modal-palette':'custom-apply',        // Usar este color (si la pestana Libre esta abierta)
+  'modal-swatch':'sw-ok',                // Guardar el color nuevo del subrayador
   'modal-insert':'ins-blank',            // Hoja en blanco (la opcion por defecto)
   'modal-settings':'set-close',          // solo cierra: no hay nada que confirmar
   'modal-luz':'luz-close',               // igual: el brillo se aplica al vuelo
@@ -17667,6 +17907,7 @@ const MODAL_CANCEL={
   'modal-confirm':'modal-confirm-cancel',
   'modal-insert':'ins-cancel',
   'modal-palette':'pal-close',
+  'modal-swatch':'sw-cancel',
   /* Estos modales solo tienen "Listo"/"Cerrar": no guardan al pulsarlo (los
      ajustes se aplican al vuelo), asi que cerrarlos ES retroceder. */
   'modal-settings':'set-close',
