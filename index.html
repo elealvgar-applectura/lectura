@@ -2511,6 +2511,10 @@ body.fullscreen #gid-bar{bottom:20px}
       <label>Intensidad de la negrita <span id="set-boldstr-val">22%</span></label>
       <input type="range" id="set-boldstr" min="5" max="60" value="22" step="1">
     </div>
+    <div class="set-row" id="set-round-row">
+      <label>Extremos redondeados <span id="set-round-val">recto</span></label>
+      <input type="range" id="set-round" min="0" max="50" value="0" step="1">
+    </div>
     <div class="modal-btns">
       <button class="mbtn ok" id="set-close" style="background:var(--acento)">Listo</button>
     </div>
@@ -2653,7 +2657,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v204'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v205'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -6955,6 +6959,8 @@ const setSizeValEl=document.getElementById('set-size-val'),setOpValEl=document.g
 const setSizeRow=document.getElementById('set-size-row'),setOpRow=document.getElementById('set-op-row');
 const setBoldRow=document.getElementById('set-bold-row'),setBoldEl=document.getElementById('set-bold');
 const setBoldStrEl=document.getElementById('set-boldstr'),setBoldStrVal=document.getElementById('set-boldstr-val');
+const setRoundRow=document.getElementById('set-round-row'),setRoundEl=document.getElementById('set-round');
+const setRoundVal=document.getElementById('set-round-val');
 (function(){
   const sync=()=>{setBoldStrEl.value=Math.round(boldStrength*100);setBoldStrVal.textContent=Math.round(boldStrength*100)+'%'};
   sync();
@@ -6974,17 +6980,28 @@ function openSettings(tool){
   setSizeRow.classList.toggle('hidden',cfg.size===undefined);
   setOpRow.classList.toggle('hidden',cfg.opacity===undefined);
   setBoldRow.classList.toggle('hidden',tool!=='highlight');
+  setRoundRow.classList.toggle('hidden',tool!=='highlight');
   if(cfg.size!==undefined){setSizeEl.value=cfg.size;setSizeValEl.textContent=cfg.size}
   if(cfg.opacity!==undefined){setOpEl.value=cfg.opacity;setOpValEl.textContent=cfg.opacity+'%'}
   if(tool==='highlight'){
     setBoldEl.checked=colorBold(curColor);
     const sw=document.getElementById('set-bold-swatch');if(sw)sw.style.background=curColor;
+    setRoundEl.value=hlRound();setRoundVal.textContent=roundLabel(hlRound());
   }
   modalSet.classList.remove('hidden');drawSetPreview();
 }
 setSizeEl.oninput=()=>{toolCfg[setTool].size=+setSizeEl.value;setSizeValEl.textContent=setSizeEl.value;drawSetPreview();saveToolCfg()};
 setOpEl.oninput=()=>{toolCfg[setTool].opacity=+setOpEl.value;setOpValEl.textContent=setOpEl.value+'%';drawSetPreview();saveToolCfg()};
 setBoldEl.onchange=()=>{setColorBold(curColor,setBoldEl.checked);drawSetPreview()};
+function roundLabel(v){return v<=0?'recto':(v>=48?'del todo redondo':(v>=30?'muy redondeado':(v>=14?'redondeado':'apenas redondeado')))}
+setRoundEl.oninput=()=>{
+  toolCfg.highlight.round=+setRoundEl.value;
+  setRoundVal.textContent=roundLabel(toolCfg.highlight.round);
+  saveToolCfg();drawSetPreview();
+  /* la redondez es como se PINTA, no un dato guardado: se repinta para verla
+     en lo que ya hay subrayado en pantalla */
+  if(typeof repaintBold==='function')repaintBold();
+};
 document.getElementById('set-close').onclick=()=>modalSet.classList.add('hidden');
 function drawSetPreview(){
   const box=document.getElementById('set-preview');const w=box.clientWidth||300,h=box.clientHeight||60;
@@ -6995,15 +7012,15 @@ function drawSetPreview(){
   else if(setTool==='highlight'){
     /* el subrayador se ciñe al renglón: la vista previa muestra la BANDA
        real sobre una línea de texto simulada, no una curva a mano alzada */
-    const rowH=11, f=hlFactor(), bh=Math.max(3,rowH*f);
+    const rowH=11, f=hlFactor(), bh=Math.max(1,rowH*f);
     ctx.globalAlpha=(cfg.opacity||38)/100;ctx.fillStyle=curColor;
     for(let i=0;i<3;i++){
       const cy=16+i*14+2.5;
-      ctx.fillRect(16,cy-bh/2,w-32,bh);
+      fillHlRect(ctx,16,cy-bh/2,w-32,bh);
     }
     ctx.globalAlpha=1;
     ctx.fillStyle='#8A8296';ctx.font='10px sans-serif';
-    ctx.fillText(f<0.75?'fino':(f>1.25?'grueso':'normal'), w-52, h-6);
+    ctx.fillText(f<0.45?'muy fino':(f<0.85?'fino':(f>1.6?'muy grueso':(f>1.15?'grueso':'normal'))), w-58, h-6);
   }
   else{ctx.globalAlpha=(cfg.opacity||100)/100;ctx.strokeStyle=curColor;ctx.lineWidth=cfg.size||3;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(20,h*.65);ctx.quadraticCurveTo(w*.4,h*.15,w-20,h*.55);ctx.stroke()}
   ctx.globalAlpha=1;
@@ -8925,20 +8942,53 @@ function updateGidBar(){
      · grosor alto  → banda generosa que desborda un poco arriba y abajo
    `toolCfg.highlight.size` se mueve en el mismo rango que las demás
    herramientas, así que lo normalizamos a un factor alrededor de 1. */
+/* El mapa anterior se quedaba corto por los dos lados: de 1 a 18 apenas
+   bajaba de 0.48× (todos los "finos" se parecian), y de 47 en adelante el
+   tope de 1.9× dejaba muerto el ultimo tercio de la barra.
+   Ahora la barra entera sirve, con el 18 clavado en 1.0× para que quien lo
+   tuviera en el punto de siempre no note ningun cambio:
+     1  → 0.15×  linea finisima bajo las palabras
+     18 → 1.00×  el de toda la vida (cubre justo el renglon)
+     60 → 2.60×  banda muy generosa
+   Al ser dos tramos rectos, la mitad fina tiene 17 pasos para ella sola. */
 function hlFactor(){
-  const s=(toolCfg.highlight.size||18)/LEGACY;   // tamaño en unidades base
-  /* mapa suave: 0.45× (fino) … 1.0× (normal) … 1.75× (grueso) */
-  const f=0.45+(s/ (18/LEGACY))*0.55;
-  return Math.max(0.35,Math.min(1.9,f));
+  const s=Math.max(1,Math.min(60,toolCfg.highlight.size||18));
+  const f = s<=18 ? 0.15+(s-1)/17*0.85
+                  : 1.00+(s-18)/42*1.60;
+  return Math.max(0.12,Math.min(2.6,f));
 }
 /* caja vertical de la banda para un renglón dado */
 function hlBox(row){
   const f=hlFactor();
-  const h=Math.max(4,row.h*f);
+  /* el suelo era 4, y con un renglon normal (unas 12 unidades) eso cortaba
+     todo lo que bajara de 0.33×: por eso "los finos" no se distinguian */
+  const h=Math.max(1.2,row.h*f);
   /* centrada en la TINTA (rowCentre), no en la caja tipográfica: si no, la
      banda queda montada hacia arriba y tapa el renglón anterior */
   const cy=rowCentre(row);
   return {y:cy-h/2, h};
+}
+
+/* ══ REDONDEZ DE LOS EXTREMOS DEL SUBRAYADO ══
+   0 = como siempre, la banda es un rectangulo con las esquinas rectas.
+   50 = los extremos quedan completamente redondos (forma de pastilla), que es
+   lo que hace un rotulador de verdad al levantarlo.
+   Es un radio en tanto por ciento de la ALTURA de la banda, asi que se ve
+   igual de proporcionado tanto con la banda fina como con la gruesa.
+   No es un dato guardado en cada subrayado, es como se pinta: al cambiarlo se
+   ve tambien en lo que ya estaba subrayado, igual que la intensidad de la
+   negrita. Va en lp_toolcfg, que ya iba en la copia de seguridad. */
+function hlRound(){
+  const v=toolCfg.highlight&&toolCfg.highlight.round;
+  return (v>=0&&v<=50)?v:0;
+}
+/* radio en las mismas unidades que la altura que se le pase */
+function hlRadius(h){return Math.abs(h)*hlRound()/100}
+/* una banda de subrayado, recta o con los extremos redondeados */
+function fillHlRect(ctx,x,y,w,h){
+  const r=hlRadius(h);
+  if(r>0.2){roundRect(ctx,x,y,w,h,r);ctx.fill()}
+  else ctx.fillRect(x,y,w,h);
 }
 
 /* ── Intensidad de la "negrita" bajo el subrayado ──
@@ -8962,6 +9012,12 @@ function paintBoldHL(dctx,src,sx,sy,sw,sh,dx,dy,color,P,op,bold){
 
   dctx.save();
   dctx.setTransform(1,0,0,1,0,0);
+  /* 0) si los extremos van redondeados, se recorta a esa forma y ya no hace
+     falta tocar nada mas: el color, el texto y el halo de la negrita quedan
+     todos dentro de la pastilla. El texto no se pierde por recortarlo, porque
+     debajo esta el mismo texto del PDF sin tocar. */
+  const rad=hlRadius(sh);
+  if(rad>0.5){roundRect(dctx,dx,dy,sw,sh,rad);dctx.clip()}
   /* 1) fondo de color translúcido */
   dctx.globalCompositeOperation='source-over';
   dctx.globalAlpha=op;
@@ -9047,7 +9103,8 @@ function drawAnnotations(ctx,aCv,num,W,H){
 
   (ann.highlights||[]).forEach(h=>{
     const x=Math.min(h.x,h.x+h.w),y=Math.min(h.y,h.y+h.h);
-    const w=Math.abs(h.w),hh=Math.max(Math.abs(h.h),6);
+    /* el suelo era 6, y con eso los subrayados finos se pintaban todos igual */
+    const w=Math.abs(h.w),hh=Math.max(Math.abs(h.h),1.5);
     if(w<1)return;
     if(pdfCv&&pdfCv.width>0){
       try{
@@ -9058,11 +9115,11 @@ function drawAnnotations(ctx,aCv,num,W,H){
         ctx.setTransform(pxs(),0,0,pxs(),0,0);
       }catch(e){
         ctx.save();ctx.globalAlpha=(h.opacity??38)/100;ctx.fillStyle=h.color;
-        ctx.fillRect(x,y,w,hh);ctx.restore();
+        fillHlRect(ctx,x,y,w,hh);ctx.restore();
       }
     }else{
       ctx.save();ctx.globalAlpha=(h.opacity??38)/100;ctx.fillStyle=h.color;
-      ctx.fillRect(x,y,w,hh);ctx.restore();
+      fillHlRect(ctx,x,y,w,hh);ctx.restore();
     }
   });
 
@@ -9781,7 +9838,7 @@ function setupPageEvents(wrap,aCv,nl,num){
     ctx.setTransform(P,0,0,P,0,0);
     ctx.globalAlpha=OPA;
     ctx.fillStyle=curColor;
-    snapBands.forEach(bd=>{ if(bd.w>=2) ctx.fillRect(bd.x,bd.y,bd.w,bd.h) });
+    snapBands.forEach(bd=>{ if(bd.w>=2) fillHlRect(ctx,bd.x,bd.y,bd.w,bd.h) });
     ctx.restore();
     ctx.setTransform(1,0,0,1,0,0);
   };
@@ -20142,7 +20199,7 @@ async function exportAnnotated(){
       if(ann){
         (ann.highlights||[]).forEach(h=>{
           const x=Math.min(h.x,h.x+h.w)*f,y=Math.min(h.y,h.y+h.h)*f;
-          const w=Math.abs(h.w)*f,hh=Math.max(Math.abs(h.h)*f,6*f);
+          const w=Math.abs(h.w)*f,hh=Math.max(Math.abs(h.h)*f,1.5*f);
           if(w<1)return;
           const sx=Math.round(x),sy=Math.round(y);
           const sw=Math.max(1,Math.round(w)),sh=Math.max(1,Math.round(hh));
