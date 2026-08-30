@@ -1516,7 +1516,20 @@ body.cmap-drag-activo{user-select:none;-webkit-user-select:none}
 .glos-manual-add button{padding:10px 12px;background:var(--rosa);border:none;border-radius:10px;color:var(--ink);font-size:14px;font-weight:600;cursor:pointer}
 
 /* fullscreen */
-body.fullscreen #reader-toolbar,body.fullscreen #color-bar,body.fullscreen #reader-bottom{transform:translateY(-100%);opacity:0;pointer-events:none}
+/* ═══ POR QUÉ display:none Y NO transform ═══
+   Antes las tres barras se apartaban con transform:translateY(-100%) y
+   opacity:0. El problema es que un elemento movido con transform SIGUE
+   ocupando su sitio en el diseño: la barra se veía irse, pero dejaba su
+   hueco vacío. Resultado: en pantalla completa quedaban dos franjas en
+   blanco, una arriba (barra de herramientas + barra de colores, unos
+   110px) y otra abajo (la de navegación). No era pantalla completa de
+   verdad.
+   Con display:none las barras desaparecen del diseño y la hoja crece hasta
+   ocupar toda la pantalla. Se pierde la animación de deslizamiento, pero a
+   cambio no sobra ni un pixel. */
+body.fullscreen #reader-toolbar,body.fullscreen #color-bar,body.fullscreen #reader-bottom{display:none}
+/* en pantalla completa tampoco se ve el numerito de versión de la esquina */
+body.fullscreen #ver-badge{display:none}
 body.fullscreen #fs-hint{display:block!important}
 #pencil-badge{position:fixed;bottom:90px;right:16px;background:var(--ink);color:#fff;font-size:12px;border-radius:20px;padding:6px 12px;z-index:998;pointer-events:none;box-shadow:var(--shadow)}
 
@@ -2657,7 +2670,7 @@ body.fullscreen #gid-bar{bottom:20px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
-const APP_VER='v205'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
+const APP_VER='v206'; // ← súbelo en cada despliegue para comprobar que el iPad se ha actualizado
 console.log('LecturaPDF',APP_VER);
 
 /* ══ MARCADOR DE VERSIÓN ══
@@ -17719,7 +17732,15 @@ async function insertRichLink(ed){
 /* ══ FULLSCREEN ══ */
 let fullscreenOn=false;
 const fsHint=document.getElementById('fs-hint');
-document.getElementById('tb-fullscreen').onclick=()=>{fullscreenOn=!fullscreenOn;document.body.classList.toggle('fullscreen',fullscreenOn);if(fullscreenOn)showTip('Desliza desde arriba para salir',2000)};
+document.getElementById('tb-fullscreen').onclick=()=>{
+  fullscreenOn=!fullscreenOn;
+  document.body.classList.toggle('fullscreen',fullscreenOn);
+  /* Al quitar (o devolver) las barras, la zona de lectura cambia de alto:
+     hay que volver a pintar las páginas que ahora caben, o se quedarían
+     huecos en blanco hasta que se hiciera scroll. */
+  setTimeout(renderVisiblePages,60);
+  if(fullscreenOn)showTip('Desliza desde arriba para salir',2000);
+};
 
 /* ══ MÁRGENES AMPLIABLES ══ */
 const modalMargin=document.getElementById('modal-margin');
@@ -17742,10 +17763,10 @@ function applyMargins(){
 mgR.oninput=()=>{mgRVal.textContent=mgR.value+'%';applyMargins()};
 mgB.oninput=()=>{mgBVal.textContent=mgB.value+'%';applyMargins()};
 document.getElementById('mg-close').onclick=()=>modalMargin.classList.add('hidden');
-fsHint.onclick=()=>{fullscreenOn=false;document.body.classList.remove('fullscreen')};
+fsHint.onclick=()=>{fullscreenOn=false;document.body.classList.remove('fullscreen');setTimeout(renderVisiblePages,60)};
 let fsSwY=null;
 document.addEventListener('touchstart',e=>{if(fullscreenOn&&e.touches[0].clientY<30)fsSwY=e.touches[0].clientY},{passive:true});
-document.addEventListener('touchend',e=>{if(fullscreenOn&&fsSwY!==null&&e.changedTouches[0].clientY-fsSwY>50){fullscreenOn=false;document.body.classList.remove('fullscreen')}fsSwY=null},{passive:true});
+document.addEventListener('touchend',e=>{if(fullscreenOn&&fsSwY!==null&&e.changedTouches[0].clientY-fsSwY>50){fullscreenOn=false;document.body.classList.remove('fullscreen');setTimeout(renderVisiblePages,60)}fsSwY=null},{passive:true});
 
 /* ══════════════════════════════════════════════════════════════════
    INSTALAR LA APP (PWA)
@@ -18245,7 +18266,11 @@ window.addEventListener('keydown',e=>{
   /* ═══ 4. PANTALLA COMPLETA → Escape sale ═════════════════════════ */
   if(k==='Escape'&&!typing&&document.body.classList.contains('fullscreen')){
     e.preventDefault();e.stopPropagation();
+    /* faltaba apagar también la variable: si no, el botón de la barra
+       necesitaba dos toques para volver a entrar en pantalla completa. */
+    fullscreenOn=false;
     document.body.classList.remove('fullscreen');
+    setTimeout(renderVisiblePages,60);
     return;
   }
 
